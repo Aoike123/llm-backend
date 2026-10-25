@@ -63,7 +63,7 @@ MCP 不是第二个调度器，也不直接启动 GPU。持久任务服务、同
 
 ## 四、ComfyUI 边界
 
-只保留 7 个 H3 原生模板（含唯一金鱼原版）。不挂载 Wan、Qwen-Image、FLUX 或网关 API 桥接节点，不在画布内跨服务切换模型。
+保留 7 个 H3 原生模板（含唯一金鱼原版）和 3 个 Anima 原生生图模板（同进程原生节点，不经 API 桥接）。不挂载 Wan、Qwen-Image、FLUX 或网关 API 桥接节点，不在画布内跨服务切换模型。
 
 MCP 暴露生图、编辑与视频生成三类工具；视频生成由 `generate_video` 统一入口，底层是专门授权的 H3 原版工作流，其他原生工作流不自动注册。ComfyUI 原生工作流直接通过 8188 的 `/prompt`、`/queue`、`/history`、`/system_stats` 等接口调度和检测。原有 Workbench 同步视频 API 保留兼容，与 MCP 能力清单分开。
 

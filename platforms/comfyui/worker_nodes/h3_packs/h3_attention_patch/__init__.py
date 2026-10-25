@@ -134,5 +134,27 @@ def preprocess_embed_cached(self, embed, device):
 _minimax.MiniMaxQwen3VL.preprocess_embed = preprocess_embed_cached
 logging.info("[h3-attention-patch] reference vision embeddings cached by image content")
 
+
+# --- Anima LLM adapter attention ---------------------------------------------
+# ``comfy.ldm.anima.model.Attention`` calls ``F.scaled_dot_product_attention``
+# directly instead of ComfyUI's selected kernel. On this ROCm 10.0 / gfx1201
+# build the flash and memory-efficient SDPA kernels both fail with
+# ``hipErrorInvalidValue`` (masked and unmasked); only the math backend runs.
+# The adapter attends over text tokens only (a few hundred), so math SDPA is
+# cheap here. The Anima diffusion blocks keep ComfyUI's attention selection.
+from torch.nn.attention import SDPBackend, sdpa_kernel
+from comfy.ldm.anima import model as _anima
+
+_ORIGINAL_ANIMA_ATTENTION = _anima.Attention.forward
+
+
+def anima_attention_forward(self, *args, **kwargs):
+    with sdpa_kernel([SDPBackend.MATH]):
+        return _ORIGINAL_ANIMA_ATTENTION(self, *args, **kwargs)
+
+
+_anima.Attention.forward = anima_attention_forward
+logging.info("[h3-attention-patch] Anima LLM adapter SDPA -> math backend")
+
 NODE_CLASS_MAPPINGS = {}
 NODE_DISPLAY_NAME_MAPPINGS = {}

@@ -1,0 +1,691 @@
+{
+  "last_node_id": 10,
+  "last_link_id": 9,
+  "nodes": [
+    {
+      "id": 1,
+      "type": "UNETLoader",
+      "title": "扩散模型 · Anima",
+      "pos": [
+        60,
+        100
+      ],
+      "size": [
+        320,
+        110
+      ],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "unet_name",
+          "type": "COMBO",
+          "widget": {
+            "name": "unet_name"
+          },
+          "link": null
+        },
+        {
+          "name": "weight_dtype",
+          "type": "COMBO",
+          "widget": {
+            "name": "weight_dtype"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "MODEL",
+          "type": "MODEL",
+          "links": [
+            3
+          ]
+        }
+      ],
+      "color": "#333641",
+      "bgcolor": "#252830",
+      "properties": {
+        "Node name for S&R": "UNETLoader"
+      },
+      "widgets_values": [
+        "anima-turbo-v1.1.safetensors",
+        "default"
+      ]
+    },
+    {
+      "id": 2,
+      "type": "CLIPLoader",
+      "title": "文本编码器 · Qwen3 0.6B",
+      "pos": [
+        60,
+        270
+      ],
+      "size": [
+        320,
+        130
+      ],
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "clip_name",
+          "type": "COMBO",
+          "widget": {
+            "name": "clip_name"
+          },
+          "link": null
+        },
+        {
+          "name": "type",
+          "type": "COMBO",
+          "widget": {
+            "name": "type"
+          },
+          "link": null
+        },
+        {
+          "name": "device",
+          "type": "COMBO",
+          "widget": {
+            "name": "device"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "CLIP",
+          "type": "CLIP",
+          "links": [
+            1,
+            2
+          ]
+        }
+      ],
+      "color": "#333641",
+      "bgcolor": "#252830",
+      "properties": {
+        "Node name for S&R": "CLIPLoader"
+      },
+      "widgets_values": [
+        "qwen_3_06b_base.safetensors",
+        "stable_diffusion",
+        "default"
+      ]
+    },
+    {
+      "id": 3,
+      "type": "VAELoader",
+      "title": "VAE · Qwen-Image",
+      "pos": [
+        60,
+        460
+      ],
+      "size": [
+        320,
+        90
+      ],
+      "flags": {},
+      "order": 2,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "vae_name",
+          "type": "COMBO",
+          "widget": {
+            "name": "vae_name"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "VAE",
+          "type": "VAE",
+          "links": [
+            8
+          ]
+        }
+      ],
+      "color": "#333641",
+      "bgcolor": "#252830",
+      "properties": {
+        "Node name for S&R": "VAELoader"
+      },
+      "widgets_values": [
+        "qwen_image_vae.safetensors"
+      ]
+    },
+    {
+      "id": 6,
+      "type": "EmptyLatentImage",
+      "title": "画布尺寸 · 512²–1536²",
+      "pos": [
+        920,
+        100
+      ],
+      "size": [
+        320,
+        140
+      ],
+      "flags": {},
+      "order": 3,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "width",
+          "type": "INT",
+          "widget": {
+            "name": "width"
+          },
+          "link": null
+        },
+        {
+          "name": "height",
+          "type": "INT",
+          "widget": {
+            "name": "height"
+          },
+          "link": null
+        },
+        {
+          "name": "batch_size",
+          "type": "INT",
+          "widget": {
+            "name": "batch_size"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "LATENT",
+          "type": "LATENT",
+          "links": [
+            6
+          ]
+        }
+      ],
+      "color": "#333641",
+      "bgcolor": "#252830",
+      "properties": {
+        "Node name for S&R": "EmptyLatentImage"
+      },
+      "widgets_values": [
+        1024,
+        1024,
+        1
+      ]
+    },
+    {
+      "id": 4,
+      "type": "CLIPTextEncode",
+      "title": "正向提示词 · 标签或自然语言",
+      "pos": [
+        440,
+        100
+      ],
+      "size": [
+        420,
+        270
+      ],
+      "flags": {},
+      "order": 4,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "text",
+          "type": "STRING",
+          "widget": {
+            "name": "text"
+          },
+          "link": null
+        },
+        {
+          "name": "clip",
+          "type": "CLIP",
+          "link": 1
+        }
+      ],
+      "outputs": [
+        {
+          "name": "CONDITIONING",
+          "type": "CONDITIONING",
+          "links": [
+            4
+          ]
+        }
+      ],
+      "color": "#333641",
+      "bgcolor": "#252830",
+      "properties": {
+        "Node name for S&R": "CLIPTextEncode"
+      },
+      "widgets_values": [
+        "masterpiece, best quality, score_7, safe, 1girl, solo, long silver hair, blue eyes, white hooded cloak, standing on a hill under a starry night sky, wind, looking at viewer, upper body"
+      ]
+    },
+    {
+      "id": 5,
+      "type": "CLIPTextEncode",
+      "title": "负向提示词",
+      "pos": [
+        440,
+        430
+      ],
+      "size": [
+        420,
+        200
+      ],
+      "flags": {},
+      "order": 5,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "text",
+          "type": "STRING",
+          "widget": {
+            "name": "text"
+          },
+          "link": null
+        },
+        {
+          "name": "clip",
+          "type": "CLIP",
+          "link": 2
+        }
+      ],
+      "outputs": [
+        {
+          "name": "CONDITIONING",
+          "type": "CONDITIONING",
+          "links": [
+            5
+          ]
+        }
+      ],
+      "color": "#333641",
+      "bgcolor": "#252830",
+      "properties": {
+        "Node name for S&R": "CLIPTextEncode"
+      },
+      "widgets_values": [
+        "worst quality, low quality, score_1, score_2, score_3, artist name, blurry, jpeg artifacts, chromatic aberration"
+      ]
+    },
+    {
+      "id": 7,
+      "type": "KSampler",
+      "title": "采样 · 步数/CFG/种子/重绘强度",
+      "pos": [
+        1300,
+        100
+      ],
+      "size": [
+        330,
+        320
+      ],
+      "flags": {},
+      "order": 6,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 3
+        },
+        {
+          "name": "seed",
+          "type": "INT",
+          "widget": {
+            "name": "seed"
+          },
+          "link": null
+        },
+        {
+          "name": "steps",
+          "type": "INT",
+          "widget": {
+            "name": "steps"
+          },
+          "link": null
+        },
+        {
+          "name": "cfg",
+          "type": "FLOAT",
+          "widget": {
+            "name": "cfg"
+          },
+          "link": null
+        },
+        {
+          "name": "sampler_name",
+          "type": "COMBO",
+          "widget": {
+            "name": "sampler_name"
+          },
+          "link": null
+        },
+        {
+          "name": "scheduler",
+          "type": "COMBO",
+          "widget": {
+            "name": "scheduler"
+          },
+          "link": null
+        },
+        {
+          "name": "positive",
+          "type": "CONDITIONING",
+          "link": 4
+        },
+        {
+          "name": "negative",
+          "type": "CONDITIONING",
+          "link": 5
+        },
+        {
+          "name": "latent_image",
+          "type": "LATENT",
+          "link": 6
+        },
+        {
+          "name": "denoise",
+          "type": "FLOAT",
+          "widget": {
+            "name": "denoise"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "LATENT",
+          "type": "LATENT",
+          "links": [
+            7
+          ]
+        }
+      ],
+      "color": "#333641",
+      "bgcolor": "#252830",
+      "properties": {
+        "Node name for S&R": "KSampler"
+      },
+      "widgets_values": [
+        20261025,
+        "fixed",
+        10,
+        1.0,
+        "euler",
+        "simple",
+        1.0
+      ]
+    },
+    {
+      "id": 8,
+      "type": "VAEDecode",
+      "title": "VAE 解码 · IMAGE",
+      "pos": [
+        1690,
+        100
+      ],
+      "size": [
+        300,
+        90
+      ],
+      "flags": {},
+      "order": 7,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "samples",
+          "type": "LATENT",
+          "link": 7
+        },
+        {
+          "name": "vae",
+          "type": "VAE",
+          "link": 8
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            9
+          ]
+        }
+      ],
+      "color": "#333641",
+      "bgcolor": "#252830",
+      "properties": {
+        "Node name for S&R": "VAEDecode"
+      },
+      "widgets_values": []
+    },
+    {
+      "id": 9,
+      "type": "SaveImage",
+      "title": "保存与预览 · PNG",
+      "pos": [
+        2050,
+        100
+      ],
+      "size": [
+        420,
+        480
+      ],
+      "flags": {},
+      "order": 8,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 9
+        },
+        {
+          "name": "filename_prefix",
+          "type": "STRING",
+          "widget": {
+            "name": "filename_prefix"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "links": []
+        }
+      ],
+      "color": "#333641",
+      "bgcolor": "#252830",
+      "properties": {
+        "Node name for S&R": "SaveImage"
+      },
+      "widgets_values": [
+        "Anima/原生图像"
+      ]
+    },
+    {
+      "id": 10,
+      "type": "Note",
+      "title": "执行方式与模型挂载",
+      "pos": [
+        440,
+        860
+      ],
+      "size": [
+        730,
+        230
+      ],
+      "flags": {},
+      "order": 9,
+      "mode": 0,
+      "properties": {},
+      "widgets_values": [
+        "原生 Anima（CircleStone Labs / Comfy Org，2B，动漫与插画方向，不擅长写实）：MODEL、CLIP、VAE、CONDITIONING、LATENT 均为原生对象，可替换采样器或接 LoRA。\nTurbo：CFG 1、8–12 步；Aesthetic：CFG 4–5、30–50 步，不使用 score_* 标签。分辨率 512²–1536²。\n提示词：小写 Danbooru 标签用空格代替下划线，画师加 @ 前缀；也可混合自然语言（至少两句）。\n权重：platforms/comfyui/models/anima.lock.json → workspace/data/video/minimax-h3/models。模型为非商用许可，生成图像可商用。"
+      ],
+      "color": "#343943",
+      "bgcolor": "#252830"
+    }
+  ],
+  "links": [
+    [
+      1,
+      2,
+      0,
+      4,
+      1,
+      "CLIP"
+    ],
+    [
+      2,
+      2,
+      0,
+      5,
+      1,
+      "CLIP"
+    ],
+    [
+      3,
+      1,
+      0,
+      7,
+      0,
+      "MODEL"
+    ],
+    [
+      4,
+      4,
+      0,
+      7,
+      6,
+      "CONDITIONING"
+    ],
+    [
+      5,
+      5,
+      0,
+      7,
+      7,
+      "CONDITIONING"
+    ],
+    [
+      6,
+      6,
+      0,
+      7,
+      8,
+      "LATENT"
+    ],
+    [
+      7,
+      7,
+      0,
+      8,
+      0,
+      "LATENT"
+    ],
+    [
+      8,
+      3,
+      0,
+      8,
+      1,
+      "VAE"
+    ],
+    [
+      9,
+      8,
+      0,
+      9,
+      0,
+      "IMAGE"
+    ]
+  ],
+  "groups": [
+    {
+      "title": "01 · 加载模型",
+      "bounding": [
+        35,
+        45,
+        370,
+        530
+      ],
+      "color": "#626878",
+      "font_size": 22,
+      "flags": {}
+    },
+    {
+      "title": "02 · 提示词",
+      "bounding": [
+        415,
+        45,
+        470,
+        610
+      ],
+      "color": "#626878",
+      "font_size": 22,
+      "flags": {}
+    },
+    {
+      "title": "03 · LATENT / 参考图",
+      "bounding": [
+        895,
+        45,
+        370,
+        740
+      ],
+      "color": "#626878",
+      "font_size": 22,
+      "flags": {}
+    },
+    {
+      "title": "04 · 采样",
+      "bounding": [
+        1275,
+        45,
+        380,
+        400
+      ],
+      "color": "#626878",
+      "font_size": 22,
+      "flags": {}
+    },
+    {
+      "title": "05 · 解码与输出",
+      "bounding": [
+        1665,
+        45,
+        830,
+        560
+      ],
+      "color": "#626878",
+      "font_size": 22,
+      "flags": {}
+    }
+  ],
+  "config": {},
+  "extra": {
+    "ds": {
+      "scale": 0.8,
+      "offset": [
+        0,
+        0
+      ]
+    },
+    "workbench": {
+      "id": "anima-turbo-text",
+      "title": "Anima · 文生图（Turbo）"
+    }
+  },
+  "version": 0.4
+}

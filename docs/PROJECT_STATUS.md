@@ -28,7 +28,7 @@
 
 当前保留五个模型服务。MCP 暴露生图、编辑、视频生成（H3 原版工作流，工具名 `generate_video`）和语音生成（`generate_audio`）四类工具，以及任务与作品下载；其他 ComfyUI 工作流使用原生 API，统一检测服务队列与历史；Wan 已下线并删除专用 Docker 镜像。
 
-ComfyUI 只发布 7 个 H3 原生模板，金鱼只保留原版。通用 ComfyUI 工作流通过原生 API 提交；金鱼原版使用专用 MCP 工具，不在 ComfyUI 内调用其他服务 API。详见 [原生工作流](COMFYUI_NATIVE.md)。
+ComfyUI 发布 7 个 H3 原生模板与 3 个 Anima 原生生图模板，金鱼只保留原版。通用 ComfyUI 工作流通过原生 API 提交；金鱼原版使用专用 MCP 工具，不在 ComfyUI 内调用其他服务 API。详见 [原生工作流](COMFYUI_NATIVE.md)。
 
 ## 当前运行策略
 

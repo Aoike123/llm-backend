@@ -2,7 +2,7 @@
 
 唯一实例：`paiton-h3-comfyui-1`，`http://127.0.0.1:8188`。
 
-只保留 H3 原生执行和 7 个模板。Wan 与跨服务 API 桥接已移除；图像生成和跨模型编排通过 API / MCP 完成。Workbench 管理页面不作为 MCP 服务导出。
+保留 H3 原生执行、7 个 H3 模板和 3 个 Anima 原生生图模板。Wan 与跨服务 API 桥接已移除；图像生成和跨模型编排通过 API / MCP 完成。Workbench 管理页面不作为 MCP 服务导出。
 
 ```bash
 ./lab comfyui start

@@ -2,6 +2,33 @@
   "version": 1,
   "workflows": [
     {
+      "id": "anima-turbo-text",
+      "title": "Anima · 文生图（Turbo）",
+      "category": "图像生成",
+      "api": "api/01-image/anima-turbo-text.api.json",
+      "ui": "ui/图像生成/Anima · 文生图（Turbo）.json",
+      "execution": "anima",
+      "note": "动漫/插画；Turbo v1.1，CFG 1、10 步"
+    },
+    {
+      "id": "anima-aesthetic-text",
+      "title": "Anima · 文生图（Aesthetic 质量档）",
+      "category": "图像生成",
+      "api": "api/01-image/anima-aesthetic-text.api.json",
+      "ui": "ui/图像生成/Anima · 文生图（Aesthetic 质量档）.json",
+      "execution": "anima",
+      "note": "Aesthetic v1.1，CFG 4、30 步 er_sde；不使用 score_* 标签"
+    },
+    {
+      "id": "anima-turbo-image",
+      "title": "Anima · 图生图（Turbo）",
+      "category": "图像生成",
+      "api": "api/01-image/anima-turbo-image.api.json",
+      "ui": "ui/图像生成/Anima · 图生图（Turbo）.json",
+      "execution": "anima",
+      "note": "参考图缩放到约 1MP 后重绘，denoise 0.6"
+    },
+    {
       "id": "minimax-h3-text",
       "title": "H3 · 文生视频",
       "category": "视频生成",

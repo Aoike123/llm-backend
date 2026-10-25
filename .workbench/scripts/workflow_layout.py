@@ -20,8 +20,18 @@ WAN={
  '10':(2110,330,360,450,'保存与预览 · MP4'),
 }
 
+ANIMA={
+ '1':(60,100,320,110,'扩散模型 · Anima'), '2':(60,270,320,130,'文本编码器 · Qwen3 0.6B'),
+ '3':(60,460,320,90,'VAE · Qwen-Image'),
+ '4':(440,100,420,270,'正向提示词 · 标签或自然语言'), '5':(440,430,420,200,'负向提示词'),
+ '6':(920,100,320,140,'画布尺寸 · 512²–1536²'), '10':(920,100,320,320,'参考图 · 请替换图片'),
+ '11':(920,480,320,130,'缩放到约 1MP'), '12':(920,670,320,90,'VAE 编码 · LATENT'),
+ '7':(1300,100,330,320,'采样 · 步数/CFG/种子/重绘强度'),
+ '8':(1690,100,300,90,'VAE 解码 · IMAGE'), '9':(2050,100,420,480,'保存与预览 · PNG'),
+}
+
 def arrange(nodes,entry):
-    layout={'h3':H3,'wan':WAN}.get(entry.get('execution'))
+    layout={'h3':H3,'wan':WAN,'anima':ANIMA}.get(entry.get('execution'))
     for node in nodes:
         node['bgcolor']='#252830'
         node['color']='#333641'
@@ -91,6 +101,10 @@ def make_groups(nodes,entry):
         groups=[('01 · 模型与输入',[35,45,380,940]),('02 · 文本条件',[435,45,460,720]),
                 ('03 · LATENT',[915,205,370,340]),('04 · 采样',[1305,45,370,530]),
                 ('05 · 解码',[1695,45,370,240]),('06 · 合成与输出',[2085,45,410,795])]
+    elif model=='anima':
+        groups=[('01 · 加载模型',[35,45,370,530]),('02 · 提示词',[415,45,470,610]),
+                ('03 · LATENT / 参考图',[895,45,370,740]),('04 · 采样',[1275,45,380,400]),
+                ('05 · 解码与输出',[1665,45,830,560])]
     else:
         columns={}
         for n in nodes:columns.setdefault(n['pos'][0],[]).append(n)
@@ -113,6 +127,9 @@ def add_notes(nodes,entry):
     elif mode=='wan':
         text='原生 Wan：加载器分别输出 MODEL、CLIP、VAE；正负条件、采样与解码可单独连接。\n无参考图时选择 (none)；参考首帧不等于任意人物一致性控制。\n权重：workspace/data/video/wan22/models → GPU 容器模型目录；当前模板不使用未验收的 FastWan 三步权重。'
         pos=[1330,860]
+    elif mode=='anima':
+        text='原生 Anima（CircleStone Labs / Comfy Org，2B，动漫与插画方向，不擅长写实）：MODEL、CLIP、VAE、CONDITIONING、LATENT 均为原生对象，可替换采样器或接 LoRA。\nTurbo：CFG 1、8–12 步；Aesthetic：CFG 4–5、30–50 步，不使用 score_* 标签。分辨率 512²–1536²。\n提示词：小写 Danbooru 标签用空格代替下划线，画师加 @ 前缀；也可混合自然语言（至少两句）。\n权重：platforms/comfyui/models/anima.lock.json → workspace/data/video/minimax-h3/models。模型为非商用许可，生成图像可商用。'
+        pos=[440,860]
     else:
         text='图像输入、文本、种子、预览与保存使用 ComfyUI 原生节点。\n标注 API 后端的节点调用当前已验证的优化运行时，不提供 MODEL / LATENT 中间对象。\nFLUX 官方 Paiton 路径为整图生成；Qwen-Image 2.1 的 RGBA / 多参考编辑仍使用专用 API。未伪造模型加载、LoRA 或采样接口。\n挂载详情：docs/COMFYUI_NATIVE.md。'
         pos=[80,max(n['pos'][1]+n['size'][1] for n in nodes)+110]

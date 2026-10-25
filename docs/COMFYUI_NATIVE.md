@@ -6,7 +6,7 @@
 
 ## 工作流
 
-保留 6 个 H3 官方预设模板和 2 个金鱼模板。扩散模型、LoRA、CLIP、VAE、条件、噪声、采样、解码与保存都在同一原生进程执行。
+保留 6 个 H3 官方预设模板、金鱼原版和 3 个 Anima 生图模板（UNETLoader → KSampler → VAEDecode → SaveImage）。扩散模型、LoRA、CLIP、VAE、条件、噪声、采样、解码与保存都在同一原生进程执行。
 
 ```text
 模型加载 → LoRA / 优化 → 条件与 LATENT → 采样

@@ -45,6 +45,25 @@ class TemplateTests(unittest.TestCase):
                 self.assertEqual(graph['202']['class_type'],'MiniMaxH3ReferenceVideoFrames')
                 self.assertEqual(graph['5']['inputs']['ref_videos.ref_video_0'],['202',0])
 
+    def test_anima_templates_use_native_loaders_and_locked_weights(self):
+        entries=[e for e in ENTRIES if e['execution']=='anima']
+        self.assertEqual(len(entries),3)
+        lock=json.loads((BASE.parent/'models/anima.lock.json').read_text())
+        locked={Path(r['destination']).name for r in lock['files']}
+        for entry in entries:
+            graph=json.loads((BASE/entry['api']).read_text())
+            self.assertEqual(entry['category'],'图像生成')
+            self.assertIn(graph['1']['inputs']['unet_name'],locked)
+            self.assertEqual(graph['2']['inputs'],{'clip_name':'qwen_3_06b_base.safetensors','type':'stable_diffusion','device':'default'})
+            self.assertIn(graph['3']['inputs']['vae_name'],locked)
+            self.assertEqual(graph['9']['class_type'],'SaveImage')
+            sampler=graph['7']['inputs']
+            if 'turbo' in graph['1']['inputs']['unet_name']:self.assertEqual((sampler['cfg'],sampler['steps']),(1.0,10))
+            else:self.assertEqual((sampler['cfg'],sampler['steps']),(4.0,30))
+            if entry['id'].endswith('image'):
+                self.assertEqual(sampler['latent_image'],['12',0]);self.assertLess(sampler['denoise'],1)
+            else:self.assertEqual(graph['6']['class_type'],'EmptyLatentImage')
+
     def test_linked_widgets_keep_their_original_serialization_positions(self):
         for name in ('参考视频生视频','图像与视频混合参考'):
             ui=json.loads((BASE/f'ui/视频生成/H3 · {name}.json').read_text())
@@ -54,7 +73,7 @@ class TemplateTests(unittest.TestCase):
             self.assertEqual(links,{'fps'})
 
     def test_categories_are_flat_and_node_boxes_do_not_overlap(self):
-        self.assertEqual({e['category'] for e in ENTRIES},{'视频生成','第三方工作流'})
+        self.assertEqual({e['category'] for e in ENTRIES},{'图像生成','视频生成','第三方工作流'})
         for entry in NATIVE:
             self.assertEqual(len(Path(entry['ui']).parts),3)
             nodes=json.loads((BASE/entry['ui']).read_text())['nodes']
