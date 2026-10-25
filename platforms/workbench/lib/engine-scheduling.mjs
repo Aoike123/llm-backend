@@ -1,4 +1,4 @@
-// One policy for API admission and GPU leases. Turns count actual GPU grants,
+// Batching policy for the single GPU queue. Turns count actual GPU grants,
 // starting after ensure() completes, so cold loading does not consume a turn.
 export class EngineScheduling {
   constructor({minBatchRequests=2,maxBatchRequests=4,maxBatchSeconds=120,maxWaitSeconds=300}={}) {

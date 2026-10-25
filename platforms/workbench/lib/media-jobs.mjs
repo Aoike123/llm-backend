@@ -16,12 +16,13 @@ const VIDEO_TOOL='generate_video';
 const canonicalTool=tool=>tool==='run_goldfish_workflow'?VIDEO_TOOL:tool;
 const isVideoTool=tool=>tool===VIDEO_TOOL||tool==='run_goldfish_workflow';
 import {pause} from './core.mjs';
+import {linkCoordinator} from './access-keys.mjs';
 const terminal=new Set(['succeeded','failed','cancelled','unknown']);
 const needsRecovery=j=>(!terminal.has(j.state)&&!preDispatch.has(j.state))||(j.state==='unknown'&&j.recovery_required!==false);
 const preDispatch=new Set(['queued','preparing','waiting_for_admission','waiting_for_engine']);
 const canonical=v=>JSON.stringify(v&&typeof v==='object'?Array.isArray(v)?v.map(x=>JSON.parse(canonical(x))):Object.fromEntries(Object.keys(v).sort().map(k=>[k,JSON.parse(canonical(v[k]))])):v);
 export class MediaJobs{
-  constructor(store,keys,coordinator,metrics,lifecycle,{execute=executeMedia}={}){Object.assign(this,{store,keys,coordinator,metrics,lifecycle,execute});this.jobs=new Map();this.controllers=new Map();this.workers=new Set();this.pending=Promise.resolve();this.recoveryPending=false;this.stopped=false;this.preparedBytes=0;this.preparationBudget=512*2**20;}
+  constructor(store,keys,coordinator,metrics,lifecycle,{execute=executeMedia}={}){Object.assign(this,{store,keys,coordinator,metrics,lifecycle,execute});if(keys&&coordinator&&!coordinator.keys)linkCoordinator(keys,coordinator);this.jobs=new Map();this.controllers=new Map();this.workers=new Set();this.pending=Promise.resolve();this.recoveryPending=false;this.stopped=false;this.preparedBytes=0;this.preparationBudget=512*2**20;}
   serial(fn){const task=this.pending.then(fn);this.pending=task.catch(()=>{});return task;}
   persist(job){return atomic(join(this.store.jobs,job.job_id,'job.json'),job);}
   async change(job,state,extra={}){return this.serial(async()=>{if(job.state==='cancelled'&&state!=='cancelled')throw fail('Cancelled',409);const next={...job,state,updated_at:new Date().toISOString(),...extra};await this.persist(next);Object.assign(job,next);return job;});}
@@ -171,16 +172,17 @@ export class MediaJobs{
   }
   async run(job){
     const controller=new AbortController();this.controllers.set(job.job_id,controller);
-    let ticket,timer,release,releasePreparation,counted=false,dispatched=false;const started=performance.now();let queue=0;
+    let ticket,timer,releasePreparation,counted=false,dispatched=false;const started=performance.now();let queue=0;
     const check=()=>{if(controller.signal.aborted||job.state==='cancelled')throw fail('Cancelled',409);};
     try{
-      check();await this.change(job,'waiting_for_admission');check();
+      check();
       const key=this.keys.state.keys.find(k=>k.id===job.owner_id&&k.enabled);if(!key)throw fail('API key revoked',401);
-      const enqueuedAt=this.coordinator.clock();release=await this.keys.waitForAdmission(key,{signal:controller.signal,engine:job.engine,enqueuedAt});check();
+      const enqueuedAt=this.coordinator.clock();this.keys.admit(key);
       releasePreparation=await this.reservePreparation(job,controller.signal);check();
       await this.change(job,'preparing');check();const d=await this.payload(job),preparedVideos=job.engine==='h3'?(isVideoTool(job.tool)?(d.reference_videos_b64.length?await prepareH3Videos({...d,preset:'reference',frames:goldfishFrames(d.duration_seconds??10)}):[]):await prepareH3Videos(d)):undefined;check();
       await this.store.quota(256*2**20);await this.change(job,'waiting_for_engine');check();
-      ticket=await this.coordinator.acquire(job.engine,900,job.engine==='tts',job.model,false,{signal:controller.signal,enqueuedAt});
+      // Durable jobs wait as long as the former admission and GPU queues combined.
+      ticket=await this.coordinator.acquire(job.engine,{timeout:1800,profileId:job.model,key:job.owner_id,signal:controller.signal,enqueuedAt});
       timer=setInterval(()=>{try{this.coordinator.renew(ticket.token);}catch{}},30000);check();
       await this.serial(async()=>{check();job.state='dispatching';job.recovery_required=true;job.updated_at=new Date().toISOString();await this.persist(job);dispatched=true;});
       // Persist dispatch BEFORE sending. Lost network responses must never trigger an automatic retry.
@@ -194,7 +196,7 @@ export class MediaJobs{
       // Keep renewing ownership until backend idle even when its HTTP response was lost.
       if(ticket){while(true){try{await this.coordinator.release(ticket.token);break;}catch(e){if(e.message==='Invalid lease token')break;await pause(1000);}}}
       try{if(dispatched)await this.change(job,job.state,{recovery_required:false});}
-      finally{clearInterval(timer);releasePreparation?.();release?.();this.controllers.delete(job.job_id);}
+      finally{clearInterval(timer);releasePreparation?.();this.controllers.delete(job.job_id);}
       if(counted)this.metrics.finish(job.engine,job.state==='succeeded'?'success':'error',(performance.now()-started)/1000,queue);
     }
   }

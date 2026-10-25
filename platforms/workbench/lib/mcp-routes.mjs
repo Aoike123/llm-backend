@@ -99,7 +99,7 @@ export function mcpRoutes(jobs,info,keys,lifecycle){
     if(req.headers['x-workbench-public']==='1')return send(res,404,{error:'Not found'});
     // Internal APIs are for non-browser clients; no ambient local trust or cookie identity.
     if(req.headers.origin)return send(res,403,{error:'Non-browser API only'});
-    const url=new URL(req.url,'http://localhost'),path=url.pathname;let release;
+    const url=new URL(req.url,'http://localhost'),path=url.pathname;
     const signedMatch=/^\/v1\/media\/artifacts\/(artifact_[a-f0-9]{32})\/content$/.exec(path);
     if(signedMatch&&req.method==='GET'&&url.searchParams.get('sig')){
       const found=jobs.findArtifact(signedMatch[1]);
@@ -115,7 +115,7 @@ export function mcpRoutes(jobs,info,keys,lifecycle){
         if(process.env.WORKBENCH_READ_ONLY==='1')throw fail('Preview is read-only',403);
         const event=await jsonBody(req);if(event?.job_id)jobs.get(key.id,event.job_id);await info.event(key.id,event);return send(res,200,{ok:true});
       }
-      release=keys.admit(key,{countConcurrency:false});
+      keys.admit(key);
       if(req.method==='POST'&&(lifecycle.draining||process.env.WORKBENCH_READ_ONLY==='1'))throw fail('Gateway is draining or read-only',503);
       if(path==='/v1/media/assets'&&req.method==='POST'){
         if(req.headers['content-type']!=='application/octet-stream')throw fail('Use application/octet-stream',415);
@@ -142,7 +142,7 @@ export function mcpRoutes(jobs,info,keys,lifecycle){
         }
       }
       return send(res,404,{error:'Unknown media endpoint'});
-    }catch(e){if(e.retryAfterSeconds)res.setHeader('Retry-After',String(e.retryAfterSeconds));return send(res,e.status??400,{error:e.code??e.message});}finally{release?.();}
+    }catch(e){if(e.retryAfterSeconds)res.setHeader('Retry-After',String(e.retryAfterSeconds));return send(res,e.status??400,{error:e.code??e.message});}
   }
   return {admin,media};
 }

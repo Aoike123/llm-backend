@@ -42,7 +42,7 @@ test('queued cancellation is durable and never dispatches; running cancellation 
 });
 test('backend response loss becomes unknown and holds lease until idle',async t=>{
   const f=await fixture(t,async()=>{f.coordinator.backend.idle=async()=>false;throw new Error('connection reset');});
-  const accepted=await f.jobs.create(f.key.id,'generate_image',input);const done=await finished(f.jobs,accepted.job_id);assert.equal(done.state,'unknown');assert.equal(f.coordinator.status().leased,true);assert.equal(f.keys.active,1);
+  const accepted=await f.jobs.create(f.key.id,'generate_image',input);const done=await finished(f.jobs,accepted.job_id);assert.equal(done.state,'unknown');assert.equal(f.coordinator.status().leased,true);assert.equal(f.keys.snapshot().active,1);
   f.coordinator.backend.idle=async()=>true;await Promise.all([...f.jobs.workers]);assert.equal(f.coordinator.status().leased,false);
 });
 test('restart after dispatch blocks model switching and does not retry ambiguous image',async t=>{

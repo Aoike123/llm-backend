@@ -27,7 +27,7 @@ export function handlers(coordinator,metrics,lifecycle,{llmBase='http://127.0.0.
     if(req.headers.origin)return send(res,403,{error:'Local JSON clients only'});
     try {if(process.env.WORKBENCH_READ_ONLY==='1')return send(res,403,{error:'Preview is read-only'});
       const d=await body(req,4096);let result={ok:true};
-      if(path==='/acquire'){coordinator.assertAcceptingRequests();if(lifecycle.draining)return send(res,503,{error:'Scheduler draining'});const timeout=Number(d.timeout??900);if(!Number.isFinite(timeout))throw new Error('Invalid timeout');if(d.model==='llm')coordinator.assertLlmMode(llmProfile(coordinator.selectedLlmMode==='throughput'?'qwen38-27b-w3a4-64k':coordinator.selectedLlmMode==='long-single'?'qwen38-27b-w3a4-256k':'qwen38-27b-w3a4-192k'));result=await coordinator.acquire(d.model,Math.min(900,Math.max(1,timeout)),d.shared,coordinator.selectedLlmMode==='throughput'?'qwen38-27b-w3a4-64k':coordinator.selectedLlmMode==='long-single'?'qwen38-27b-w3a4-256k':'qwen38-27b-w3a4-192k');}
+      if(path==='/acquire'){coordinator.assertAcceptingRequests();if(lifecycle.draining)return send(res,503,{error:'Scheduler draining'});const timeout=Number(d.timeout??900);if(!Number.isFinite(timeout))throw new Error('Invalid timeout');if(d.model==='llm')coordinator.assertLlmMode(llmProfile(coordinator.selectedLlmMode==='throughput'?'qwen38-27b-w3a4-64k':coordinator.selectedLlmMode==='long-single'?'qwen38-27b-w3a4-256k':'qwen38-27b-w3a4-192k'));result=await coordinator.acquire(d.model,{timeout:Math.min(900,Math.max(1,timeout)),exclusive:!d.shared,profileId:coordinator.selectedLlmMode==='throughput'?'qwen38-27b-w3a4-64k':coordinator.selectedLlmMode==='long-single'?'qwen38-27b-w3a4-256k':'qwen38-27b-w3a4-192k'});}
       else if(path==='/renew')coordinator.renew(d.token);
       else if(path==='/release')await coordinator.release(d.token);
       else if(path==='/workflow-event')metrics.workflow(d);
@@ -116,7 +116,7 @@ export function handlers(coordinator,metrics,lifecycle,{llmBase='http://127.0.0.
       if(client.signal.aborted)throw new ApiError('CLIENT_REQUEST_CANCELLED');
       metrics.start(model);counted=true;
       phase='waiting_for_engine';
-      ticket=await coordinator.acquire(model,900,model==='llm',d.model,false,{signal:client.signal,enqueuedAt:admission?.enqueuedAt});
+      ticket=await coordinator.acquire(model,{timeout:admission?.timeout??900,profileId:d.model,key:admission?.key,signal:client.signal,enqueuedAt:admission?.enqueuedAt});
       timer=setInterval(()=>{try{coordinator.renew(ticket.token);}catch{}},30000);
       if(client.signal.aborted)throw new ApiError('CLIENT_REQUEST_CANCELLED');
       queue=(performance.now()-started)/1000;

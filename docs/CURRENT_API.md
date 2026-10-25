@@ -296,9 +296,9 @@ HTTP 状态表示错误类别，`error.code` 表示具体原因；同为 429 的
 | `API_KEY_QUEUE_FULL` | 429 | 当前密钥的等待名额已满 |
 | `GLOBAL_QUEUE_FULL` | 429 | 服务的总等待名额已满 |
 | `ADMISSION_BODY_BUDGET_EXCEEDED` | 429 | 活动/排队生成请求的原始正文预留超过 64 MiB |
-| `ADMISSION_QUEUE_WAIT_TIMEOUT` | 503 | 等待入口执行名额超时，尚未提交引擎 |
+| `ADMISSION_QUEUE_WAIT_TIMEOUT` | 503 | 持有密钥的请求排队超时，尚未提交引擎 |
 | `KV_CAPACITY_WAIT_TIMEOUT` | 429 | 已进入调度，但等待 KV token 容量超时 |
-| `GPU_LEASE_QUEUE_TIMEOUT` | 503 | 等待 GPU 调度租约超时 |
+| `GPU_LEASE_QUEUE_TIMEOUT` | 503 | 本机可信调用排队超时 |
 
 限额响应示例：
 
@@ -306,13 +306,13 @@ HTTP 状态表示错误类别，`error.code` 表示具体原因；同为 429 的
 {"error":{"code":"API_KEY_CONCURRENCY_LIMIT_EXCEEDED","type":"rate_limit_error","message":"当前密钥的并发请求数已达到上限，请等待该密钥的已有请求完成","details":{"current":1,"limit":1}}}
 ```
 
-入口限额与队列已满返回 `details.current`、`details.limit`；并发/队列限制的 `Retry-After` 为建议等待的 5 秒，频率限制则为当前计数窗口剩余秒数（向上取整）。拒绝请求不消耗额度、不进入模型调度。检查顺序为密钥并发、总并发、密钥频率、总频率；同时触发多项时返回最先命中的原因，解除后仍可能命中其他限额。默认并发满时先进入有界等待，只有设置 `maxQueued: 0` 才直接返回并发限制错误。
+入口限额与队列已满返回 `details.current`、`details.limit`；并发/队列限制的 `Retry-After` 为建议等待的 5 秒，频率限制则为当前计数窗口剩余秒数（向上取整）。拒绝请求不消耗额度、不进入模型调度。频率在进入时检查（密钥、全局）；之后入队时检查密钥和全局的「执行中 + 等待中」是否超过「并发 + 等待名额」。默认并发满时先进入有界等待，只有设置 `maxQueued: 0` 才直接返回并发限制错误。
 
-密钥可配置 `maxQueued`（默认 8，范围 0–128）；全局可配置 `maxQueued`（默认 32，范围 0–256）、`queueWaitSeconds`（默认 900，范围 1–900 秒）。管理接口返回全局和各密钥的 `active`、`queued`。入口等待不计执行并发；放行时重新检查密钥状态、并发与频率，再计入 RPM/请求数。提高并发立即尝试放行，停用/删除密钥立即清理该密钥的等待请求。减少队列上限不驱逐已有等待者，只限制新入队请求。
+密钥可配置 `maxQueued`（默认 8，范围 0–128）；全局可配置 `maxQueued`（默认 32，范围 0–256）、`queueWaitSeconds`（默认 900，范围 1–900 秒）。管理接口返回全局和各密钥的 `active`（持有 GPU 租约）、`queued`（排队中）。排队不计执行并发；每次分配前重新检查密钥状态与并发。提高并发立即放行，停用/删除密钥立即清理该密钥的等待请求。减少队列上限不驱逐已有等待者，只限制新入队请求。
 
-密钥入口与 GPU 队列使用同一引擎合批策略，同引擎按到达顺序，跨引擎优先复用当前引擎并受批次、时间和老化限制；配置与状态字段见 [统一引擎调度](MODEL_SCHEDULING.md#统一引擎调度策略)。正文预算错误返回 `details.current_bytes`、`details.limit_bytes`、`details.requested_bytes`。
+所有生成请求只排一个 GPU 队列：跨引擎优先复用当前引擎并受批次、时间和老化限制，同引擎内持有租约最少的密钥优先、再按到达顺序；配置与状态字段见 [统一引擎调度](MODEL_SCHEDULING.md#统一引擎调度策略)。正文预算错误返回 `details.current_bytes`、`details.limit_bytes`、`details.requested_bytes`。
 
-显式密钥或公网访问 `GET /v1/models` 和 `GET /v1/media/models` 时仍鉴权、计 RPM，但不占执行名额；生成与作品下载使用同一有界等待策略。所有引擎继续受单卡调度保护，见 [多人共用](PUBLIC_API.md#多人共用与所有引擎的有界排队)。
+显式密钥或公网访问模型目录、上传与作品下载时仍鉴权、计 RPM，但不占执行名额；只有生成请求进入 GPU 队列。所有引擎继续受单卡调度保护，见 [多人共用](PUBLIC_API.md#多人共用与所有引擎的有界排队)。
 
 拒绝日志为结构化事件 `api_request_rejected`，含原因代码、路径、状态以及限额信息（入口日志含密钥 ID，不记录密钥内容）。入队事件为 `api_request_queued`。连接提前关闭使用独立日志事件 `api_client_disconnected` / `CLIENT_CONNECTION_CLOSED`，记录实际观察到的阶段与已耗时：`reading_request`、`waiting_for_admission`、`waiting_for_engine`、`tokenizing_request`、`waiting_for_kv_capacity`、`generating_response`。入口等待期间断开记录 `CLIENT_REQUEST_CANCELLED` / `waiting_for_admission` 并移除请求；已放行但尚未生成的请求也会退出 GPU/KV 等待，模型加载已开始时先完成加载再释放租约。该事件不证明是客户端超时或隧道故障；连接关闭后也无法再发送 HTTP 错误。生成已开始时，后端任务继续期间保留原并发占用。
 

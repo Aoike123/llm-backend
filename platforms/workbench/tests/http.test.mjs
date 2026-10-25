@@ -155,8 +155,8 @@ test('native workflow events record timing once and preserve active request coun
 test('scheduler timeouts preserve their distinct codes and HTTP statuses',async()=>{
  const s=await setup();
  try{
-  const ticket=await s.c.acquire('llm',2,true);s.backend.capacityTokens=100;
-  const second=await s.c.acquire('llm',2,true);await s.c.reserveTokens(ticket.token,80);
+  const ticket=await s.c.acquire('llm',{timeout:2});s.backend.capacityTokens=100;
+  const second=await s.c.acquire('llm',{timeout:2});await s.c.reserveTokens(ticket.token,80);
   let capacityError;try{await s.c.reserveTokens(second.token,50,0);}catch(error){capacityError=error;}
   assert.equal(capacityError.code,'KV_CAPACITY_WAIT_TIMEOUT');
   s.c.reserveTokens=async()=>{throw capacityError;};
@@ -169,7 +169,7 @@ test('scheduler timeouts preserve their distinct codes and HTTP statuses',async(
    assert.equal(response.status,429);assert.equal((await response.json()).error.code,'KV_CAPACITY_WAIT_TIMEOUT');
   }finally{await close(api.server);await close(upstream.server);}
   const owner=await s.c.acquire('h3');let queueError;
-  try{await s.c.acquire('llm',0);}catch(error){queueError=error;}
+  try{await s.c.acquire('llm',{timeout:0,exclusive:true});}catch(error){queueError=error;}
   assert.equal(queueError.code,'GPU_LEASE_QUEUE_TIMEOUT');assert.equal(s.c.status().queued,0);
   s.c.acquire=async()=>{throw queueError;};
   const response=await post(s.api.base,'/v1/chat/completions',{model:'qwen38-27b-w3a4',messages:[{}]});

@@ -44,7 +44,7 @@ const refresh=setInterval(async()=>{
 async function stop(){
   if(lifecycle.draining)return;lifecycle.draining=true;mediaJobs.stopped=true;clearInterval(refresh);
   await Promise.all([...mediaJobs.workers]);await mediaJobs.pending;await mcpInfo.pending;
-  while(coordinator.owner||coordinator.switching||coordinator.queue.length||accessKeys.active||accessKeys.queue.length||accessKeys.preparing.size){await coordinator.recover();await pause(1000);}
+  while(coordinator.owner||coordinator.switching||coordinator.queue.length||accessKeys.preparing.size){await coordinator.recover();await pause(1000);}
   await Promise.all(servers.map(s=>new Promise(r=>{s.close(r);s.closeIdleConnections();s.closeAllConnections();})));await releaseLock();process.exit(0);
 }
 process.on('SIGTERM',stop);process.on('SIGINT',stop);

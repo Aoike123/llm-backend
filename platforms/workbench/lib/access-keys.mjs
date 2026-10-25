@@ -11,10 +11,12 @@ const requestLimits=value=>({maxConcurrent:integer(value.maxConcurrent,1,32,'并
 const keyLimits=value=>({...requestLimits(value),maxQueued:integer(value.maxQueued??8,0,128,'密钥等待名额')});
 const settings=value=>({...requestLimits(value),maxQueued:integer(value.maxQueued??32,0,256,'总等待名额'),queueWaitSeconds:integer(value.queueWaitSeconds??900,1,900,'最长排队秒数')});
 const record=(secret,label,limits)=>({id:randomUUID(),name:name(label),hash:hash(secret),preview:secret.slice(0,12)+'…'+secret.slice(-4),enabled:true,...keyLimits(limits),createdAt:new Date().toISOString()});
-const concurrencyErrors=new Set(['API_KEY_CONCURRENCY_LIMIT_EXCEEDED','GLOBAL_CONCURRENCY_LIMIT_EXCEEDED']);
 
 export class AccessKeys {
-  constructor(file,state){this.file=file;this.state=state;this.usage=new Map();this.active=0;this.queue=[];this.preparing=new Map();this.preparedBytes=0;this.clock=()=>performance.now()/1000;this.drainingQueue=false;this.window={start:0,count:0};this.pending=Promise.resolve();this.startedAt=new Date().toISOString();}
+  // Keys authenticate, count request rate and bound prepared bodies. Concurrency
+  // and queueing belong to the GPU coordinator, which reads limits() and
+  // settings() and reports activity back for the console.
+  constructor(file,state){this.file=file;this.state=state;this.usage=new Map();this.preparing=new Map();this.preparedBytes=0;this.clock=()=>performance.now()/1000;this.window={start:0,count:0};this.pending=Promise.resolve();this.startedAt=new Date().toISOString();this.activity=()=>({active:0,queued:0,byKey:{}});this.onChange=()=>{};}
   static async open(file,{legacyFile,defaults={maxConcurrent:8,requestsPerMinute:60}}={}){
     let state;
     try{state=JSON.parse(await readFile(file,'utf8'));}
@@ -40,7 +42,9 @@ export class AccessKeys {
     const tmp=this.file+'.'+randomUUID()+'.tmp';
     await writeFile(tmp,JSON.stringify(state,null,2)+'\n',{mode:0o600});await rename(tmp,this.file);
   }
-  snapshot(){return {settings:this.state.settings,active:this.active,queued:this.queue.length,prepared_body_bytes:this.preparedBytes,prepared_body_budget_bytes:64*2**20,startedAt:this.startedAt,keys:this.state.keys.map(({hash:_,...key})=>({...key,...(this.usage.get(key.id)??{active:0,requests:0,lastUsedAt:null}),queued:this.queue.filter(job=>job.key.id===key.id).length})).map(({window:_,...key})=>key)};}
+  limits(id){const key=this.state.keys.find(k=>k.id===id&&k.enabled);return key?{maxConcurrent:key.maxConcurrent,maxQueued:key.maxQueued}:null;}
+  settings(){return this.state.settings;}
+  snapshot(){const activity=this.activity();return {settings:this.state.settings,active:activity.active,queued:activity.queued,prepared_body_bytes:this.preparedBytes,prepared_body_budget_bytes:64*2**20,startedAt:this.startedAt,keys:this.state.keys.map(({hash:_,...key})=>({...key,...(this.usage.get(key.id)??{requests:0,lastUsedAt:null}),active:activity.byKey[key.id]?.active??0,queued:activity.byKey[key.id]?.queued??0})).map(({window:_,...key})=>key)};}
   mutate(input){
     const run=async()=>{
       const next=structuredClone(this.state);let secret;
@@ -61,7 +65,7 @@ export class AccessKeys {
           if(input.maxQueued!==undefined)key.maxQueued=integer(input.maxQueued,0,128,'密钥等待名额');
         }else throw new Error('未知操作');
       }
-      await this.save(next);this.state=next;this.drainQueue();return {...this.snapshot(),...(secret?{secret}:{} )};
+      await this.save(next);this.state=next;this.onChange();return {...this.snapshot(),...(secret?{secret}:{} )};
     };
     const task=this.pending.then(run);this.pending=task.catch(()=>{});return task;
   }
@@ -70,49 +74,18 @@ export class AccessKeys {
     const candidate=Buffer.from(hash(match[1]),'hex');
     return this.state.keys.find(k=>k.enabled&&timingSafeEqual(candidate,Buffer.from(k.hash,'hex')))??null;
   }
-  checkAdmission(key,{countConcurrency=true}={}){
+  // Rate limits only; the coordinator decides when a request may run.
+  admit(key){
     // Fetch the current record so a revoked or edited key cannot use stale settings.
-    key=this.state.keys.find(k=>k.id===key.id&&k.enabled);if(!key)throw new ApiError('API_KEY_INVALID');
-    const now=Date.now(),usage=this.usage.get(key.id)??{active:0,requests:0,lastUsedAt:null,window:{start:now,count:0}};
+    key=this.state.keys.find(k=>k.id===key?.id&&k.enabled);if(!key)throw new ApiError('API_KEY_INVALID');
+    const now=Date.now(),usage=this.usage.get(key.id)??{requests:0,lastUsedAt:null,window:{start:now,count:0}};
     if(now-this.window.start>=60000)this.window={start:now,count:0};
     if(now-usage.window.start>=60000)usage.window={start:now,count:0};
-    // Prefer key-specific limits when several limits are reached together.
     const rejectLimit=(code,current,limit,retryAfterSeconds)=>{throw new ApiError(code,{details:{current,limit},retryAfterSeconds});};
-    if(countConcurrency&&usage.active>=key.maxConcurrent)rejectLimit('API_KEY_CONCURRENCY_LIMIT_EXCEEDED',usage.active,key.maxConcurrent,5);
-    if(countConcurrency&&this.active>=this.state.settings.maxConcurrent)rejectLimit('GLOBAL_CONCURRENCY_LIMIT_EXCEEDED',this.active,this.state.settings.maxConcurrent,5);
     if(usage.window.count>=key.requestsPerMinute)rejectLimit('API_KEY_REQUEST_RATE_LIMIT_EXCEEDED',usage.window.count,key.requestsPerMinute,Math.max(1,Math.ceil((usage.window.start+60000-now)/1000)));
     if(this.window.count>=this.state.settings.requestsPerMinute)rejectLimit('GLOBAL_REQUEST_RATE_LIMIT_EXCEEDED',this.window.count,this.state.settings.requestsPerMinute,Math.max(1,Math.ceil((this.window.start+60000-now)/1000)));
-    return {key,usage,now};
-  }
-  admit(key,{countConcurrency=true}={}){
-    const {usage,now}=this.checkAdmission(key,{countConcurrency});
-    if(countConcurrency){this.active++;usage.active++;}usage.requests++;usage.lastUsedAt=new Date(now).toISOString();usage.window.count++;this.window.count++;this.usage.set(key.id,usage);
-    let released=false;return ()=>{if(released)return;released=true;if(countConcurrency){this.active--;usage.active--;this.drainQueue();}};
-  }
-  async waitForAdmission(key,{signal,onQueued,engine,enqueuedAt=this.clock()}={}){
-    if(signal?.aborted)throw new ApiError('CLIENT_REQUEST_CANCELLED');
-    // Both queues select by engine; keys without a free slot cannot block eligible keys.
-    this.drainQueue();
-    let blocked;
-    try{return this.admit(key);}catch(error){if(!concurrencyErrors.has(error.code))throw error;blocked=error;}
-    key=this.state.keys.find(item=>item.id===key.id&&item.enabled);
-    if(!key)throw new ApiError('API_KEY_INVALID');
-    const limits=this.state.settings;
-    if(!key.maxQueued||!limits.maxQueued)throw blocked;
-    const queued=this.queue.filter(job=>job.key.id===key.id).length;
-    if(queued>=key.maxQueued)throw new ApiError('API_KEY_QUEUE_FULL',{details:{current:queued,limit:key.maxQueued},retryAfterSeconds:5});
-    if(this.queue.length>=limits.maxQueued)throw new ApiError('GLOBAL_QUEUE_FULL',{details:{current:this.queue.length,limit:limits.maxQueued},retryAfterSeconds:5});
-    return new Promise((resolve,reject)=>{
-      const job={key,engine,enqueuedAt,settle:(error,release)=>{
-        const index=this.queue.indexOf(job);if(index<0)return;
-        this.queue.splice(index,1);clearTimeout(job.timer);signal?.removeEventListener('abort',cancel);
-        if(error)reject(error);else resolve(release);
-      }};
-      const cancel=()=>job.settle(new ApiError('CLIENT_REQUEST_CANCELLED'));
-      job.timer=setTimeout(()=>job.settle(new ApiError('ADMISSION_QUEUE_WAIT_TIMEOUT',{details:{wait_seconds:limits.queueWaitSeconds},retryAfterSeconds:5})),limits.queueWaitSeconds*1000);
-      this.queue.push(job);signal?.addEventListener('abort',cancel,{once:true});
-      onQueued?.({queued,wait_seconds:limits.queueWaitSeconds});
-    });
+    usage.requests++;usage.lastUsedAt=new Date(now).toISOString();usage.window.count++;this.window.count++;this.usage.set(key.id,usage);
+    return key;
   }
   reservePreparation(key,contentLength){
     // Admission needs a validated engine from JSON. Bound both in-flight body
@@ -127,23 +100,10 @@ export class AccessKeys {
     let released=false;return ()=>{if(released)return;released=true;this.preparedBytes-=bytes;
       const remaining=this.preparing.get(key.id)-1;if(remaining)this.preparing.set(key.id,remaining);else this.preparing.delete(key.id);};
   }
+}
 
-  drainQueue(){
-    if(this.drainingQueue)return;
-    this.drainingQueue=true;
-    try{
-      while(this.queue.length){
-        const eligible=[];
-        for(const job of [...this.queue]){
-          try{this.checkAdmission(job.key);eligible.push(job);}
-          catch(error){if(!concurrencyErrors.has(error.code))job.settle(error);}
-        }
-        if(!eligible.length)break;
-        const job=this.selectWaitingRequest?.(eligible)??eligible[0];
-        try{job.settle(null,this.admit(job.key));}catch(error){job.settle(error);}
-      }
-    }finally{this.drainingQueue=false;}
-  }
+export function linkCoordinator(store,coordinator){
+  coordinator.keys=store;store.clock=coordinator.clock;store.activity=()=>coordinator.keyActivity();store.onChange=()=>coordinator.pump();
 }
 
 function json(res,status,value){res.writeHead(status,{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store'});res.end(JSON.stringify(value));}
@@ -167,7 +127,7 @@ export function keyManagement(store){
 // The public reverse proxy sets this header. Local trusted integrations keep their
 // original access; explicitly supplied keys use the same policy on either route.
 export function secureApi(api,store,{coordinator}={}){
-  if(coordinator){coordinator.admissionQueue=()=>store.queue;store.clock=coordinator.clock;store.selectWaitingRequest=jobs=>coordinator.selectWaitingRequest(jobs);}
+  if(coordinator)linkCoordinator(store,coordinator);
   return async(req,res)=>{
     const path=new URL(req.url,'http://localhost').pathname;
     if(req.headers['x-workbench-public']==='1'&&!publicPaths.has(path)&&!/^\/artifacts\/[a-f0-9]{32}\.mp4$/.test(path))return json(res,404,{error:'Not found'});
@@ -175,26 +135,20 @@ export function secureApi(api,store,{coordinator}={}){
     const auth=req.headers.authorization,required=req.headers['x-workbench-public']==='1'||(auth&&auth!=='Bearer local');
     if(!protectedPath||!required||req.method==='OPTIONS')return api(req,res);
     const key=store.authenticate(auth),enqueuedAt=store.clock();
-    let release,releasePreparation,taskDone=false,responseDone=false;
-    const waiting=new AbortController(),cancelWaiting=()=>waiting.abort();
-    const complete=()=>{if(taskDone&&responseDone)release?.();};
-    const responded=()=>{responseDone=true;cancelWaiting();complete();};
-    res.once('finish',responded);res.once('close',responded);
-    const admit=async(engine,signal=waiting.signal)=>{
-      release=await store.waitForAdmission(key,{signal,engine,enqueuedAt,onQueued:()=>console.info(JSON.stringify({event:'api_request_queued',key_id:key.id,path,engine}))});
-      return {enqueuedAt};
-    };
+    let releasePreparation;
+    // Counts the request rate; the handler then queues on the coordinator under this key.
+    const admit=async(engine)=>{store.admit(key);return {key:key.id,enqueuedAt,timeout:store.settings().queueWaitSeconds};};
     try{
       if(!key)throw new ApiError(auth?'API_KEY_INVALID':'API_KEY_REQUIRED');
       const discovery=req.method==='GET'&&['/v1/models','/v1/media/models'].includes(path);
       const inference=coordinator&&req.method==='POST'&&publicPaths.has(path)&&!discovery;
       if(inference){
         releasePreparation=store.reservePreparation(key,req.headers['content-length']);
-        // handlers validates and identifies every engine before joining the same
-        // admission policy. The raw body is consumed only once.
+        // handlers validates and identifies the engine before queueing on the
+        // coordinator under this key. The raw body is consumed only once.
         return await api(req,res,{admit,keyId:key.id});
       }
-      if(discovery)release=store.admit(key,{countConcurrency:false});else await admit();
+      store.admit(key);
       if(res.destroyed)return;
       return await api(req,res);
     }catch(error){
@@ -205,7 +159,7 @@ export function secureApi(api,store,{coordinator}={}){
       console.warn(JSON.stringify({event:'api_request_rejected',code:error.code,status:error.status,path,key_id:key?.id,...error.details,retry_after_seconds:error.retryAfterSeconds}));
       if(!res.destroyed)return json(res,error.status,error.toJSON());
     }finally{
-      taskDone=true;releasePreparation?.();if(res.writableFinished||res.destroyed)responseDone=true;complete();
+      releasePreparation?.();
     }
   };
 }

@@ -30,9 +30,9 @@ test('aged queues do not cause one-request engine ping-pong; next turn starts af
 test('all five engines group alternating work while preserving each engine FIFO',async()=>{
  const models=['llm','qwen-image','flux','h3','wan'],order=[],switches=[];
  const backend={models:Object.fromEntries(models.map(m=>[m,[]])),async ensure(model){if(switches.at(-1)!==model)switches.push(model);},async idle(){return true;}};
- const c=new Coordinator(backend),hold=await c.acquire('llm',3);
+ const c=new Coordinator(backend),hold=await c.acquire('llm',{timeout:3,exclusive:true});
  const input=['flux','llm','h3','flux','wan','h3','qwen-image','wan','qwen-image'];
- const pending=input.map((model,index)=>c.acquire(model,4).then(async ticket=>{order.push([model,index]);await c.release(ticket.token);}));
+ const pending=input.map((model,index)=>c.acquire(model,{timeout:4,exclusive:model==='llm'}).then(async ticket=>{order.push([model,index]);await c.release(ticket.token);}));
  await pause(10);await c.release(hold.token);await Promise.all(pending);
  assert.deepEqual(order.map(([m])=>m),['llm','flux','flux','h3','h3','wan','wan','qwen-image','qwen-image']);
  assert.deepEqual(switches,['llm','flux','h3','wan','qwen-image']);
@@ -41,9 +41,9 @@ test('all five engines group alternating work while preserving each engine FIFO'
 test('batch limit drains active shared leases before switching; busy lease stays protected',async()=>{
  let busy=false;const calls=[],backend={models:{llm:[],flux:[]},async ensure(m){calls.push(m);},async idle(){return !busy;}};
  const c=new Coordinator(backend,{engineScheduling:{minBatchRequests:1,maxBatchRequests:2}});
- const a=await c.acquire('llm',3,true),b=await c.acquire('llm',3,true),order=[];
- const other=c.acquire('flux',3).then(async ticket=>{order.push('flux');await c.release(ticket.token);});
- const same=c.acquire('llm',3,true).then(async ticket=>{order.push('llm');await c.release(ticket.token);});
+ const a=await c.acquire('llm',{timeout:3}),b=await c.acquire('llm',{timeout:3}),order=[];
+ const other=c.acquire('flux',{timeout:3}).then(async ticket=>{order.push('flux');await c.release(ticket.token);});
+ const same=c.acquire('llm',{timeout:3}).then(async ticket=>{order.push('llm');await c.release(ticket.token);});
  await pause(20);assert.equal(c.status().queued,2);assert.equal(c.status().engine_scheduling.reason,'batch_request_limit');
  await c.release(a.token);busy=true;await assert.rejects(c.release(b.token),/busy/);await pause(20);assert.deepEqual(calls,['llm']);
  busy=false;await c.release(b.token);await Promise.all([other,same]);assert.deepEqual(order,['flux','llm']);

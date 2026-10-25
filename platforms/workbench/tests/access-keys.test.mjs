@@ -19,23 +19,21 @@ test('legacy import is one-time; secrets and hashes never appear in listings',as
   const reopened=await AccessKeys.open(t.file,{legacyFile:join(t.dir,'legacy')});assert.equal(reopened.authenticate('Bearer '+legacy),null);assert.ok(reopened.authenticate('Bearer '+result.secret));
  }finally{await t.close();}
 });
-test('key concurrency is isolated, changes take effect immediately and global limits apply',async()=>{
+test('limit changes and revocation take effect immediately for the coordinator',async()=>{
  const t=await store();try{
   const s=await AccessKeys.open(t.file),a=await create(s,'Alice'),b=await create(s,'Bob');
   const ak=s.authenticate('Bearer '+a.secret),bk=s.authenticate('Bearer '+b.secret);
-  const release=s.admit(ak);assert.ok(release);assert.throws(()=>s.admit(ak),{code:'API_KEY_CONCURRENCY_LIMIT_EXCEEDED'});
-  const releaseBob=s.admit(bk);assert.ok(releaseBob);
-  await s.mutate({action:'update',id:ak.id,maxConcurrent:2});const release2=s.admit(ak);assert.ok(release2);
-  releaseBob();await s.mutate({action:'settings',maxConcurrent:2,requestsPerMinute:60});assert.throws(()=>s.admit(bk),{code:'GLOBAL_CONCURRENCY_LIMIT_EXCEEDED'});
-  release();release();release2();releaseBob();assert.equal(s.snapshot().active,0);
-  await s.mutate({action:'update',id:ak.id,enabled:false});assert.equal(s.authenticate('Bearer '+a.secret),null);assert.throws(()=>s.admit(ak),{code:'API_KEY_INVALID'});
+  assert.deepEqual(s.limits(ak.id),{maxConcurrent:1,maxQueued:0});
+  await s.mutate({action:'update',id:ak.id,maxConcurrent:2});assert.deepEqual(s.limits(ak.id),{maxConcurrent:2,maxQueued:0});
+  await s.mutate({action:'settings',maxConcurrent:2,requestsPerMinute:60});assert.equal(s.settings().maxConcurrent,2);
+  await s.mutate({action:'update',id:ak.id,enabled:false});assert.equal(s.authenticate('Bearer '+a.secret),null);assert.equal(s.limits(ak.id),null);assert.throws(()=>s.admit(ak),{code:'API_KEY_INVALID'});
   await s.mutate({action:'update',id:ak.id,enabled:true});assert.ok(s.authenticate('Bearer '+a.secret));
-  await s.mutate({action:'delete',id:bk.id});assert.equal(s.authenticate('Bearer '+b.secret),null);
+  await s.mutate({action:'delete',id:bk.id});assert.equal(s.authenticate('Bearer '+b.secret),null);assert.equal(s.limits(bk.id),null);
  }finally{await t.close();}
 });
 test('per-key request frequency, persistence and invalid updates',async()=>{
  const t=await store();try{
-  const s=await AccessKeys.open(t.file),r=await create(s,'limited',{requestsPerMinute:1});const key=s.authenticate('Bearer '+r.secret);s.admit(key)();assert.throws(()=>s.admit(key),{code:'API_KEY_REQUEST_RATE_LIMIT_EXCEEDED'});
+  const s=await AccessKeys.open(t.file),r=await create(s,'limited',{requestsPerMinute:1});const key=s.authenticate('Bearer '+r.secret);s.admit(key);assert.throws(()=>s.admit(key),{code:'API_KEY_REQUEST_RATE_LIMIT_EXCEEDED'});
   await assert.rejects(s.mutate({action:'update',id:key.id,maxConcurrent:0}));await assert.rejects(create(s,'bad',{maxConcurrent:1.5}));
   await Promise.all([s.mutate({action:'update',id:key.id,name:'renamed'}),s.mutate({action:'update',id:key.id,maxConcurrent:3})]);
   const reopened=await AccessKeys.open(t.file);assert.equal(reopened.snapshot().keys[0].name,'renamed');assert.equal(reopened.snapshot().keys[0].maxConcurrent,3);
@@ -53,15 +51,6 @@ test('single original API preserves trusted local calls and protects all public 
   assert.equal(s.snapshot().keys[0].requests,1);
  }finally{if(server)await server.close();await t.close();}
 });
-test('disconnect cannot bypass per-key concurrency while backend work continues',async()=>{
- const t=await store();let server,finish;const gate=new Promise(r=>finish=r);try{
-  const s=await AccessKeys.open(t.file),r=await create(s),headers={Authorization:'Bearer '+r.secret,'X-Workbench-Public':'1'};
-  server=await listen(secureApi(async(req,res)=>{res.writeHead(200,{'Content-Type':'text/event-stream'});res.write('data: hello\n\n');await gate;if(!res.destroyed)res.end('data: [DONE]\n\n');},s));
-  const response=await fetch(server.base+'/v1/chat/completions',{headers});const reader=response.body.getReader();assert.match(new TextDecoder().decode((await reader.read()).value),/hello/);await reader.cancel();
-  assert.equal((await fetch(server.base+'/v1/chat/completions',{headers})).status,429);assert.equal(s.snapshot().active,1);
-  finish();for(let i=0;i<50&&s.snapshot().active;i++)await new Promise(r=>setTimeout(r,10));assert.equal(s.snapshot().active,0);
- }finally{finish();if(server)await server.close();await t.close();}
-});
 test('management is local-only, same-origin and never returns an existing secret',async()=>{
  const t=await store();let server;try{
   const s=await AccessKeys.open(t.file);server=await listen(keyManagement(s));
@@ -77,20 +66,18 @@ test('management is local-only, same-origin and never returns an existing secret
  }finally{if(server)await server.close();await t.close();}
 });
 
-test('public admission errors identify each limit, preserve counters and never expose credentials',async t=>{
+test('public rate-limit errors identify each limit, preserve counters and never expose credentials',async t=>{
  const logs=[];t.mock.method(console,'warn',value=>logs.push(JSON.parse(value)));
  const cases=[
-  {code:'API_KEY_CONCURRENCY_LIMIT_EXCEEDED',keyLimits:{maxConcurrent:1},hold:true,sameKey:true},
-  {code:'GLOBAL_CONCURRENCY_LIMIT_EXCEEDED',globalLimits:{maxConcurrent:1,requestsPerMinute:60},hold:true},
   {code:'API_KEY_REQUEST_RATE_LIMIT_EXCEEDED',keyLimits:{requestsPerMinute:1},sameKey:true},
   {code:'GLOBAL_REQUEST_RATE_LIMIT_EXCEEDED',globalLimits:{maxConcurrent:8,requestsPerMinute:1}},
  ];
  for(const scenario of cases){
-  const temp=await store();let server,release;
+  const temp=await store();let server;
   try{
    const s=await AccessKeys.open(temp.file),a=await create(s,'Alice',scenario.keyLimits),b=await create(s,'Bob');
    if(scenario.globalLimits)await s.mutate({action:'settings',...scenario.globalLimits});
-   const key=s.authenticate('Bearer '+a.secret);release=s.admit(key);if(!scenario.hold)release();
+   const key=s.authenticate('Bearer '+a.secret);s.admit(key);
    const before=s.snapshot();let backendCalls=0;
    server=await listen(secureApi(async(req,res)=>{backendCalls++;res.end('ok');},s));
    const secret=scenario.sameKey?a.secret:b.secret;
@@ -98,15 +85,15 @@ test('public admission errors identify each limit, preserve counters and never e
    assert.equal(response.status,429);const body=await response.json();
    assert.equal(body.error.code,scenario.code);assert.equal(body.error.type,'rate_limit_error');
    assert.deepEqual(body.error.details,{current:1,limit:1});
-   const retryAfter=Number(response.headers.get('retry-after'));if(scenario.hold)assert.equal(retryAfter,5);else assert.ok(retryAfter>=1&&retryAfter<=60);
+   const retryAfter=Number(response.headers.get('retry-after'));assert.ok(retryAfter>=1&&retryAfter<=60);
    assert.equal(backendCalls,0);assert.deepEqual(s.snapshot(),before);
    assert.equal(logs.at(-1).code,scenario.code);
    assert.ok(!JSON.stringify(logs).includes(secret));assert.ok(!JSON.stringify(body).includes(secret));
-   // Releasing concurrent work or resetting the frequency window permits new requests.
-   release();s.window.start-=60001;for(const usage of s.usage.values())usage.window.start-=60001;
+   // Resetting the frequency window permits new requests.
+   s.window.start-=60001;for(const usage of s.usage.values())usage.window.start-=60001;
    const retry=await fetch(server.base+'/v1/chat/completions',{headers:{Authorization:'Bearer '+secret,'X-Workbench-Public':'1'}});
    assert.equal(retry.status,200);await retry.text();assert.equal(backendCalls,1);
-  }finally{release?.();if(server)await server.close();await temp.close();}
+  }finally{if(server)await server.close();await temp.close();}
  }
 });
 
