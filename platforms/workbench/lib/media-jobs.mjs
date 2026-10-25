@@ -6,7 +6,8 @@ import {MODELS,validateInput} from './media-manifest.mjs';
 import {atomic,uid,fail} from './media-store.mjs';
 import {executeMedia} from './media-executor.mjs';
 import {prepareH3Videos} from './h3-references.mjs';
-import {validateVideoRequest,saveVideoOutput,comfyFailure} from './media.mjs';
+import {validateVideoRequest,saveVideoOutput,comfyFailure,interruptPrompt} from './media.mjs';
+import {runtimeFor} from './runtime-topology.mjs';
 import {call} from './backend.mjs';
 import {validateGoldfishControls,goldfishReferenceSlots} from './goldfish-controls.mjs';
 import {goldfishFrames,GOLDFISH_SEED} from './goldfish-workflow.mjs';
@@ -20,6 +21,8 @@ import {linkCoordinator} from './access-keys.mjs';
 const terminal=new Set(['succeeded','failed','cancelled','unknown']);
 const needsRecovery=j=>(!terminal.has(j.state)&&!preDispatch.has(j.state))||(j.state==='unknown'&&j.recovery_required!==false);
 const preDispatch=new Set(['queued','preparing','waiting_for_admission','waiting_for_engine']);
+// ComfyUI prompts can be interrupted by prompt_id; other backends finish a request once started.
+const interruptible=j=>runtimeFor(j.engine)==='comfy'&&['dispatching','running'].includes(j.state)&&!j.cancel_requested_at;
 const canonical=v=>JSON.stringify(v&&typeof v==='object'?Array.isArray(v)?v.map(x=>JSON.parse(canonical(x))):Object.fromEntries(Object.keys(v).sort().map(k=>[k,JSON.parse(canonical(v[k]))])):v);
 export class MediaJobs{
   constructor(store,keys,coordinator,metrics,lifecycle,{execute=executeMedia}={}){Object.assign(this,{store,keys,coordinator,metrics,lifecycle,execute});if(keys&&coordinator&&!coordinator.keys)linkCoordinator(keys,coordinator);this.jobs=new Map();this.controllers=new Map();this.workers=new Set();this.pending=Promise.resolve();this.recoveryPending=false;this.stopped=false;this.preparedBytes=0;this.preparationBudget=512*2**20;}
@@ -64,7 +67,12 @@ export class MediaJobs{
         }
         if(entry?.status?.status_str==='success'){
           try{const saved=await saveVideoOutput(job.backend.base,entry,this.store.outputDirectory(job));await this.finish(job,{data:[saved],metrics:{prompt_id:job.backend.prompt_id,recovered:true}});restored=true;}catch{}
-        }else if(entry){await this.change(job,'failed',{error:{code:'BACKEND_FAILED',message:entry.status?.status_str==='error'?comfyFailure(entry).message:'Backend reported a failed recovered job'}});restored=true;}
+        }else if(entry){
+          const failure=entry.status?.status_str==='error'?comfyFailure(entry):null;
+          if(failure?.code==='BACKEND_CANCELLED')await this.change(job,'cancelled',{error:{code:'CANCELLED',message:failure.message}});
+          else await this.change(job,'failed',{error:{code:'BACKEND_FAILED',message:failure?.message??'Backend reported a failed recovered job'}});
+          restored=true;
+        }
       }
       if(!restored)await this.change(job,'unknown',{error:{code:'OUTCOME_UNKNOWN',message:'Gateway restarted after dispatch. No automatic resubmission; inspect backend history.'}});
       // Even an unknown job remains a restart barrier until the backend is observably idle or stopped.
@@ -73,7 +81,7 @@ export class MediaJobs{
     this.recoveryPending=false;
   }
   get(owner,id){const job=this.jobs.get(id);if(!job||job.owner_id!==owner)throw fail('Job not found',404);return job;}
-  public(job){const {request,owner_id,fingerprint,backend,...value}=job;return {...value,cancellable:preDispatch.has(job.state),poll_after_seconds:terminal.has(job.state)?0:5};}
+  public(job){const {request,owner_id,fingerprint,backend,...value}=job;return {...value,cancellable:preDispatch.has(job.state)||interruptible(job),poll_after_seconds:terminal.has(job.state)?0:5};}
   list(owner,{offset=0,limit=20}={}){const rows=[...this.jobs.values()].filter(j=>j.owner_id===owner).reverse();return {jobs:rows.slice(offset,offset+limit).map(j=>this.public(j)),offset,has_more:offset+limit<rows.length,total:rows.length};}
   validateAssets(owner,tool,input){
     const refs=[];const add=(id,kind)=>{if(id){const a=this.store.getAsset(owner,id,kind);refs.push(a);return a;}};
@@ -136,7 +144,23 @@ export class MediaJobs{
     });
   }
   launch(job){const work=this.run(job).catch(e=>console.error('Media job persistence failure:',e.message)).finally(()=>this.workers.delete(work));this.workers.add(work);}
-  async cancel(owner,id){return this.serial(async()=>{const job=this.get(owner,id);if(!preDispatch.has(job.state))throw fail('Job cannot be cancelled after backend dispatch',409);this.controllers.get(id)?.abort();job.state='cancelled';job.updated_at=new Date().toISOString();await this.persist(job);return this.public(job);});}
+  async cancel(owner,id){return this.cancelJob(this.get(owner,id));}
+  // Local console: same rules, any owner.
+  async cancelAny(id){const job=this.jobs.get(id);if(!job)throw fail('Job not found',404);return this.cancelJob(job);}
+  async cancelJob(job){
+    const interrupt=await this.serial(async()=>{
+      if(preDispatch.has(job.state)){this.controllers.get(job.job_id)?.abort();job.state='cancelled';job.updated_at=new Date().toISOString();await this.persist(job);return null;}
+      // Repeating a cancel re-sends the interrupt, so a request that could not reach ComfyUI can be retried.
+      if(job.cancel_requested_at&&!terminal.has(job.state))return job.backend?.prompt_id?job.backend:null;
+      if(!interruptible(job))throw fail(runtimeFor(job.engine)==='comfy'?'Job is saving or finished; it can no longer be cancelled':'This backend cannot interrupt a running request; it finishes on its own',409);
+      // The final state comes from the backend: cancelled once ComfyUI reports the interruption.
+      const next={...job,cancel_requested_at:new Date().toISOString(),updated_at:new Date().toISOString()};await this.persist(next);Object.assign(job,next);
+      return job.backend?.prompt_id?job.backend:null;
+    });
+    // Without a prompt_id yet, onSubmitted interrupts as soon as ComfyUI accepts the prompt.
+    if(interrupt)await interruptPrompt(interrupt.base,interrupt.prompt_id);
+    return this.public(job);
+  }
   async payload(job){
     const input=job.request,d={prompt:input.prompt,seed:input.seed??42};
     if(job.kind==='audio'){
@@ -188,7 +212,7 @@ export class MediaJobs{
       // Persist dispatch BEFORE sending. Lost network responses must never trigger an automatic retry.
       if(job.kind==='image'||job.kind==='audio')await this.change(job,'running');
       this.metrics.start(job.engine);counted=true;queue=(performance.now()-started)/1000;
-      const result=await this.execute(job.engine,d,{path:job.tool==='edit_image'?'/v1/images/edits':'/v1/images/generations',preparedVideos,outputDirectory:this.store.outputDirectory(job),onSubmitted:backend=>this.change(job,'running',{backend})});
+      const result=await this.execute(job.engine,d,{path:job.tool==='edit_image'?'/v1/images/edits':'/v1/images/generations',preparedVideos,outputDirectory:this.store.outputDirectory(job),onSubmitted:async backend=>{await this.change(job,'running',{backend});if(job.cancel_requested_at)await interruptPrompt(backend.base,backend.prompt_id);}});
       // The backend has returned; a bad artifact is a known failure, not an uncertain outcome.
       try{await this.finish(job,result,{queue_seconds:queue,total_seconds:(performance.now()-started)/1000});}
       catch(e){if(job.state!=='cancelled')e.code??='ARTIFACT_INVALID';throw e;}
@@ -196,7 +220,8 @@ export class MediaJobs{
       // Only a lost or ambiguous result is unknown: a failure the backend reported, work that was
       // never submitted, or an unusable returned artifact is final.
       const known={BACKEND_FAILED:'BACKEND_FAILED',ARTIFACT_INVALID:'ARTIFACT_INVALID',NOT_SUBMITTED:'JOB_FAILED'}[e.code],uncertain=dispatched&&!known;
-      if(job.state!=='cancelled')await this.change(job,uncertain?'unknown':'failed',{error:{code:uncertain?'OUTCOME_UNKNOWN':known??'JOB_FAILED',message:uncertain?'Backend outcome is uncertain; inspect backend history before retrying.':(e.code==='API_KEY_INVALID'?'API key revoked':String(e.message).slice(0,300))}});
+      if(e.code==='BACKEND_CANCELLED'&&job.state!=='cancelled')await this.change(job,'cancelled',{error:{code:'CANCELLED',message:job.cancel_requested_at?'Cancelled while running':'Interrupted in ComfyUI'}});
+      else if(job.state!=='cancelled')await this.change(job,uncertain?'unknown':'failed',{error:{code:uncertain?'OUTCOME_UNKNOWN':known??'JOB_FAILED',message:uncertain?'Backend outcome is uncertain; inspect backend history before retrying.':(e.code==='API_KEY_INVALID'?'API key revoked':String(e.message).slice(0,300))}});
     }finally{
       // Keep renewing ownership until backend idle even when its HTTP response was lost.
       if(ticket){while(true){try{await this.coordinator.release(ticket.token);break;}catch(e){if(e.message==='Invalid lease token')break;await pause(1000);}}}

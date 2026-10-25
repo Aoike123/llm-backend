@@ -43,7 +43,7 @@
 | `generate_audio` | CosyVoice 3 RL 语音合成：参考音频零样本克隆、Instruct 语气、`[shan4]` 拼音标注；持久任务与 WAV 作品 |
 | `get_job` | 查询自己的任务；可短等待，最多 20 秒 |
 | `list_jobs` | 查询自己的任务历史 |
-| `cancel_job` | 只允许派发前取消 |
+| `cancel_job` | 排队中立即取消；运行中的视频任务中断 ComfyUI 当前生成，停止后为 `cancelled`；图像/语音开始后不可中断 |
 | `get_artifact` | 获取作品本机路径与资源元数据 |
 | `download_artifact` | 把作品下载到工作区（默认 `artifacts/`），返回路径、大小与 sha256 |
 
@@ -67,7 +67,7 @@
 3. 用 `get_artifact` 获取本机作品路径。
 4. 编辑时先 `import_media` 导入图片，再用 `edit_image` 提交参考素材 ID。
 
-生成在客户端断开后继续。`request_id` 按身份去重；同一 ID 携带不同内容会拒绝。`unknown` 只表示结果真正不确定（响应丢失、超时、轮询中断），必须人工检查，不能自动重复提交。后端已明确报错（ComfyUI 历史为 error、`/prompt` 拒绝、图像/语音后端返回 HTTP 错误）记为 `failed` / `BACKEND_FAILED` 并带出错节点与原因；未真正提交（图构建、素材上传失败）记为 `JOB_FAILED`；后端已返回但作品不可用记为 `ARTIFACT_INVALID`。派发后不支持强制取消。
+生成在客户端断开后继续。`request_id` 按身份去重；同一 ID 携带不同内容会拒绝。`unknown` 只表示结果真正不确定（响应丢失、超时、轮询中断），必须人工检查，不能自动重复提交。后端已明确报错（ComfyUI 历史为 error、`/prompt` 拒绝、图像/语音后端返回 HTTP 错误）记为 `failed` / `BACKEND_FAILED` 并带出错节点与原因；未真正提交（图构建、素材上传失败）记为 `JOB_FAILED`；后端已返回但作品不可用记为 `ARTIFACT_INVALID`。运行中的 ComfyUI 任务可以取消：网关先从 ComfyUI 队列删除该 prompt，再按 prompt_id 定向中断（不影响画布上的其他任务），返回时任务仍是 `running` 并带 `cancel_requested_at`，ComfyUI 停止后变为 `cancelled`。在 ComfyUI 页面直接中断的任务同样记为 `cancelled`（`Interrupted in ComfyUI`）。管理面板任务中心提供同样的取消按钮（两步确认）。
 
 - FLUX：选择 Paiton / Stock 引擎，尺寸由后端原生决定。
 - Qwen：生图 1024 / 2048，编辑输出 1024；最多 4 张参考，合计不超过 4194304 像素。

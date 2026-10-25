@@ -50,7 +50,7 @@ MCP 客户端 ──stdio──> platforms/mcp/server.mjs ──HTTP 18982 + Bea
 | --- | --- | --- |
 | GET | `/v1/media/jobs` | 当前身份的持久任务，分页上限 100 |
 | GET | `/v1/media/jobs/{job_id}?wait_seconds=` | 查询，短等待 0–20 秒 |
-| POST | `/v1/media/jobs/{job_id}/cancel` | 仅派发前可取消，以 `cancellable` 为准 |
+| POST | `/v1/media/jobs/{job_id}/cancel` | 排队中立即取消；ComfyUI 视频任务运行中按 prompt_id 中断，ComfyUI 停止后变为 `cancelled`；图像/语音请求开始后不可中断。以 `cancellable` 为准 |
 | GET | `/v1/media/artifacts/{artifact_id}` | 作品元数据与本机路径 |
 | GET | `/v1/media/artifacts/{artifact_id}/content` | 二进制下载 |
 

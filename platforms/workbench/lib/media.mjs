@@ -58,9 +58,15 @@ export async function buildH3Graph(body,{uploadImage,uploadVideo,preparedVideos}
 }
 // A native history entry with status "error" is a confirmed failure, not an uncertain outcome.
 export function comfyFailure(entry) {
+  if(entry?.status?.messages?.some(([type])=>type==='execution_interrupted'))return Object.assign(new Error('Interrupted in ComfyUI'),{code:'BACKEND_CANCELLED'});
   const error=entry?.status?.messages?.find(([type])=>type==='execution_error')?.[1];
   const failure=new Error(error?`${error.node_type} (node ${error.node_id}): ${String(error.exception_message??'').split('\n')[0]}`.slice(0,300):'ComfyUI reported a failed workflow');
   failure.code='BACKEND_FAILED';return failure;
+}
+// Targeted: a queued copy is removed and only this prompt is interrupted, never canvas work.
+export async function interruptPrompt(base,promptId,request=call) {
+  await request(base,'/queue',{delete:[promptId]});
+  await request(base,'/interrupt',{prompt_id:promptId});
 }
 // Anything that fails before /prompt is sent left no backend work behind.
 export async function beforeSubmission(work) {

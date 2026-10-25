@@ -66,9 +66,12 @@ export class McpInfo{
 export function mcpRoutes(jobs,info,keys,lifecycle){
   async function admin(req,res){
     if(!localManagement(req))return send(res,403,{error:'Local same-origin console only'});
-    if(req.method!=='GET')return send(res,405,{error:'Read only'});
     const url=new URL(req.url,'http://localhost'),path=url.pathname;
+    const cancel=/^\/api\/mcp\/jobs\/(job_[a-f0-9]{32})\/cancel$/.exec(path);
+    if(req.method!=='GET'&&!(cancel&&req.method==='POST'))return send(res,405,{error:'Read only'});
     try{
+      // The only console write: JSON content type keeps it out of simple cross-site forms.
+      if(cancel){await jsonBody(req);return send(res,200,await jobs.cancelAny(cancel[1]));}
       if(path==='/api/mcp/overview')return send(res,200,{...info.overview(jobs,lifecycle),runtime_topology:runtimeTopology(jobs.coordinator?.status?.()??{})});
       if(path==='/api/mcp/config')return send(res,200,info.config());
       if(path==='/api/mcp/tools')return send(res,200,{...ID,tools:TOOLS});

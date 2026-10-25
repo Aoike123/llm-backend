@@ -248,6 +248,9 @@ main.studio-main{max-width:1600px;width:100%;margin:0 auto;padding:26px 40px 36p
 .ui-action:hover:not(:disabled) {background:var(--control-hover,#2b3240);border-color:#596175;color:#f0f2f7}
 .ui-action:active:not(:disabled) {background:#171c25;box-shadow:inset 0 1px 3px #0003}
 .ui-action-quiet {background:transparent;border-color:transparent;color:#97a3b5}
+.mcp-job-actions {margin:12px 0 4px}
+.ui-action-danger {background:#3a2933;border-color:#8a5969;color:#ffc7c7}
+.ui-action-danger:hover:not(:disabled) {background:#4a3240;border-color:#a86a7c;color:#ffe0e0}
 .ui-action-primary {background:#c2acf0;border-color:#c2acf0;color:#211a30;font-weight:550}
 .ui-action-primary:hover:not(:disabled) {background:#d2bfff;border-color:#d2bfff;color:#211a30}
 .ui-action:disabled {background:#1b2029;border-color:#2d333e;color:#727c8f;opacity:.65;cursor:not-allowed;box-shadow:none}

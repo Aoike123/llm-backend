@@ -59,6 +59,37 @@ test('work never submitted and unusable artifacts fail instead of becoming unkno
   const second=await finished(invalid.jobs,(await invalid.jobs.create(invalid.key.id,'generate_image',input)).job_id);
   assert.equal(second.state,'failed');assert.equal(second.error.code,'ARTIFACT_INVALID');await Promise.all([...invalid.jobs.workers]);assert.equal(second.recovery_required,false);
 });
+test('running ComfyUI jobs are interrupted by prompt_id and end cancelled; other backends refuse',async t=>{
+  const {default:http}=await import('node:http');const {mcpRoutes}=await import('../lib/mcp-routes.mjs');
+  const comfy=[];const native=http.createServer((req,res)=>{let raw='';req.on('data',c=>raw+=c);req.on('end',()=>{comfy.push([req.url,JSON.parse(raw||'{}')]);res.end();});});
+  await new Promise(r=>native.listen(0,'127.0.0.1',r));t.after(()=>new Promise(r=>native.close(r)));const nativeBase='http://127.0.0.1:'+native.address().port;
+  let stop;const f=await fixture(t,async(engine,d,{onSubmitted})=>{await onSubmitted({base:nativeBase,prompt_id:'prompt-1'});await new Promise(r=>{stop=r;});throw Object.assign(new Error('Interrupted in ComfyUI'),{code:'BACKEND_CANCELLED'});});
+  const accepted=await f.jobs.create(f.key.id,'generate_image',input),job=f.jobs.jobs.get(accepted.job_id);while(job.state!=='running')await pause(5);
+  // Image backends finish on their own; a running image request is not interruptible.
+  assert.equal(f.jobs.public(job).cancellable,false);await assert.rejects(f.jobs.cancel(f.key.id,job.job_id),e=>e.status===409&&/cannot interrupt/.test(e.message));
+  job.engine='h3';assert.equal(f.jobs.public(job).cancellable,true);
+  const info=await new McpInfo(f.store).open(),routes=mcpRoutes(f.jobs,info,f.keys,f.lifecycle);
+  const console=http.createServer((req,res)=>routes.admin(req,res));await new Promise(r=>console.listen(0,'127.0.0.1',r));t.after(()=>new Promise(r=>console.close(r)));
+  const base='http://127.0.0.1:'+console.address().port,url=base+'/api/mcp/jobs/'+job.job_id+'/cancel';
+  assert.equal((await fetch(url,{method:'POST',body:'{}'})).status,415);
+  assert.equal((await fetch(url,{method:'POST',headers:{'Content-Type':'application/json',Origin:'https://example.com'},body:'{}'})).status,403);
+  assert.equal((await fetch(base+'/api/mcp/overview',{method:'DELETE'})).status,405);
+  const response=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'}),view=await response.json();
+  assert.equal(response.status,200);assert.equal(view.state,'running');assert.equal(view.cancellable,false);assert.ok(view.cancel_requested_at);
+  assert.deepEqual(comfy,[['/queue',{delete:['prompt-1']}],['/interrupt',{prompt_id:'prompt-1'}]]);
+  // A repeated cancel re-sends the interrupt instead of failing.
+  await f.jobs.cancel(f.key.id,job.job_id);assert.equal(comfy.length,4);
+  stop();const done=await finished(f.jobs,job.job_id);assert.equal(done.state,'cancelled');assert.equal(done.error.code,'CANCELLED');assert.equal(done.error.message,'Cancelled while running');
+});
+test('a cancel requested before ComfyUI accepts the prompt interrupts it on submission',async t=>{
+  const {default:http}=await import('node:http');const comfy=[];
+  const native=http.createServer((req,res)=>{let raw='';req.on('data',c=>raw+=c);req.on('end',()=>{comfy.push(req.url);res.end();});});
+  await new Promise(r=>native.listen(0,'127.0.0.1',r));t.after(()=>new Promise(r=>native.close(r)));
+  let submit;const f=await fixture(t,async(engine,d,{onSubmitted})=>{await new Promise(r=>{submit=r;});await onSubmitted({base:'http://127.0.0.1:'+native.address().port,prompt_id:'late'});throw Object.assign(new Error('Interrupted in ComfyUI'),{code:'BACKEND_CANCELLED'});});
+  const accepted=await f.jobs.create(f.key.id,'generate_image',input),job=f.jobs.jobs.get(accepted.job_id);while(!submit)await pause(5);
+  job.engine='h3';await f.jobs.cancel(f.key.id,job.job_id);assert.deepEqual(comfy,[]);
+  submit();const done=await finished(f.jobs,job.job_id);assert.deepEqual(comfy,['/queue','/interrupt']);assert.equal(done.state,'cancelled');
+});
 test('restart after dispatch blocks model switching and does not retry ambiguous image',async t=>{
   const f=await fixture(t);const job={job_id:'job_'+'a'.repeat(32),owner_id:f.key.id,request_id:'lost',state:'dispatching',engine:'qwen-image',kind:'image',artifacts:[]};await atomic(join(f.store.jobs,job.job_id,'job.json'),job);
   let busy=true;f.coordinator.backend.idle=async()=>!busy;const manager=await new MediaJobs(f.store,f.keys,f.coordinator,f.metrics,f.lifecycle,{execute:async()=>assert.fail('must not retry')}).open();

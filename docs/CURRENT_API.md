@@ -196,7 +196,7 @@ print(result.json())
 | POST | `/v1/media/jobs` | `{tool,arguments}`，tool 为 generate_image / edit_image / generate_video（`run_goldfish_workflow` 为兼容别名）；接受任务返回 202 |
 | GET | `/v1/media/jobs?offset=0&limit=20` | 当前身份的持久任务，分页上限 100 |
 | GET | `/v1/media/jobs/{job_id}?wait_seconds=10` | 查询任务；短等待 0–20 秒 |
-| POST | `/v1/media/jobs/{job_id}/cancel` | 仅在派发前可取消；以 cancellable 字段为准 |
+| POST | `/v1/media/jobs/{job_id}/cancel` | 排队中立即取消；ComfyUI 视频任务运行中按 prompt_id 中断，ComfyUI 停止后变为 `cancelled`；图像/语音请求开始后不可中断。以 `cancellable` 为准 |
 | GET | `/v1/media/artifacts/{artifact_id}` | 作品元数据与本机文件路径 |
 | GET | `/v1/media/artifacts/{artifact_id}/content` | 下载作品（MCP 用 `download_artifact` 落盘） |
 

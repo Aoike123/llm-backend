@@ -36,6 +36,11 @@ test('rejected or unsent native prompts are final; only lost answers stay ambigu
  await assert.rejects(run(async()=>{throw new TypeError('fetch failed');}),e=>e.code===undefined);
 });
 
+test('an interrupted native prompt is a cancellation, not a failure',async()=>{
+ const history={status:{status_str:'error',messages:[['execution_start',{}],['execution_interrupted',{node_id:'397',node_type:'SelfLiftH3Sampler'}]]}};
+ await assert.rejects(runGoldfish(input,{uploadImage:async()=> 'uploaded.png',request:async(base,path)=>path==='/prompt'?{prompt_id:'stopped'}:{stopped:history},wait:async()=>{}}),e=>e.code==='BACKEND_CANCELLED');
+});
+
 test('original bypasses, six LoRAs, optional reference branches and output switches compile without dangling links',async()=>{
  const g=await buildGoldfishGraph({...input,reference_images_b64:Array(9).fill(Buffer.from('image')),reference_audios_b64:[Buffer.from('audio')],reference_video_audio:true,loras:{dmad:{enabled:false},mystic:{enabled:false},combat:{enabled:true,strength:.8},motion_speed:{enabled:true,strength:2},motion_repair:{enabled:true},fight_flow:{enabled:true}},optimizations:{attention_enabled:false,sparse_enabled:false,sigma_shift_enabled:false,feed_forward_enabled:false,low_vram_enabled:false,preview_enabled:false},sampling:{steps:12,transition_step:7,highres_tiling:true,upscaler_unload:false},resolution:{megapixels:1,aspect_ratio:'9:16 (Portrait Widescreen)'},output:{include_audio:false,crf:17}}, {uploadImage:async()=> 'i.png',uploadVideo:async()=> 'v.mp4',uploadAudio:async()=> 'a.wav',preparedVideos:[{bytes:Buffer.from('video'),has_audio:true}]});
  assert.equal(g['53'],undefined);assert.equal(g['400'],undefined);assert.equal(g['342'].inputs.model[0],'192');assert.equal(g['343'].inputs.model[0],'342');assert.equal(g['345'].inputs.model[0],'344');
