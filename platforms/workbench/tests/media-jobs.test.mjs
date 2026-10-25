@@ -45,6 +45,20 @@ test('backend response loss becomes unknown and holds lease until idle',async t=
   const accepted=await f.jobs.create(f.key.id,'generate_image',input);const done=await finished(f.jobs,accepted.job_id);assert.equal(done.state,'unknown');assert.equal(f.coordinator.status().leased,true);assert.equal(f.keys.snapshot().active,1);
   f.coordinator.backend.idle=async()=>true;await Promise.all([...f.jobs.workers]);assert.equal(f.coordinator.status().leased,false);
 });
+test('a failure recorded by the backend is final, not unknown',async t=>{
+  const f=await fixture(t,async()=>{const e=new Error('MiniMaxH3ReferenceToVideo (node 265): CUDA error: invalid argument');e.code='BACKEND_FAILED';throw e;});
+  const accepted=await f.jobs.create(f.key.id,'generate_image',input);const done=await finished(f.jobs,accepted.job_id);
+  assert.equal(done.state,'failed');assert.equal(done.error.code,'BACKEND_FAILED');assert.match(done.error.message,/node 265/);
+  await Promise.all([...f.jobs.workers]);assert.equal(f.coordinator.status().leased,false);assert.equal(done.recovery_required,false);
+});
+test('work never submitted and unusable artifacts fail instead of becoming unknown',async t=>{
+  const notSent=await fixture(t,async()=>{throw Object.assign(new Error('Reference upload failed'),{code:'NOT_SUBMITTED'});});
+  const first=await finished(notSent.jobs,(await notSent.jobs.create(notSent.key.id,'generate_image',input)).job_id);
+  assert.equal(first.state,'failed');assert.equal(first.error.code,'JOB_FAILED');assert.equal(first.error.message,'Reference upload failed');
+  const invalid=await fixture(t,async()=>({data:[{b64_json:Buffer.from('not an image').toString('base64')}]}));
+  const second=await finished(invalid.jobs,(await invalid.jobs.create(invalid.key.id,'generate_image',input)).job_id);
+  assert.equal(second.state,'failed');assert.equal(second.error.code,'ARTIFACT_INVALID');await Promise.all([...invalid.jobs.workers]);assert.equal(second.recovery_required,false);
+});
 test('restart after dispatch blocks model switching and does not retry ambiguous image',async t=>{
   const f=await fixture(t);const job={job_id:'job_'+'a'.repeat(32),owner_id:f.key.id,request_id:'lost',state:'dispatching',engine:'qwen-image',kind:'image',artifacts:[]};await atomic(join(f.store.jobs,job.job_id,'job.json'),job);
   let busy=true;f.coordinator.backend.idle=async()=>!busy;const manager=await new MediaJobs(f.store,f.keys,f.coordinator,f.metrics,f.lifecycle,{execute:async()=>assert.fail('must not retry')}).open();

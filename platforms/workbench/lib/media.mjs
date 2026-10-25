@@ -56,6 +56,27 @@ export async function buildH3Graph(body,{uploadImage,uploadVideo,preparedVideos}
   }
   return {graph,reference,preset,reference_metrics:{images:images.length,videos:videos.length,video_seconds:(preparedVideos??[]).map(v=>v.seconds),effective_video_frames:(preparedVideos??[]).map(v=>v.effective_frames),video_audio:(preparedVideos??[]).map(v=>v.has_audio)}};
 }
+// A native history entry with status "error" is a confirmed failure, not an uncertain outcome.
+export function comfyFailure(entry) {
+  const error=entry?.status?.messages?.find(([type])=>type==='execution_error')?.[1];
+  const failure=new Error(error?`${error.node_type} (node ${error.node_id}): ${String(error.exception_message??'').split('\n')[0]}`.slice(0,300):'ComfyUI reported a failed workflow');
+  failure.code='BACKEND_FAILED';return failure;
+}
+// Anything that fails before /prompt is sent left no backend work behind.
+export async function beforeSubmission(work) {
+  try {return await work();} catch(e) {e.code='NOT_SUBMITTED';throw e;}
+}
+// An HTTP answer from /prompt is final (rejected graphs are never queued); a lost answer is not.
+export async function submitPrompt(request,base,graph) {
+  let submission;
+  try {submission=await request(base,'/prompt',{prompt:graph});}
+  catch(e) {
+    if(e.status){const detail=e.data?.error?.message??e.message;e.message=`ComfyUI rejected the workflow: ${detail}`.slice(0,300);e.code='BACKEND_FAILED';}
+    throw e;
+  }
+  if(!submission?.prompt_id)throw Object.assign(new Error('ComfyUI returned no prompt_id'),{code:'BACKEND_FAILED'});
+  return submission.prompt_id;
+}
 export function videoOutputFiles(entry) {
   // LoadVideo also emits MP4 preview records. Only generated output is an artifact.
   return Object.values(entry.outputs??{}).flatMap(output=>Object.values(output).filter(Array.isArray).flat()).filter(row=>row?.type==='output'&&row?.filename?.endsWith('.mp4'));
@@ -63,11 +84,12 @@ export function videoOutputFiles(entry) {
 export async function video(model,body,{preparedVideos,onSubmitted,outputDirectory}={}) {
   validateVideoRequest(model,body);
   const started=performance.now(),base='http://127.0.0.1:'+TOPOLOGY.runtimes.comfy.port;
-  const h3=await buildH3Graph(body,{preparedVideos,uploadImage:encoded=>upload(base,encoded),uploadVideo:bytes=>uploadFile(base,bytes,'mp4','video/mp4')}),graph=h3.graph;
-  const submission=await call(base,'/prompt',{prompt:graph}),pid=submission.prompt_id;if(!pid)throw new Error('Video submission failed');
+  const h3=await beforeSubmission(()=>buildH3Graph(body,{preparedVideos,uploadImage:encoded=>upload(base,encoded),uploadVideo:bytes=>uploadFile(base,bytes,'mp4','video/mp4')})),graph=h3.graph;
+  const pid=await submitPrompt(call,base,graph);
   await onSubmitted?.({prompt_id:pid,base});
   let entry;for(let i=0;i<1800;i++){entry=(await call(base,'/history/'+pid))[pid];if(entry)break;await pause(1000);}
   if(!entry)throw new Error('Video job exceeded 30 minutes; lease retained until backend idle');
+  if(entry.status?.status_str==='error')throw comfyFailure(entry);
   if(entry.status?.status_str!=='success')throw new Error('Video generation failed');
   const saved=await saveVideoOutput(base,entry,outputDirectory);
   return {created:Math.floor(Date.now()/1000),model,data:[saved],metrics:{generation_seconds:(performance.now()-started)/1000,prompt_id:pid,...(h3?{preset:h3.preset,references:h3.reference_metrics}:{}),reference_mode:h3?.reference?'multimodal':body.last_frame_b64?'first-last':body.first_frame_b64?'first-frame':'text'}};
@@ -75,7 +97,7 @@ export async function video(model,body,{preparedVideos,onSubmitted,outputDirecto
 
 export async function saveVideoOutput(base,entry,outputDirectory){
   if(entry.status?.status_str!=='success')throw new Error('Video generation failed');
-  const files=videoOutputFiles(entry);if(!files.length)throw new Error('Video backend returned no MP4');
+  const files=videoOutputFiles(entry);if(!files.length)throw Object.assign(new Error('Video backend returned no MP4'),{code:'BACKEND_FAILED'});
   const params=new URLSearchParams();for(const k of ['filename','subfolder','type'])if(files[0][k]!==undefined)params.set(k,files[0][k]);
   const r=await fetch(base+'/view?'+params,{signal:AbortSignal.timeout(90000)});if(!r.ok)throw new Error('Video download failed');
   const directory=outputDirectory??ARTIFACTS;await mkdir(directory,{recursive:true});

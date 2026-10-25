@@ -1,7 +1,7 @@
 import {readFile} from 'node:fs/promises';
 import {TOPOLOGY} from './runtime-topology.mjs';
 import {call} from './backend.mjs';
-import {upload,uploadFile,saveVideoOutput} from './media.mjs';
+import {upload,uploadFile,saveVideoOutput,comfyFailure,beforeSubmission,submitPrompt} from './media.mjs';
 import {GOLDFISH_LORAS,validateGoldfishControls,goldfishReferenceSlots} from './goldfish-controls.mjs';
 import {pause} from './core.mjs';
 export const GOLDFISH_ID='yz-h3-ultimate-original';
@@ -61,12 +61,12 @@ export async function buildGoldfishGraph(input,{uploadImage,uploadVideo,uploadAu
 // The workflow is submitted unchanged to native /prompt; no API bridge nodes.
 export async function runGoldfish(input,{onSubmitted,outputDirectory,request=call,uploadImage,uploadVideo,uploadAudio,preparedVideos,saveOutput=saveVideoOutput,wait=pause}={}){
  const base='http://127.0.0.1:'+TOPOLOGY.runtimes.comfy.port,started=performance.now();
- const graph=await buildGoldfishGraph(input,{uploadImage:uploadImage??(bytes=>upload(base,bytes)),uploadVideo:uploadVideo??(bytes=>uploadFile(base,bytes,'mp4','video/mp4')),uploadAudio:uploadAudio??(bytes=>uploadFile(base,bytes,'wav','audio/wav')),preparedVideos});
- const result=await request(base,'/prompt',{prompt:graph}),pid=result.prompt_id;
- if(!pid)throw Error('Goldfish native submission failed');
+ const graph=await beforeSubmission(()=>buildGoldfishGraph(input,{uploadImage:uploadImage??(bytes=>upload(base,bytes)),uploadVideo:uploadVideo??(bytes=>uploadFile(base,bytes,'mp4','video/mp4')),uploadAudio:uploadAudio??(bytes=>uploadFile(base,bytes,'wav','audio/wav')),preparedVideos}));
+ const pid=await submitPrompt(request,base,graph);
  await onSubmitted?.({base,prompt_id:pid});
  let entry;for(let i=0;i<1800;i++){entry=(await request(base,'/history/'+encodeURIComponent(pid)))[pid];if(entry)break;await wait(1000);}
  if(!entry)throw Error('Goldfish workflow exceeded 30 minutes; inspect native history');
+ if(entry.status?.status_str==='error')throw comfyFailure(entry);
  if(entry.status?.status_str!=='success')throw Error('Goldfish native workflow failed');
  const saved=await saveOutput(base,entry,outputDirectory);
  return {data:[saved],metrics:{prompt_id:pid,workflow:GOLDFISH_ID,generation_seconds:(performance.now()-started)/1000}};

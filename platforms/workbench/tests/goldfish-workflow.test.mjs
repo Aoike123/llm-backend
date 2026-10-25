@@ -21,6 +21,21 @@ test('Goldfish submits native prompt once, persists its id, polls and fetches ou
  assert.equal(calls.filter(path=>path==='/prompt').length,1);assert.equal(r.data[0].local_path,'/tmp/job/output.mp4');assert.equal(r.metrics.workflow,'yz-h3-ultimate-original');
 });
 
+test('a native execution error is reported as a confirmed backend failure',async()=>{
+ const history={status:{status_str:'error',messages:[['execution_start',{}],['execution_error',{node_id:'265',node_type:'MiniMaxH3ReferenceToVideo',exception_message:'CUDA error: invalid argument\nSearch for hipErrorInvalidValue'}]]}};
+ await assert.rejects(runGoldfish(input,{uploadImage:async()=> 'uploaded.png',request:async(base,path)=>path==='/prompt'?{prompt_id:'failed'}:{failed:history},wait:async()=>{}}),
+  e=>e.code==='BACKEND_FAILED'&&e.message==='MiniMaxH3ReferenceToVideo (node 265): CUDA error: invalid argument');
+});
+
+test('rejected or unsent native prompts are final; only lost answers stay ambiguous',async()=>{
+ const run=(request,extra={})=>runGoldfish(input,{uploadImage:async()=> 'uploaded.png',request,wait:async()=>{},...extra});
+ const rejected=Object.assign(new Error('Backend HTTP 400'),{status:400,data:{error:{message:'Prompt outputs failed validation'}}});
+ await assert.rejects(run(async()=>{throw rejected;}),e=>e.code==='BACKEND_FAILED'&&e.message==='ComfyUI rejected the workflow: Prompt outputs failed validation');
+ await assert.rejects(run(async()=>({})),e=>e.code==='BACKEND_FAILED');
+ await assert.rejects(run(async()=>assert.fail('must not submit'),{uploadImage:async()=>{throw new Error('upload refused');}}),e=>e.code==='NOT_SUBMITTED');
+ await assert.rejects(run(async()=>{throw new TypeError('fetch failed');}),e=>e.code===undefined);
+});
+
 test('original bypasses, six LoRAs, optional reference branches and output switches compile without dangling links',async()=>{
  const g=await buildGoldfishGraph({...input,reference_images_b64:Array(9).fill(Buffer.from('image')),reference_audios_b64:[Buffer.from('audio')],reference_video_audio:true,loras:{dmad:{enabled:false},mystic:{enabled:false},combat:{enabled:true,strength:.8},motion_speed:{enabled:true,strength:2},motion_repair:{enabled:true},fight_flow:{enabled:true}},optimizations:{attention_enabled:false,sparse_enabled:false,sigma_shift_enabled:false,feed_forward_enabled:false,low_vram_enabled:false,preview_enabled:false},sampling:{steps:12,transition_step:7,highres_tiling:true,upscaler_unload:false},resolution:{megapixels:1,aspect_ratio:'9:16 (Portrait Widescreen)'},output:{include_audio:false,crf:17}}, {uploadImage:async()=> 'i.png',uploadVideo:async()=> 'v.mp4',uploadAudio:async()=> 'a.wav',preparedVideos:[{bytes:Buffer.from('video'),has_audio:true}]});
  assert.equal(g['53'],undefined);assert.equal(g['400'],undefined);assert.equal(g['342'].inputs.model[0],'192');assert.equal(g['343'].inputs.model[0],'342');assert.equal(g['345'].inputs.model[0],'344');

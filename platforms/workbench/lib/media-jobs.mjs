@@ -6,7 +6,7 @@ import {MODELS,validateInput} from './media-manifest.mjs';
 import {atomic,uid,fail} from './media-store.mjs';
 import {executeMedia} from './media-executor.mjs';
 import {prepareH3Videos} from './h3-references.mjs';
-import {validateVideoRequest,saveVideoOutput} from './media.mjs';
+import {validateVideoRequest,saveVideoOutput,comfyFailure} from './media.mjs';
 import {call} from './backend.mjs';
 import {validateGoldfishControls,goldfishReferenceSlots} from './goldfish-controls.mjs';
 import {goldfishFrames,GOLDFISH_SEED} from './goldfish-workflow.mjs';
@@ -64,7 +64,7 @@ export class MediaJobs{
         }
         if(entry?.status?.status_str==='success'){
           try{const saved=await saveVideoOutput(job.backend.base,entry,this.store.outputDirectory(job));await this.finish(job,{data:[saved],metrics:{prompt_id:job.backend.prompt_id,recovered:true}});restored=true;}catch{}
-        }else if(entry){await this.change(job,'failed',{error:{code:'BACKEND_FAILED',message:'Backend reported a failed recovered job'}});restored=true;}
+        }else if(entry){await this.change(job,'failed',{error:{code:'BACKEND_FAILED',message:entry.status?.status_str==='error'?comfyFailure(entry).message:'Backend reported a failed recovered job'}});restored=true;}
       }
       if(!restored)await this.change(job,'unknown',{error:{code:'OUTCOME_UNKNOWN',message:'Gateway restarted after dispatch. No automatic resubmission; inspect backend history.'}});
       // Even an unknown job remains a restart barrier until the backend is observably idle or stopped.
@@ -189,9 +189,14 @@ export class MediaJobs{
       if(job.kind==='image'||job.kind==='audio')await this.change(job,'running');
       this.metrics.start(job.engine);counted=true;queue=(performance.now()-started)/1000;
       const result=await this.execute(job.engine,d,{path:job.tool==='edit_image'?'/v1/images/edits':'/v1/images/generations',preparedVideos,outputDirectory:this.store.outputDirectory(job),onSubmitted:backend=>this.change(job,'running',{backend})});
-      await this.finish(job,result,{queue_seconds:queue,total_seconds:(performance.now()-started)/1000});
+      // The backend has returned; a bad artifact is a known failure, not an uncertain outcome.
+      try{await this.finish(job,result,{queue_seconds:queue,total_seconds:(performance.now()-started)/1000});}
+      catch(e){if(job.state!=='cancelled')e.code??='ARTIFACT_INVALID';throw e;}
     }catch(e){
-      if(job.state!=='cancelled')await this.change(job,dispatched?'unknown':'failed',{error:{code:dispatched?'OUTCOME_UNKNOWN':'JOB_FAILED',message:dispatched?'Backend outcome is uncertain; inspect backend history before retrying.':(e.code==='API_KEY_INVALID'?'API key revoked':String(e.message).slice(0,300))}});
+      // Only a lost or ambiguous result is unknown: a failure the backend reported, work that was
+      // never submitted, or an unusable returned artifact is final.
+      const known={BACKEND_FAILED:'BACKEND_FAILED',ARTIFACT_INVALID:'ARTIFACT_INVALID',NOT_SUBMITTED:'JOB_FAILED'}[e.code],uncertain=dispatched&&!known;
+      if(job.state!=='cancelled')await this.change(job,uncertain?'unknown':'failed',{error:{code:uncertain?'OUTCOME_UNKNOWN':known??'JOB_FAILED',message:uncertain?'Backend outcome is uncertain; inspect backend history before retrying.':(e.code==='API_KEY_INVALID'?'API key revoked':String(e.message).slice(0,300))}});
     }finally{
       // Keep renewing ownership until backend idle even when its HTTP response was lost.
       if(ticket){while(true){try{await this.coordinator.release(ticket.token);break;}catch(e){if(e.message==='Invalid lease token')break;await pause(1000);}}}

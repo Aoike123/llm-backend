@@ -88,7 +88,7 @@ MCP 客户端 ──stdio──> platforms/mcp/server.mjs ──HTTP 18982 + Bea
 
 - 提交返回 `202` 与 `job_id`，只代表“已接受”；完成状态用 `get_job` 轮询；
 - 状态：`queued → waiting_for_admission → preparing → waiting_for_engine → dispatching → running → saving → succeeded`，另有 `failed / cancelled / unknown`；
-- `unknown` 表示后端结果不确定，必须先检查，禁止自动重复提交；
+- `unknown` 表示后端结果不确定，必须先检查，禁止自动重复提交；后端明确报错、未真正提交或作品不可用都直接记为 `failed`（`BACKEND_FAILED` / `JOB_FAILED` / `ARTIFACT_INVALID`）；
 - 每个 `request_id` 在同一身份内幂等，内容不同会拒绝。
 
 ### 下载约定
