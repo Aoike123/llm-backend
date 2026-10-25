@@ -1,0 +1,26 @@
+{
+  "llm": {
+    "base": "ghcr.nju.edu.cn/eliovp/paiton-vllm-plugin@sha256:245c71d54f046f89b74dbfbd4c894003754561e55c9d215a8d3ce65364fb0f80",
+    "target": "local-ai/pation-qwen38-cpu-vision:20261013-r2"
+  },
+  "qwen-image21": {
+    "base": "ghcr.nju.edu.cn/eliovp/paiton-vllm-plugin@sha256:64f6a6154b93f39b34f272fc66110ce17f72cca3ec31284ab57056ca5cdc2677",
+    "target": "local-ai/pation-qwen-image21-rocm101:20261011"
+  },
+  "minimax-h3": {
+    "base": "ghcr.nju.edu.cn/eliovp/paiton-vllm-plugin@sha256:56c405453d21fd405ab0bb3f7eb0e0a2d6069ab672d617c319528e210ff2dd19",
+    "target": "local-ai/pation-minimax-h3-rocm101:20261011"
+  },
+  "flux2": {
+    "base": "ghcr.nju.edu.cn/eliovp/paiton-vllm-plugin@sha256:994af1fdfa53d1f0b0a398bb247d4c1ac6caa93f4a56f22f90d961ca76e1f7de",
+    "target": "local-ai/pation-flux2-rocm101:20261011"
+  },
+  "flux2-tools": {
+    "base": "ghcr.nju.edu.cn/eliovp/paiton-vllm-plugin@sha256:d9ffefd705d5f010c65199a88a0240275aed06f2042a9b1f1d5b5a144d013e61",
+    "target": "local-ai/pation-flux2-tools-rocm101:20261011"
+  },
+  "flux2-comfyui": {
+    "base": "ghcr.nju.edu.cn/eliovp/paiton-vllm-plugin@sha256:b00940f1ee01ce4061b392395458aa0a3a48c51dad69794e16a5f24b8b20add3",
+    "target": "local-ai/pation-flux2-comfyui-rocm101:20261011"
+  }
+}

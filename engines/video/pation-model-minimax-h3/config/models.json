@@ -1,0 +1,9 @@
+[
+  {
+    "id": "minimax-h3-fl2va-w4a8-turbo8-turbo4",
+    "format": "W4A8 diffusion + NVFP4 AWQ encoder + INT8 video VAE + FP32 audio VAE + BF16 LoRA",
+    "paths": [
+      "/mnt/Code/llm-backend/workspace/data/video/minimax-h3/models"
+    ]
+  }
+]

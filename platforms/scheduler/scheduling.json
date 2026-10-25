@@ -1,0 +1,6 @@
+{
+  "minBatchRequests": 2,
+  "maxBatchRequests": 4,
+  "maxBatchSeconds": 120,
+  "maxWaitSeconds": 300
+}

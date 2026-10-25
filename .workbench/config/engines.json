@@ -1,0 +1,11 @@
+{
+  "pation-model-qwen38-27b-w3a4": "engines/llm/pation-model-qwen38-27b-w3a4",
+  "vllm": "engines/llm/vllm",
+  "llama-cpp": "engines/llm/llama-cpp",
+  "strata": "engines/llm/strata",
+  "pation-model-flux2-klein": "engines/image/pation-model-flux2-klein",
+  "pation-model-qwen-image-21": "engines/image/pation-model-qwen-image-21",
+  "pation-model-minimax-h3": "engines/video/pation-model-minimax-h3",
+  "pation-model-qwen38-27b-mxfp4": "engines/llm/pation-model-qwen38-27b-mxfp4",
+  "pation-model-cosyvoice3": "engines/audio/pation-model-cosyvoice3"
+}

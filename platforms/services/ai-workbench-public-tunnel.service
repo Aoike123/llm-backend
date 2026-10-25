@@ -1,0 +1,17 @@
+[Unit]
+Description=Reverse SSH tunnel for public inference API
+After=network-online.target ai-workbench-gateway.service
+Wants=network-online.target ai-workbench-gateway.service
+
+[Service]
+Type=simple
+EnvironmentFile=%h/.config/ai-workbench/public-tunnel.env
+ExecStart=/bin/bash /mnt/Code/llm-backend/platforms/public-api/tunnel.sh
+Restart=always
+RestartSec=10
+TimeoutStopSec=15
+NoNewPrivileges=true
+UMask=0077
+
+[Install]
+WantedBy=default.target

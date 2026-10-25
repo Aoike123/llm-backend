@@ -1,0 +1,10 @@
+{
+  "name": "llama.cpp",
+  "entrypoint": null,
+  "status": "GGUF 已登记，运行环境待配置",
+  "upstream": "engines/llm/llama-cpp/upstream",
+  "cache": "workspace/data/llm/llama-cpp",
+  "outputs": "workspace/outputs/llm/llama-cpp",
+  "reports": "workspace/reports/llm/llama-cpp",
+  "category": "llm"
+}

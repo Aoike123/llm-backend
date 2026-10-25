@@ -1,0 +1,6 @@
+{
+  "base": "local-ai/pation-qwen38-rocm101:20261011",
+  "target": "local-ai/pation-qwen38-cpu-vision:20261013-r2",
+  "cpu_vision": true,
+  "note": "base image local-ai/pation-qwen38-rocm101:20261011 deleted 2026-10-23 after the CPU vision switch; rebuild from ghcr base sha256:245c71d54f046f89b74dbfbd4c894003754561e55c9d215a8d3ce65364fb0f80"
+}

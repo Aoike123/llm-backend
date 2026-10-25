@@ -1,0 +1,12 @@
+{
+  "name": "CosyVoice 3 / RL",
+  "status": "ROCm 10.1：零样本克隆、Instruct、拼音标注通过；RL checkpoint（llm.rl.pt）为默认，base 可回退",
+  "entrypoint": "engines/audio/pation-model-cosyvoice3/controller.py",
+  "models_available_locally": true,
+  "category": "audio",
+  "cache": "workspace/data/tts/models",
+  "outputs": "workspace/outputs/audio/cosyvoice3",
+  "reports": "workspace/reports/audio/cosyvoice3",
+  "deployment_id": "pation-model-cosyvoice3",
+  "backend": "CosyVoice 3 (PyTorch/ROCm)"
+}

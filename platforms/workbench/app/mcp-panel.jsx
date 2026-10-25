@@ -1,0 +1,61 @@
+'use client';
+import {useEffect,useState} from 'react';
+import {ActionButton,Icon} from './ui-controls.mjs';
+const tabs=[['overview','概览'],['config','接入配置'],['tools','工具清单'],['calls','调用记录']];
+const toolGroups=[['生成工具',['generate_image','edit_image','generate_video']],['目录与素材',['list_media_models','import_media']],['任务与作品',['get_job','list_jobs','cancel_job','get_artifact','download_artifact']]];
+const date=v=>v?new Date(v).toLocaleString('zh-CN',{timeZone:'Asia/Shanghai'}):'暂无记录';
+const states={queued:'已排队',preparing:'素材准备',waiting_for_admission:'等待名额',waiting_for_engine:'等待引擎',dispatching:'已派发',running:'生成中',saving:'保存中',succeeded:'已完成',failed:'失败',cancelled:'已取消',recovering:'恢复检查',unknown:'结果未知'};
+function Code({value}){
+  const [copied,setCopied]=useState(false),[error,setError]=useState('');const text=typeof value==='string'?value:JSON.stringify(value,null,2);
+  return <div className="mcp-code"><pre>{text}</pre><ActionButton onClick={async()=>{try{await navigator.clipboard.writeText(text);setCopied(true);setError('');setTimeout(()=>setCopied(false),1500);}catch{setError('复制失败，请手动选择文本');}}}>{copied?'已复制':'复制'}</ActionButton>{error&&<p role="alert">{error}</p>}</div>;
+}
+function useMcpResource(path,poll=true){
+  const [snapshots,setSnapshots]=useState({}),[failure,setFailure]=useState(null);
+  const cached=path?snapshots[path]:null;
+  useEffect(()=>{
+    if(!path||(!poll&&cached))return;
+    const controller=new AbortController();let timer,disposed=false,busy=false,loaded=Boolean(cached);
+    async function read(){
+      if(disposed||document.hidden||busy||(!poll&&loaded))return;busy=true;let retry=poll;
+      try{
+        const response=await fetch('/api/mcp/'+path,{cache:'no-store',signal:controller.signal});
+        if(!response.ok)throw new Error('MCP 信息读取失败（'+response.status+'）');
+        const value=await response.json();
+        if(!disposed){loaded=true;setSnapshots(previous=>({...previous,[path]:value}));setFailure(null);}
+      }catch(error){retry=true;if(!disposed&&error.name!=='AbortError')setFailure({path,message:error.message+'，正在重试。保留上次读取结果。'});}
+      finally{busy=false;if(!disposed&&retry){clearTimeout(timer);timer=setTimeout(read,5000);}}
+    }
+    const visibility=()=>{clearTimeout(timer);if(!document.hidden)void read();};
+    document.addEventListener('visibilitychange',visibility);void read();
+    return()=>{disposed=true;controller.abort();clearTimeout(timer);document.removeEventListener('visibilitychange',visibility);};
+  },[path,poll]);
+  return {value:cached??null,error:failure?.path===path?failure.message:''};
+}
+export default function McpPanel(){
+  const [tab,setTab]=useState('overview'),[offset,setOffset]=useState(0),[jobId,setJobId]=useState(null);
+  const overviewResource=useMcpResource('overview');
+  const contentResource=useMcpResource(tab==='overview'?null:tab+(tab==='calls'?'?offset='+offset+'&limit=30':''),tab==='calls');
+  const jobResource=useMcpResource(jobId?'jobs/'+jobId:null);
+  const overview=overviewResource.value,content=contentResource.value,job=jobResource.value,error=overviewResource.error||contentResource.error||jobResource.error;
+  useEffect(()=>{if(job?.job_id){const panel=document.getElementById('mcp-job-detail');panel?.scrollIntoView({behavior:'smooth',block:'start'});panel?.focus({preventScroll:true});}},[job?.job_id]);
+  return <div className="mcp-panel">
+    <div className="workspace-toolbar"><div className="workspace-tabs" role="tablist" aria-label="MCP 信息">{tabs.map(([id,label],i)=><button key={id} id={'mcp-tab-'+id} role="tab" aria-selected={tab===id} aria-controls="mcp-content" tabIndex={tab===id?0:-1} onClick={()=>{setTab(id);setJobId(null);}} onKeyDown={e=>{let next;if(e.key==='ArrowRight')next=tabs[(i+1)%tabs.length][0];if(e.key==='ArrowLeft')next=tabs[(i+tabs.length-1)%tabs.length][0];if(e.key==='Home')next=tabs[0][0];if(e.key==='End')next=tabs.at(-1)[0];if(next){e.preventDefault();setTab(next);setJobId(null);document.getElementById('mcp-tab-'+next)?.focus();}}}>{label}</button>)}</div><small className="muted">本机 stdio · 每 5 秒刷新</small></div>
+    {error&&<div className="error-banner" role="alert">{error}</div>}
+    <section id="mcp-content" role="tabpanel" aria-labelledby={'mcp-tab-'+tab} className="mcp-content">
+      {tab==='overview'&&(overview?<>
+        <section className="stage-kpis"><div className="stage-kpi"><span className="label">MCP 服务</span><div className="mcp-value">{overview.name}</div><p className="note">v{overview.version} · 已部署 · 客户端按需启动</p></div><div className="stage-kpi"><span className="label">媒体工具</span><div className="stage-value">{overview.tools_count}<span>个</span></div><p className="note">{overview.models.length} 个图像模型 · {overview.workflows?.length??0} 个原生工作流</p></div><div className="stage-kpi"><span className="label">网关依赖</span><div className="mcp-value">{overview.gateway.recovery_pending?'恢复检查':overview.gateway.status==='ready'?'就绪':'排空中'}</div><p className="note">待完成媒体任务 {overview.pending_jobs} 个</p></div><div className="stage-kpi"><span className="label">MCP 媒体存储</span><div className="mcp-value">{(overview.storage.used_bytes/2**30).toFixed(2)} GiB</div><p className="note">配额 {(overview.storage.quota_bytes/2**30).toFixed(0)} GiB · 家目录分类存储</p></div></section>
+        <section className="mcp-card"><div className="charthead"><h2>实例上报</h2><span className="muted tiny">最近报告 {date(overview.last_reported_at)}</span></div><p className="note">{overview.note}</p>{overview.instances.length?<div className="task-table-wrap"><table className="task-table"><thead><tr><th>实例 / 客户端</th><th>观察状态</th><th>协议初始化</th><th>最后报告</th></tr></thead><tbody>{overview.instances.map(i=><tr key={i.owner_id+':'+i.instance_id}><td><code title={i.instance_id}>{i.instance_id.slice(0,18)}…</code><small className="mcp-sub">{i.client_name??'客户端未知'}</small></td><td className={i.closed_at||i.stale?'muted':'live'}>{i.closed_at?'已报告退出':i.stale?'信息过期':'最近有上报'}</td><td>{i.initialized_at?date(i.initialized_at):'尚无初始化报告'}<small className="mcp-sub">{i.protocol_version??'协议版本未知'}</small></td><td>{date(i.last_reported_at)}</td></tr>)}</tbody></table></div>:<div className="empty">尚无实例上报。请在客户端配置 local-media 并启动，然后发现工具。</div>}</section>
+        <section className="mcp-card"><div className="charthead"><h2>媒体能力目录</h2><span className="muted tiny">能力清单 · 浏览不加载模型</span></div><div className="mcp-models">{overview.models.map(m=><div key={m.id}><strong>{m.id}</strong><small>{m.kind==='image'?'图像':'视频'}</small><p>{m.tasks.join(' · ')}</p><small>{m.execution_runtime==='comfy'?'ComfyUI · 8188':'独立后端 · 按需启动'}</small></div>)}</div></section>
+        {overview.workflows?.length>0&&<section className="mcp-card"><h2>原生工作流</h2><div className="mcp-models">{overview.workflows.map(workflow=><div key={workflow.id}><strong>{workflow.name}</strong><p><code>{workflow.tool}</code></p><p>ComfyUI 原生执行 · 最多 {workflow.reference_images} 张图 / {workflow.reference_videos} 段视频 / {workflow.reference_audios} 段音频</p><p>{workflow.controls?.join(" · ")}</p><p>各参考槽位未传即关闭；LoRA 与优化默认保持原版状态。展开下方工具查看开关及参数。</p></div>)}</div></section>}
+      </>:<div className="empty">正在读取 MCP 部署信息…</div>)}
+      {tab==='config'&&(content?<section className="mcp-card"><h2>本机 stdio 接入</h2><p>先在终端初始化本机凭据，再将下面的 JSON 添加到支持 stdio 的 MCP 客户端。</p><Code value={content.setup_command}/><Code value={content.client_config}/><dl className="mcp-details"><div><dt>工作目录</dt><dd>{content.cwd}</dd></div><div><dt>凭据文件</dt><dd>{content.config_file}</dd></div><div><dt>导入目录</dt><dd>默认 ~/图片；可在凭据文件配置 import_roots，或通过 MEDIA_IMPORT_ROOTS（冒号分隔）覆盖。</dd></div></dl><p className="note">{content.credential_note}</p><p className="note">可用 MEDIA_GATEWAY_URL、MEDIA_API_KEY、MEDIA_MCP_CONFIG 覆盖本机配置。HTTP MCP 尚未部署。</p><h3>验证连接</h3><p>客户端启动后执行工具发现，应该看到 11 个工具：4 个生成（图片/编辑/视频/语音）、2 个目录与素材、5 个任务与作品。list_media_models 只读取能力清单；随后可在概览查看初始化上报。无需生图验证连通。</p></section>:<div className="empty">正在读取接入配置…</div>)}
+      {tab==='tools'&&(content?<>
+        <section className="mcp-card"><div className="charthead"><h2>调用规范</h2><span className="muted tiny">优先复用已启动引擎</span></div><p className="note">先调用 list_media_models 查看当前运行引擎；能满足需求就复用，不要为了单个任务切换引擎。</p><p className="note">同一批任务尽量连续提交给同一引擎。切换会等待队列清空并冷启动后端，视频与 LLM 的冷启动尤其明显。</p><p className="note">生成工具只返回“已接受的任务”，用 get_job 轮询；不要重复提交同一请求。作品先用 get_artifact 查看元数据，再用 download_artifact 落到工作区。</p><p className="note">参考素材先 import_media 导入并复用 asset_id，避免重复上传。</p></section>
+        {toolGroups.map(([label,names])=>{const tools=names.map(name=>content.tools.find(t=>t.name===name)).filter(Boolean);return tools.length?<section className="mcp-card" key={label}><div className="charthead"><h2>{label}</h2><span className="muted tiny">{tools.length} 个</span></div>{tools.map(t=><details className="mcp-tool" key={t.name}><summary><code>{t.name}</code><span>{t.description}</span><Icon name="chevron"/></summary><h3>调用示例</h3><Code value={t.example}/>{t.name==='generate_video'&&<><h3>原版开关</h3><div className="task-table-wrap"><table className="task-table"><thead><tr><th>控制组</th><th>原版默认状态</th><th>参数</th></tr></thead><tbody><tr><td>参考素材</td><td>图像最多9张、视频3段、音频3段；逐槽位开关</td><td><code>reference_slots</code><br/><code>use_*_references</code></td></tr><tr><td>LoRA</td><td>dmad、mystic 开启；combat、motion_speed、motion_repair、fight_flow 关闭</td><td><code>loras.*.enabled / strength</code></td></tr><tr><td>SelfLift 与画幅</td><td>10步 / 第6步切换 / 1.5MP / 16:9</td><td><code>sampling / resolution</code></td></tr><tr><td>注意力与显存</td><td>注意力覆盖、稀疏、sigma、前馈分块、低显存分块、预览覆盖均开启</td><td><code>optimizations</code></td></tr><tr><td>音视频输出</td><td>含音频、CRF19、不裁音轨、不往返</td><td><code>output</code></td></tr></tbody></table></div><p className="note">一个调用入口；未传选项采用原版默认值。关闭节点会实际旁路，提示词中的 Picture / Video / Audio 标签按开启素材连续编号。</p></>}<h3>输入 JSON Schema</h3><Code value={t.inputSchema}/></details>)}</section>:null;})}
+      </>:<div className="empty">正在读取工具清单…</div>)}
+      {tab==='calls'&&(content?<><section className="mcp-card"><div className="charthead"><h2>工具调用记录</h2><span className="muted tiny">最多 5000 条 · 保留 {content.retention_days} 天</span></div><p className="note">工具成功表示调用已返回；生成结果由关联任务单独记录。提示词、密钥和媒体内容不写入此记录。</p>{content.calls.length?<div className="task-table-wrap"><table className="task-table"><thead><tr><th>时间 / 实例</th><th>工具</th><th>调用结果</th><th>耗时</th><th>媒体任务</th></tr></thead><tbody>{content.calls.map(c=><tr key={c.call_id}><td>{date(c.at)}<small className="mcp-sub" title={c.instance_id}>{c.instance_id.slice(0,18)}…</small></td><td><code>{c.tool}</code></td><td className={c.status==='success'?'live':'bad'}>{c.status==='success'?'返回成功':'调用失败'}</td><td>{c.duration_ms} ms</td><td>{c.job_id?<button className="mcp-link" title={c.job_id} onClick={()=>{setJobId(c.job_id);}}>{states[c.job_state]??'查看任务'}</button>:'—'}</td></tr>)}</tbody></table></div>:<div className="empty">暂无工具调用。客户端调用工具后，脱敏记录将显示在这里。</div>}<div className="mcp-pagination"><ActionButton disabled={offset===0} onClick={()=>setOffset(Math.max(0,offset-30))}>上一页</ActionButton><span>{content.calls.length?offset+1:0}–{offset+content.calls.length} / {content.total}</span><ActionButton disabled={!content.has_more} onClick={()=>setOffset(offset+30)}>下一页</ActionButton></div></section>
+        {jobId&&<section className="mcp-card" id="mcp-job-detail" tabIndex={-1}><div className="charthead"><h2>关联媒体任务</h2><ActionButton onClick={()=>{setJobId(null);}}>关闭</ActionButton></div>{job?<><p><code>{job.job_id}</code> · <strong>{states[job.state]??job.state}</strong> · {job.model}</p><p className="note">{job.cancellable?'尚未派发到后端，可由任务所有者取消。':'当前状态不支持取消。'} 创建于 {date(job.created_at)}</p>{job.error&&<p className="error-banner">{job.error.code} · {job.error.message}</p>}{job.effective_parameters&&<details><summary>实际参数</summary><Code value={job.effective_parameters}/></details>}{job.artifacts.map(a=><div className="mcp-artifact" key={a.artifact_id}>{a.kind==='image'?<img src={'/api/mcp/artifacts/'+a.artifact_id} alt="MCP 生成作品"/>:a.kind==='audio'?<audio src={'/api/mcp/artifacts/'+a.artifact_id} controls preload="metadata"/>:<video src={'/api/mcp/artifacts/'+a.artifact_id} controls preload="metadata"/>}<p><code>{a.local_path}</code></p><a href={'/api/mcp/artifacts/'+a.artifact_id} download>下载作品</a></div>)}</>:<div className="empty">正在读取任务…</div>}</section>}
+      </>:<div className="empty">正在读取调用记录…</div>)}
+    </section>
+  </div>;
+}

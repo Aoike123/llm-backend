@@ -1,0 +1,58 @@
+name: ai-monitoring
+services:
+  prometheus:
+    image: ${PROMETHEUS_IMAGE:-quay.nju.edu.cn/prometheus/prometheus:v3.15.0}
+    container_name: ai-monitoring-prometheus
+    network_mode: host
+    user: "${MONITOR_UID}:${MONITOR_GID}"
+    restart: unless-stopped
+    mem_limit: 1g
+    cpus: 1.0
+    command:
+      - --config.file=/etc/prometheus/prometheus.yaml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=30d
+      - --storage.tsdb.retention.size=4GB
+      - --web.listen-address=127.0.0.1:19090
+    volumes:
+      - ./config/prometheus.yaml:/etc/prometheus/prometheus.yaml:ro
+      - ../../workspace/data/monitoring/prometheus:/prometheus
+  node-exporter:
+    image: ${NODE_EXPORTER_IMAGE:-quay.nju.edu.cn/prometheus/node-exporter:v1.12.1}
+    container_name: ai-monitoring-node
+    network_mode: host
+    user: "${MONITOR_UID}:${MONITOR_GID}"
+    restart: unless-stopped
+    mem_limit: 128m
+    cpus: 0.25
+    command:
+      - --no-collector.thermal_zone
+      - --path.procfs=/host/proc
+      - --path.sysfs=/host/sys
+      - --path.rootfs=/host/root
+      - --web.listen-address=127.0.0.1:19100
+      - --collector.filesystem.mount-points-exclude=^/(dev|proc|sys|run|var/lib/docker)($|/)
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/host/root:ro,rslave
+  gpu-exporter:
+    image: ${PYTHON_IMAGE:-docker.io/library/python:3.12-slim}
+    container_name: ai-monitoring-gpu
+    network_mode: host
+    user: "${MONITOR_UID}:${MONITOR_GID}"
+    restart: unless-stopped
+    mem_limit: 128m
+    cpus: 0.25
+    read_only: true
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+    environment:
+      PYTHONDONTWRITEBYTECODE: "1"
+      PYTHONUNBUFFERED: "1"
+      HOST_SYS: /host/sys
+    command: [python, /app/exporter.py]
+    volumes:
+      - /sys:/host/sys:ro
+      - ./exporter.py:/app/exporter.py:ro
+      - ../../engines/shared/paiton/config/profiles.json:/config/profiles.json:ro

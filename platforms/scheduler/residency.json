@@ -1,0 +1,8 @@
+{
+  "enabled": false,
+  "models": ["llm"],
+  "minimum_available_memory_gib": 32,
+  "minimum_remaining_memory_gib": 16,
+  "maximum_sleep_vram_gib": 3,
+  "transition_timeout_seconds": 120
+}

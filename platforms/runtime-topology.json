@@ -1,0 +1,69 @@
+{
+  "mode": "single-gpu-demand-switching",
+  "gateway_port": 18982,
+  "management_port": 13000,
+  "control_port": 18990,
+  "runtimes": {
+    "comfy": {
+      "name": "ComfyUI",
+      "port": 8188,
+      "container": "paiton-h3-comfyui-1",
+      "launch": [
+        "pation-model-minimax-h3",
+        "start"
+      ],
+      "engines": [
+        "h3"
+      ]
+    },
+    "llm": {
+      "name": "Qwen · vLLM",
+      "port": 18983,
+      "container": "paiton-qwen38",
+      "launch": [
+        "pation-model-qwen38-27b-w3a4",
+        "start",
+        "w3a4"
+      ],
+      "engines": [
+        "llm"
+      ]
+    },
+    "qwen-image": {
+      "name": "Qwen-Image",
+      "port": 8191,
+      "container": "paiton-qwen-image21",
+      "launch": [
+        "pation-model-qwen-image-21",
+        "start"
+      ],
+      "engines": [
+        "qwen-image"
+      ]
+    },
+    "flux": {
+      "name": "FLUX · Paiton / Diffusers",
+      "port": 7861,
+      "container": "paiton-flux2-paiton-1",
+      "launch": [
+        "pation-model-flux2-klein",
+        "start"
+      ],
+      "engines": [
+        "flux"
+      ]
+    },
+    "tts": {
+      "name": "CosyVoice 3 · RL",
+      "port": 18986,
+      "container": "paiton-tts",
+      "launch": [
+        "pation-model-cosyvoice3",
+        "start"
+      ],
+      "engines": [
+        "tts"
+      ]
+    }
+  }
+}

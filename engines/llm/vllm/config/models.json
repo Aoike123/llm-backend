@@ -1,0 +1,10 @@
+[
+  {
+    "id": "qwen38-autoround-int4",
+    "format": "AutoRound INT4 + W4A16 drafter (compatibility pending)",
+    "paths": [
+      "/media/aoike/Resource_AI/LLM_Assets/models/qwen3.8-27b-vllm/Qwen3.8-27B-int4-AutoRound",
+      "/media/aoike/Resource_AI/LLM_Assets/models/qwen3.8-27b-vllm/Qwen3.8-27B-DFlash2-W4A16"
+    ]
+  }
+]

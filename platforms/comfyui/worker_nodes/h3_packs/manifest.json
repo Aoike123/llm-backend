@@ -1,0 +1,14 @@
+{
+  "purpose": "YZ金鱼 MiniMax H3 工作流所需第三方 ComfyUI 节点",
+  "packs": {
+    "comfyui-SelfLift": {"repository": "https://github.com/facok/comfyui-SelfLift", "commit": "835c3cf7919410f71f414688f049c6ca497789d0"},
+    "ComfyUI_Text_Translation": {"repository": "https://github.com/TFL-TFL/ComfyUI_Text_Translation", "commit": "495f9773dd3651a366ebac664fc4b0f301e9b1b3"},
+    "ComfyUI-KJNodes": {"repository": "https://github.com/kijai/ComfyUI-KJNodes", "commit": "f20bdd5337ace70abbec147bdb68ea345d340836"},
+    "ComfyUI-VideoHelperSuite": {"repository": "https://github.com/Kosinkadink/ComfyUI-VideoHelperSuite", "commit": "4d907bee61e92c2e65af3bd6383a4e4d356126d1"},
+    "Goohaitools-comfyui": {"repository": "https://github.com/goohai/Goohaitools-comfyui", "commit": "78dcaf74e21dd30b1a1439b7c44bd5c17018ffa9"}
+  },
+  "notes": [
+    "交接文档中的 KJNodes commit daa2bee6951527ed5600fa0c7263a4e4d356126d1 在 kijai/ComfyUI-KJNodes 中不存在，改用 main 的 f20bdd5（已含 MiniMaxLowVRAMAttention、MiniMaxChunkFeedForward、ModelPreviewOverrideKJ）。",
+    "Goohaitools 的 mediapipe/dlib/skimage 相关节点因缺依赖被其 __init__ 跳过，不影响本工作流使用的万能滑条与忽略多组节点。"
+  ]
+}

@@ -1,0 +1,1355 @@
+{
+  "last_node_id": 102,
+  "last_link_id": 22,
+  "nodes": [
+    {
+      "id": 1,
+      "type": "UNETLoader",
+      "title": "扩散模型 · W4A8",
+      "pos": [
+        60,
+        100
+      ],
+      "size": [
+        320,
+        115
+      ],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "unet_name",
+          "type": "COMBO",
+          "widget": {
+            "name": "unet_name"
+          },
+          "link": null
+        },
+        {
+          "name": "weight_dtype",
+          "type": "COMBO",
+          "widget": {
+            "name": "weight_dtype"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "MODEL",
+          "type": "MODEL",
+          "links": [
+            5
+          ]
+        }
+      ],
+      "color": "#333641",
+      "bgcolor": "#252830",
+      "properties": {
+        "Node name for S&R": "UNETLoader"
+      },
+      "widgets_values": [
+        "minimax_h3_fl2va_pruned_w4a8_mixed.safetensors",
+        "default"
+      ]
+    },
+    {
+      "id": 2,
+      "type": "CLIPLoader",
+      "title": "文本/视觉编码器 · Qwen3-VL",
+      "pos": [
+        60,
+        270
+      ],
+      "size": [
+        320,
+        130
+      ],
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "clip_name",
+          "type": "COMBO",
+          "widget": {
+            "name": "clip_name"
+          },
+          "link": null
+        },
+        {
+          "name": "type",
+          "type": "COMBO",
+          "widget": {
+            "name": "type"
+          },
+          "link": null
+        },
+        {
+          "name": "device",
+          "type": "COMBO",
+          "widget": {
+            "name": "device"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "CLIP",
+          "type": "CLIP",
+          "links": [
+            1
+          ]
+        }
+      ],
+      "color": "#333641",
+      "bgcolor": "#252830",
+      "properties": {
+        "Node name for S&R": "CLIPLoader"
+      },
+      "widgets_values": [
+        "qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors",
+        "minimax",
+        "default"
+      ]
+    },
+    {
+      "id": 3,
+      "type": "PaitonH3VAELoader",
+      "title": "视频 VAE · BF16",
+      "pos": [
+        60,
+        460
+      ],
+      "size": [
+        320,
+        90
+      ],
+      "flags": {},
+      "order": 2,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "component",
+          "type": "COMBO",
+          "widget": {
+            "name": "component"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "VAE",
+          "type": "VAE",
+          "links": [
+            2,
+            17
+          ]
+        }
+      ],
+      "color": "#333641",
+      "bgcolor": "#252830",
+      "properties": {
+        "Node name for S&R": "PaitonH3VAELoader"
+      },
+      "widgets_values": [
+        "video"
+      ]
+    },
+    {
+      "id": 4,
+      "type": "PaitonH3VAELoader",
+      "title": "音频 VAE · FP32",
+      "pos": [
+        60,
+        610
+      ],
+      "size": [
+        320,
+        90
+      ],
+      "flags": {},
+      "order": 3,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "component",
+          "type": "COMBO",
+          "widget": {
+            "name": "component"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "VAE",
+          "type": "VAE",
+          "links": [
+            19
+          ]
+        }
+      ],
+      "color": "#333641",
+      "bgcolor": "#252830",
+      "properties": {
+        "Node name for S&R": "PaitonH3VAELoader"
+      },
+      "widgets_values": [
+        "audio"
+      ]
+    },
+    {
+      "id": 10,
+      "type": "KSamplerSelect",
+      "title": "采样算法",
+      "pos": [
+        1330,
+        280
+      ],
+      "size": [
+        320,
+        95
+      ],
+      "flags": {},
+      "order": 4,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "sampler_name",
+          "type": "COMBO",
+          "widget": {
+            "name": "sampler_name"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "SAMPLER",
+          "type": "SAMPLER",
+          "links": [
+            13
+          ]
+        }
+      ],
+      "color": "#333641",
+      "bgcolor": "#252830",
+      "properties": {
+        "Node name for S&R": "KSamplerSelect"
+      },
+      "widgets_values": [
+        "euler"
+      ]
+    },
+    {
+      "id": 12,
+      "type": "RandomNoise",
+      "title": "随机噪声 · 固定种子",
+      "pos": [
+        840,
+        630
+      ],
+      "size": [
+        330,
+        100
+      ],
+      "flags": {},
+      "order": 5,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "noise_seed",
+          "type": "INT",
+          "widget": {
+            "name": "noise_seed"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "NOISE",
+          "type": "NOISE",
+          "links": [
+            11
+          ]
+        }
+      ],
+      "color": "#333641",
+      "bgcolor": "#252830",
+      "properties": {
+        "Node name for S&R": "RandomNoise"
+      },
+      "widgets_values": [
+        771,
+        "fixed"
+      ]
+    },
+    {
+      "id": 100,
+      "type": "LoadImage",
+      "title": "首帧 · 请替换图片",
+      "pos": [
+        60,
+        820
+      ],
+      "size": [
+        320,
+        320
+      ],
+      "flags": {},
+      "order": 6,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "image",
+          "type": "COMBO",
+          "widget": {
+            "name": "image"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            3
+          ]
+        },
+        {
+          "name": "MASK",
+          "type": "MASK",
+          "links": []
+        }
+      ],
+      "color": "#333641",
+      "bgcolor": "#252830",
+      "properties": {
+        "Node name for S&R": "LoadImage"
+      },
+      "widgets_values": [
+        "h3-first.png",
+        "image"
+      ]
+    },
+    {
+      "id": 101,
+      "type": "LoadImage",
+      "title": "尾帧 · 请替换图片",
+      "pos": [
+        440,
+        820
+      ],
+      "size": [
+        330,
+        320
+      ],
+      "flags": {},
+      "order": 7,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "image",
+          "type": "COMBO",
+          "widget": {
+            "name": "image"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            4
+          ]
+        },
+        {
+          "name": "MASK",
+          "type": "MASK",
+          "links": []
+        }
+      ],
+      "color": "#333641",
+      "bgcolor": "#252830",
+      "properties": {
+        "Node name for S&R": "LoadImage"
+      },
+      "widgets_values": [
+        "h3-last.png",
+        "image"
+      ]
+    },
+    {
+      "id": 5,
+      "type": "MiniMaxH3ImageToVideo",
+      "title": "提示词与首尾帧条件",
+      "pos": [
+        840,
+        100
+      ],
+      "size": [
+        420,
+        440
+      ],
+      "flags": {},
+      "order": 8,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "clip",
+          "type": "CLIP",
+          "link": 1
+        },
+        {
+          "name": "vae",
+          "type": "VAE",
+          "link": 2
+        },
+        {
+          "name": "prompt",
+          "type": "STRING",
+          "widget": {
+            "name": "prompt"
+          },
+          "link": null
+        },
+        {
+          "name": "width",
+          "type": "INT",
+          "widget": {
+            "name": "width"
+          },
+          "link": null
+        },
+        {
+          "name": "height",
+          "type": "INT",
+          "widget": {
+            "name": "height"
+          },
+          "link": null
+        },
+        {
+          "name": "length",
+          "type": "INT",
+          "widget": {
+            "name": "length"
+          },
+          "link": null
+        },
+        {
+          "name": "first_frame",
+          "type": "IMAGE",
+          "link": 3
+        },
+        {
+          "name": "last_frame",
+          "type": "IMAGE",
+          "link": 4
+        }
+      ],
+      "outputs": [
+        {
+          "name": "positive",
+          "type": "CONDITIONING",
+          "links": [
+            9
+          ]
+        },
+        {
+          "name": "LATENT",
+          "type": "LATENT",
+          "links": [
+            15
+          ]
+        }
+      ],
+      "color": "#333641",
+      "bgcolor": "#252830",
+      "properties": {
+        "Node name for S&R": "MiniMaxH3ImageToVideo"
+      },
+      "widgets_values": [
+        "A small red fox trots through a sunlit woodland clearing, pauses beside a shallow stream, and looks toward the camera. Natural realistic fur, continuous gentle camera movement, coherent anatomy. Audio: birds chirping, leaves rustling and quiet flowing water; no music and no speech.",
+        864,
+        480,
+        124
+      ]
+    },
+    {
+      "id": 6,
+      "type": "LoraLoaderBypassModelOnly",
+      "title": "Turbo LoRA · 可替换",
+      "pos": [
+        440,
+        100
+      ],
+      "size": [
+        330,
+        140
+      ],
+      "flags": {},
+      "order": 9,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 5
+        },
+        {
+          "name": "lora_name",
+          "type": "COMBO",
+          "widget": {
+            "name": "lora_name"
+          },
+          "link": null
+        },
+        {
+          "name": "strength_model",
+          "type": "FLOAT",
+          "widget": {
+            "name": "strength_model"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "MODEL",
+          "type": "MODEL",
+          "links": [
+            6
+          ]
+        }
+      ],
+      "color": "#333641",
+      "bgcolor": "#252830",
+      "properties": {
+        "Node name for S&R": "LoraLoaderBypassModelOnly"
+      },
+      "widgets_values": [
+        "minimax_h3_fl2v_turbo_8step_v1.0_768p_comfyui_bf16.safetensors",
+        1.0
+      ]
+    },
+    {
+      "id": 7,
+      "type": "MiniMaxH3SigmaShift",
+      "title": "视频/音频采样偏移",
+      "pos": [
+        440,
+        300
+      ],
+      "size": [
+        330,
+        110
+      ],
+      "flags": {},
+      "order": 10,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 6
+        },
+        {
+          "name": "shift_video",
+          "type": "FLOAT",
+          "widget": {
+            "name": "shift_video"
+          },
+          "link": null
+        },
+        {
+          "name": "shift_audio",
+          "type": "FLOAT",
+          "widget": {
+            "name": "shift_audio"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "MODEL",
+          "type": "MODEL",
+          "links": [
+            7
+          ]
+        }
+      ],
+      "color": "#333641",
+      "bgcolor": "#252830",
+      "properties": {
+        "Node name for S&R": "MiniMaxH3SigmaShift"
+      },
+      "widgets_values": [
+        6.0,
+        3.0
+      ]
+    },
+    {
+      "id": 8,
+      "type": "PaitonH3Optimize",
+      "title": "Paiton / Stock · 模型优化",
+      "pos": [
+        440,
+        480
+      ],
+      "size": [
+        330,
+        100
+      ],
+      "flags": {},
+      "order": 11,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 7
+        },
+        {
+          "name": "engine",
+          "type": "COMBO",
+          "widget": {
+            "name": "engine"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "MODEL",
+          "type": "MODEL",
+          "links": [
+            8,
+            10
+          ]
+        }
+      ],
+      "color": "#333641",
+      "bgcolor": "#252830",
+      "properties": {
+        "Node name for S&R": "PaitonH3Optimize"
+      },
+      "widgets_values": [
+        "paiton"
+      ]
+    },
+    {
+      "id": 9,
+      "type": "BasicGuider",
+      "title": "条件引导",
+      "pos": [
+        1330,
+        100
+      ],
+      "size": [
+        320,
+        100
+      ],
+      "flags": {},
+      "order": 12,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 8
+        },
+        {
+          "name": "conditioning",
+          "type": "CONDITIONING",
+          "link": 9
+        }
+      ],
+      "outputs": [
+        {
+          "name": "GUIDER",
+          "type": "GUIDER",
+          "links": [
+            12
+          ]
+        }
+      ],
+      "color": "#333641",
+      "bgcolor": "#252830",
+      "properties": {
+        "Node name for S&R": "BasicGuider"
+      },
+      "widgets_values": []
+    },
+    {
+      "id": 11,
+      "type": "BasicScheduler",
+      "title": "调度器 · 步数",
+      "pos": [
+        840,
+        800
+      ],
+      "size": [
+        330,
+        145
+      ],
+      "flags": {},
+      "order": 13,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 10
+        },
+        {
+          "name": "scheduler",
+          "type": "COMBO",
+          "widget": {
+            "name": "scheduler"
+          },
+          "link": null
+        },
+        {
+          "name": "steps",
+          "type": "INT",
+          "widget": {
+            "name": "steps"
+          },
+          "link": null
+        },
+        {
+          "name": "denoise",
+          "type": "FLOAT",
+          "widget": {
+            "name": "denoise"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "SIGMAS",
+          "type": "SIGMAS",
+          "links": [
+            14
+          ]
+        }
+      ],
+      "color": "#333641",
+      "bgcolor": "#252830",
+      "properties": {
+        "Node name for S&R": "BasicScheduler"
+      },
+      "widgets_values": [
+        "simple",
+        8,
+        1.0
+      ]
+    },
+    {
+      "id": 13,
+      "type": "SamplerCustomAdvanced",
+      "title": "高级采样 · LATENT",
+      "pos": [
+        1330,
+        460
+      ],
+      "size": [
+        320,
+        230
+      ],
+      "flags": {},
+      "order": 14,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "noise",
+          "type": "NOISE",
+          "link": 11
+        },
+        {
+          "name": "guider",
+          "type": "GUIDER",
+          "link": 12
+        },
+        {
+          "name": "sampler",
+          "type": "SAMPLER",
+          "link": 13
+        },
+        {
+          "name": "sigmas",
+          "type": "SIGMAS",
+          "link": 14
+        },
+        {
+          "name": "latent_image",
+          "type": "LATENT",
+          "link": 15
+        }
+      ],
+      "outputs": [
+        {
+          "name": "output",
+          "type": "LATENT",
+          "links": [
+            16,
+            18
+          ]
+        },
+        {
+          "name": "denoised_output",
+          "type": "LATENT",
+          "links": []
+        }
+      ],
+      "color": "#333641",
+      "bgcolor": "#252830",
+      "properties": {
+        "Node name for S&R": "SamplerCustomAdvanced"
+      },
+      "widgets_values": []
+    },
+    {
+      "id": 14,
+      "type": "VAEDecode",
+      "title": "视频解码 · IMAGE",
+      "pos": [
+        1720,
+        100
+      ],
+      "size": [
+        320,
+        110
+      ],
+      "flags": {},
+      "order": 15,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "samples",
+          "type": "LATENT",
+          "link": 16
+        },
+        {
+          "name": "vae",
+          "type": "VAE",
+          "link": 17
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            20
+          ]
+        }
+      ],
+      "color": "#333641",
+      "bgcolor": "#252830",
+      "properties": {
+        "Node name for S&R": "VAEDecode"
+      },
+      "widgets_values": []
+    },
+    {
+      "id": 15,
+      "type": "VAEDecodeAudio",
+      "title": "音频解码 · AUDIO",
+      "pos": [
+        1720,
+        310
+      ],
+      "size": [
+        320,
+        110
+      ],
+      "flags": {},
+      "order": 16,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "samples",
+          "type": "LATENT",
+          "link": 18
+        },
+        {
+          "name": "vae",
+          "type": "VAE",
+          "link": 19
+        }
+      ],
+      "outputs": [
+        {
+          "name": "AUDIO",
+          "type": "AUDIO",
+          "links": [
+            21
+          ]
+        }
+      ],
+      "color": "#333641",
+      "bgcolor": "#252830",
+      "properties": {
+        "Node name for S&R": "VAEDecodeAudio"
+      },
+      "widgets_values": []
+    },
+    {
+      "id": 16,
+      "type": "CreateVideo",
+      "title": "合成视频与原生音频",
+      "pos": [
+        2110,
+        100
+      ],
+      "size": [
+        360,
+        140
+      ],
+      "flags": {},
+      "order": 17,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 20
+        },
+        {
+          "name": "fps",
+          "type": "FLOAT",
+          "widget": {
+            "name": "fps"
+          },
+          "link": null
+        },
+        {
+          "name": "audio",
+          "type": "AUDIO",
+          "link": 21
+        },
+        {
+          "name": "bit_depth",
+          "type": "COMBO",
+          "widget": {
+            "name": "bit_depth"
+          },
+          "link": null
+        },
+        {
+          "name": "color_space",
+          "type": "COMBO",
+          "widget": {
+            "name": "color_space"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "VIDEO",
+          "type": "VIDEO",
+          "links": [
+            22
+          ]
+        }
+      ],
+      "color": "#333641",
+      "bgcolor": "#252830",
+      "properties": {
+        "Node name for S&R": "CreateVideo"
+      },
+      "widgets_values": [
+        24,
+        8,
+        "sRGB"
+      ]
+    },
+    {
+      "id": 17,
+      "type": "SaveVideo",
+      "title": "保存与预览 · MP4",
+      "pos": [
+        2110,
+        320
+      ],
+      "size": [
+        360,
+        450
+      ],
+      "flags": {},
+      "order": 18,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "video",
+          "type": "VIDEO",
+          "link": 22
+        },
+        {
+          "name": "filename_prefix",
+          "type": "STRING",
+          "widget": {
+            "name": "filename_prefix"
+          },
+          "link": null
+        },
+        {
+          "name": "format",
+          "type": "COMFY_DYNAMICCOMBO_V3",
+          "widget": {
+            "name": "format"
+          },
+          "link": null
+        },
+        {
+          "name": "format.codec",
+          "type": "COMFY_DYNAMICCOMBO_V3",
+          "widget": {
+            "name": "format.codec"
+          },
+          "link": null
+        },
+        {
+          "name": "format.codec.encoding",
+          "type": "COMFY_DYNAMICCOMBO_V3",
+          "widget": {
+            "name": "format.codec.encoding"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "video",
+          "type": "VIDEO",
+          "links": []
+        }
+      ],
+      "color": "#333641",
+      "bgcolor": "#252830",
+      "properties": {
+        "Node name for S&R": "SaveVideo"
+      },
+      "widgets_values": [
+        "H3/原生视频",
+        "mp4",
+        "h264",
+        "auto"
+      ]
+    },
+    {
+      "id": 102,
+      "type": "Note",
+      "title": "执行方式与模型挂载",
+      "pos": [
+        1720,
+        860
+      ],
+      "size": [
+        730,
+        230
+      ],
+      "flags": {},
+      "order": 19,
+      "mode": 0,
+      "properties": {},
+      "widgets_values": [
+        "原生 H3：MODEL、CLIP、VAE、CONDITIONING、LATENT、IMAGE、AUDIO 均在同一个 GPU 工作进程中连接。\n修改 LoRA、采样器、步数后按实际输出重新验证。Turbo8 默认 8 步；Turbo4 需同时替换为匹配的 4 步 LoRA。\n权重：workspace/data/video/minimax-h3/models → GPU 容器模型目录；公共页面不重复加载权重。"
+      ],
+      "color": "#343943",
+      "bgcolor": "#252830"
+    }
+  ],
+  "links": [
+    [
+      1,
+      2,
+      0,
+      5,
+      0,
+      "CLIP"
+    ],
+    [
+      2,
+      3,
+      0,
+      5,
+      1,
+      "VAE"
+    ],
+    [
+      3,
+      100,
+      0,
+      5,
+      6,
+      "IMAGE"
+    ],
+    [
+      4,
+      101,
+      0,
+      5,
+      7,
+      "IMAGE"
+    ],
+    [
+      5,
+      1,
+      0,
+      6,
+      0,
+      "MODEL"
+    ],
+    [
+      6,
+      6,
+      0,
+      7,
+      0,
+      "MODEL"
+    ],
+    [
+      7,
+      7,
+      0,
+      8,
+      0,
+      "MODEL"
+    ],
+    [
+      8,
+      8,
+      0,
+      9,
+      0,
+      "MODEL"
+    ],
+    [
+      9,
+      5,
+      0,
+      9,
+      1,
+      "CONDITIONING"
+    ],
+    [
+      10,
+      8,
+      0,
+      11,
+      0,
+      "MODEL"
+    ],
+    [
+      11,
+      12,
+      0,
+      13,
+      0,
+      "NOISE"
+    ],
+    [
+      12,
+      9,
+      0,
+      13,
+      1,
+      "GUIDER"
+    ],
+    [
+      13,
+      10,
+      0,
+      13,
+      2,
+      "SAMPLER"
+    ],
+    [
+      14,
+      11,
+      0,
+      13,
+      3,
+      "SIGMAS"
+    ],
+    [
+      15,
+      5,
+      1,
+      13,
+      4,
+      "LATENT"
+    ],
+    [
+      16,
+      13,
+      0,
+      14,
+      0,
+      "LATENT"
+    ],
+    [
+      17,
+      3,
+      0,
+      14,
+      1,
+      "VAE"
+    ],
+    [
+      18,
+      13,
+      0,
+      15,
+      0,
+      "LATENT"
+    ],
+    [
+      19,
+      4,
+      0,
+      15,
+      1,
+      "VAE"
+    ],
+    [
+      20,
+      14,
+      0,
+      16,
+      0,
+      "IMAGE"
+    ],
+    [
+      21,
+      15,
+      0,
+      16,
+      2,
+      "AUDIO"
+    ],
+    [
+      22,
+      16,
+      0,
+      17,
+      0,
+      "VIDEO"
+    ]
+  ],
+  "groups": [
+    {
+      "title": "01 · 加载模型与编码器",
+      "bounding": [
+        35,
+        45,
+        370,
+        690
+      ],
+      "color": "#626878",
+      "font_size": 22,
+      "flags": {}
+    },
+    {
+      "title": "02 · LoRA 与优化",
+      "bounding": [
+        415,
+        45,
+        380,
+        690
+      ],
+      "color": "#626878",
+      "font_size": 22,
+      "flags": {}
+    },
+    {
+      "title": "03 · 条件、噪声与步数",
+      "bounding": [
+        815,
+        45,
+        470,
+        940
+      ],
+      "color": "#626878",
+      "font_size": 22,
+      "flags": {}
+    },
+    {
+      "title": "04 · 采样",
+      "bounding": [
+        1305,
+        45,
+        370,
+        690
+      ],
+      "color": "#626878",
+      "font_size": 22,
+      "flags": {}
+    },
+    {
+      "title": "05 · 视频/音频解码",
+      "bounding": [
+        1695,
+        45,
+        370,
+        440
+      ],
+      "color": "#626878",
+      "font_size": 22,
+      "flags": {}
+    },
+    {
+      "title": "06 · 合成与输出",
+      "bounding": [
+        2085,
+        45,
+        410,
+        770
+      ],
+      "color": "#626878",
+      "font_size": 22,
+      "flags": {}
+    },
+    {
+      "title": "参考图片 · 请替换输入",
+      "bounding": [
+        35,
+        765,
+        760,
+        415
+      ],
+      "color": "#626878",
+      "font_size": 22,
+      "flags": {}
+    }
+  ],
+  "config": {},
+  "extra": {
+    "ds": {
+      "scale": 0.55,
+      "offset": [
+        0,
+        0
+      ]
+    },
+    "workbench": {
+      "id": "minimax-h3-first-last",
+      "title": "H3 · 首尾帧视频"
+    }
+  },
+  "version": 0.4
+}

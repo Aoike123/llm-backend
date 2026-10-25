@@ -1,0 +1,71 @@
+{
+  "repository": "mixed-pinned-minimax-h3-turbo8",
+  "revision": "see individual file revisions",
+  "download_bytes": 33961119279,
+  "source_lock": "engines/shared/paiton/upstream/models/MiniMax-H3/checkpoints.lock.json",
+  "files": [
+    {
+      "repository": "Comfy-Org/MiniMax-H3",
+      "revision": "a98869194787969724c7425d95d0ed73ce9202af",
+      "file": "text_encoders/qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors",
+      "destination": "text_encoders/qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors",
+      "bytes": 15687142551,
+      "sha256": "35a88d51044231fe332301d7a62aa81e3f2cba62febeb446e2c1e3e0ef76f2c6",
+      "profiles": [
+        "base20",
+        "turbo8",
+        "turbo4"
+      ]
+    },
+    {
+      "repository": "Comfy-Org/MiniMax-H3",
+      "revision": "a98869194787969724c7425d95d0ed73ce9202af",
+      "file": "vae/minimax_h3_audio_vae_fp32.safetensors",
+      "destination": "vae/minimax_h3_audio_vae_fp32.safetensors",
+      "bytes": 605254808,
+      "sha256": "8e505d95dd1561d47abd43d4238fd40d9bb1ae9e147ed0a4cba778d76ae4db48",
+      "profiles": [
+        "base20",
+        "turbo8",
+        "turbo4"
+      ]
+    },
+    {
+      "repository": "starsfriday/MiniMax-H3-w4a8",
+      "revision": "2a5ad5871296af3506fda7c5edd571612253cedb",
+      "file": "minimax_h3_fl2va_pruned_w4a8_mixed.safetensors",
+      "destination": "diffusion_models/minimax_h3_fl2va_pruned_w4a8_mixed.safetensors",
+      "bytes": 12540858008,
+      "sha256": "29d0a0e4be82dacdc4a5849bf756c2b32d34131f7a18f9aac754e16a2e215eb5",
+      "profiles": [
+        "base20",
+        "turbo8",
+        "turbo4"
+      ]
+    },
+    {
+      "repository": "Kijai/MiniMax-H3-experimental",
+      "revision": "f4cac997f880e93cf6940af61ee8d58ef31ff7f3",
+      "file": "minimax_h3_video_vae_int8_convrot.safetensors",
+      "destination": "vae/minimax_h3_video_vae_int8_convrot.safetensors",
+      "bytes": 3171670912,
+      "sha256": "9bb2d96f218c76babd85e0611b85ca8fb330a90546c01a0005e8a58a59593410",
+      "profiles": [
+        "base20",
+        "turbo8",
+        "turbo4"
+      ]
+    },
+    {
+      "repository": "lightx2v/Minimax-h3-Turbo",
+      "revision": "2f015e66b37c585cea9dc4ae6f1850ea8788e742",
+      "file": "minimax_h3_fl2v_turbo_8step_v1.0_768p_comfyui_bf16.safetensors",
+      "destination": "loras/minimax_h3_fl2v_turbo_8step_v1.0_768p_comfyui_bf16.safetensors",
+      "bytes": 1956193000,
+      "sha256": "08cfe946033af7d27719b964b6e0a0e50c32138daabbd6ce4137e23df6bf9980",
+      "profiles": [
+        "turbo8"
+      ]
+    }
+  ]
+}

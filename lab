@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+set -euo pipefail
+workbench_root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+export PYTHONPYCACHEPREFIX="$workbench_root/.workbench/cache/python"
+exec python3 "$workbench_root/.workbench/cli.py" "$@"

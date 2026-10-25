@@ -1,0 +1,9 @@
+[
+  {
+    "id": "flux2-klein-4b-prepared-int8",
+    "format": "INT8 prepared diffusion + BF16 text encoder + BF16 VAE (pinned SDNQ source conversion)",
+    "paths": [
+      "/mnt/Code/llm-backend/workspace/data/image/flux2/flux2-klein-runtime"
+    ]
+  }
+]

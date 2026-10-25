@@ -1,0 +1,9 @@
+[
+  {
+    "id": "qwen-image21-mxfp4-rdna4",
+    "format": "Paiton packed MXFP4",
+    "paths": [
+      "/mnt/Code/llm-backend/workspace/data/image/qwen-image/models/qwen-image21-mxfp4-rdna4"
+    ]
+  }
+]

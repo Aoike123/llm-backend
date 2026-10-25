@@ -1,0 +1,11 @@
+[
+  {
+    "id": "qwen38-27b-w3a4-dflash2",
+    "format": "NVFP4 base + INT3 overlay (W3A4) + FP8 drafter",
+    "paths": [
+      "/mnt/Code/llm-backend/workspace/data/llm/paiton/models/qwen38-nvfp4",
+      "/mnt/Code/llm-backend/workspace/data/llm/paiton/models/qwen38-dflash2",
+      "/mnt/Code/llm-backend/workspace/data/llm/paiton/models/qwen38-w3rot-int3"
+    ]
+  }
+]

@@ -1,0 +1,19 @@
+{
+  "name": "Qwen3.8 27B W3A4",
+  "entrypoint": "engines/shared/paiton/controller.py",
+  "status": "统一引擎：256K技术上限、最多八路、固定8GiB KV；网关热更新额度，CPU视觉与medium思考",
+  "upstream": "engines/shared/paiton/upstream",
+  "cache": "workspace/data/llm/paiton",
+  "outputs": "workspace/outputs/llm/paiton",
+  "reports": "workspace/reports/llm/paiton",
+  "category": "llm",
+  "kind": "model-deployment",
+  "backend": "Paiton / vLLM",
+  "profiles": {
+    "w3a4": "llm-fast",
+    "high-concurrency": "llm-throughput"
+  },
+  "deployment_id": "pation-model-qwen38-27b-w3a4",
+  "default_profile": "llm-fast",
+  "hardware": "Radeon AI PRO R9700 32GB"
+}

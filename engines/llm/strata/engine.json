@@ -1,0 +1,10 @@
+{
+  "name": "Strata",
+  "entrypoint": null,
+  "status": "资源已登记，运行环境待配置",
+  "upstream": "engines/llm/strata/upstream",
+  "cache": "workspace/data/llm/strata",
+  "outputs": "workspace/outputs/llm/strata",
+  "reports": "workspace/reports/llm/strata",
+  "category": "llm"
+}

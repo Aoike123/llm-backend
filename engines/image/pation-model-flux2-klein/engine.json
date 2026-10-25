@@ -1,0 +1,13 @@
+{
+  "name": "FLUX / Diffusers",
+  "status": "ROCm 10.1：Paiton、Stock 与中央 ComfyUI 文生图验证通过；Flash SDPA 已切换到 Math 路径",
+  "entrypoint": "engines/shared/paiton/controller.py",
+  "delegate_profile": "image",
+  "models_available_locally": true,
+  "category": "image",
+  "cache": "workspace/data/image/flux2",
+  "outputs": "workspace/outputs/image/flux2",
+  "reports": "workspace/reports/image/flux2",
+  "deployment_id": "pation-model-flux2-klein",
+  "backend": "Paiton / Diffusers"
+}

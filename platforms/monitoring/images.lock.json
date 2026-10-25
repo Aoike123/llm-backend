@@ -1,0 +1,8 @@
+{
+  "locked_at": "2026-10-11T08:32:42.135412+00:00",
+  "images": {
+    "PROMETHEUS_IMAGE": "quay.nju.edu.cn/prometheus/prometheus@sha256:efd719c99d83b060d9daefdcf00360461adf279f45ef5391f8d111892118753e",
+    "NODE_EXPORTER_IMAGE": "quay.nju.edu.cn/prometheus/node-exporter@sha256:1b4e4438faca4dd7e001dd445d161a4a2091b0fededa84093b3a8dfeae1f1be0",
+    "PYTHON_IMAGE": "python@sha256:a6e34c598f2467ed0e9a8d349809fcd8b5c603269512df273a0bb1784edc11b1"
+  }
+}

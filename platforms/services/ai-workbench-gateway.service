@@ -1,0 +1,18 @@
+[Unit]
+Description=AI Workbench Next.js UI, API gateway and GPU coordinator
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/mnt/Code/llm-backend
+ExecStart=/mnt/Code/llm-backend/platforms/workbench/launch.sh
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=1900
+KillSignal=SIGTERM
+MemoryMax=2G
+TasksMax=160
+
+[Install]
+WantedBy=default.target

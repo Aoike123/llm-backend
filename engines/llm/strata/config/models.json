@@ -1,0 +1,10 @@
+[
+  {
+    "id": "swift-iq3-xxs-pack",
+    "format": "Strata packed tensors + MTP",
+    "paths": [
+      "/media/aoike/Resource_AI/LLM_Assets/Strata-data/packs/swift-iq3_xxs",
+      "/media/aoike/Resource_AI/LLM_Assets/Strata-data/mtp"
+    ]
+  }
+]

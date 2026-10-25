@@ -1,0 +1,62 @@
+{
+  "version": 1,
+  "workflows": [
+    {
+      "id": "minimax-h3-text",
+      "title": "H3 · 文生视频",
+      "category": "视频生成",
+      "api": "api/02-video/minimax-h3-text.api.json",
+      "ui": "ui/视频生成/H3 · 文生视频.json",
+      "execution": "h3"
+    },
+    {
+      "id": "minimax-h3-reference",
+      "title": "H3 · 首帧视频",
+      "category": "视频生成",
+      "api": "api/02-video/minimax-h3-reference.api.json",
+      "ui": "ui/视频生成/H3 · 首帧视频.json",
+      "execution": "h3"
+    },
+    {
+      "id": "minimax-h3-first-last",
+      "title": "H3 · 首尾帧视频",
+      "category": "视频生成",
+      "api": "api/02-video/minimax-h3-first-last.api.json",
+      "ui": "ui/视频生成/H3 · 首尾帧视频.json",
+      "execution": "h3"
+    },
+    {
+      "id": "minimax-h3-multireference-images",
+      "title": "H3 · 多参考图生视频",
+      "category": "视频生成",
+      "api": "api/02-video/minimax-h3-multireference-images.api.json",
+      "ui": "ui/视频生成/H3 · 多参考图生视频.json",
+      "execution": "h3"
+    },
+    {
+      "id": "minimax-h3-multireference-video",
+      "title": "H3 · 参考视频生视频",
+      "category": "视频生成",
+      "api": "api/02-video/minimax-h3-multireference-video.api.json",
+      "ui": "ui/视频生成/H3 · 参考视频生视频.json",
+      "execution": "h3"
+    },
+    {
+      "id": "minimax-h3-multireference-mixed",
+      "title": "H3 · 图像与视频混合参考",
+      "category": "视频生成",
+      "api": "api/02-video/minimax-h3-multireference-mixed.api.json",
+      "ui": "ui/视频生成/H3 · 图像与视频混合参考.json",
+      "execution": "h3"
+    },
+    {
+      "id": "yz-h3-ultimate-original",
+      "title": "金鱼 · H3 终极篇（原版）",
+      "category": "第三方工作流",
+      "api": "api/02-video/yz-h3-ultimate-original.api.json",
+      "ui": "ui/第三方工作流/金鱼 · H3 终极篇（原版）.json",
+      "execution": "h3",
+      "note": "唯一金鱼接口 run_goldfish_workflow；原版参考槽位、六层LoRA、显存优化、采样及输出开关统一管理"
+    }
+  ]
+}

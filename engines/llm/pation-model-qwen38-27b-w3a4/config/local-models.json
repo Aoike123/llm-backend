@@ -1,0 +1,5 @@
+{
+  "PAITON_TARGET_DIR": "/mnt/Code/llm-backend/workspace/data/llm/paiton/models/qwen38-nvfp4",
+  "PAITON_DRAFT_DIR": "/mnt/Code/llm-backend/workspace/data/llm/paiton/models/qwen38-dflash2",
+  "PAITON_W3ROT_DIR": "/mnt/Code/llm-backend/workspace/data/llm/paiton/models/qwen38-w3rot-int3"
+}

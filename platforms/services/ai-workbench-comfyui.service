@@ -1,0 +1,16 @@
+[Unit]
+Description=AI Workbench H3 native ComfyUI
+Wants=ai-workbench-gateway.service
+After=ai-workbench-gateway.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+WorkingDirectory=/mnt/Code/llm-backend
+ExecStart=/mnt/Code/llm-backend/lab comfyui start
+ExecStop=/mnt/Code/llm-backend/lab comfyui stop
+TimeoutStartSec=1000
+TimeoutStopSec=60
+
+[Install]
+WantedBy=default.target

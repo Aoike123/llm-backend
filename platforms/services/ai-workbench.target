@@ -1,0 +1,7 @@
+[Unit]
+Description=Local AI workbench permanent API, ComfyUI and monitoring
+Wants=ai-workbench-gateway.service ai-workbench-comfyui.service ai-workbench-monitoring.service
+After=ai-workbench-gateway.service ai-workbench-comfyui.service ai-workbench-monitoring.service
+
+[Install]
+WantedBy=default.target

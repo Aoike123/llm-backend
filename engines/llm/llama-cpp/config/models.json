@@ -1,0 +1,10 @@
+[
+  {
+    "id": "swift-qwen38-flashnext-iq3-xxs",
+    "format": "split GGUF + BF16 mmproj (compatibility pending)",
+    "paths": [
+      "/media/aoike/Resource_AI/LLM_Assets/Strata-data/models/swift-IQ3_XXS",
+      "/media/aoike/Resource_AI/LLM_Assets/Strata-data/models/mmproj-Swift-Qwen3.8-Flash-Next-BF16.gguf"
+    ]
+  }
+]

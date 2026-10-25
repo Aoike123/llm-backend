@@ -1,0 +1,46 @@
+# Local dependencies and generated files
+.workbench/vendor/
+.workbench/envs/
+.workbench/cache/
+engines/*/*/upstream/
+workspace/
+__pycache__/
+*.py[cod]
+node_modules/
+.next/
+.next-*/
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Machine configuration and credentials
+.agents/
+.aws/
+.codex/
+.env
+.env.*
+!.env.example
+!.env.*.example
+
+# Editor and operating system files
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+
+# Third-party ComfyUI node packs, restored from worker_nodes/h3_packs/manifest.json
+platforms/comfyui/worker_nodes/h3_packs/*/
+!platforms/comfyui/worker_nodes/h3_packs/h3_attention_patch/
+*.bak
+
+# Scratch, downloads and local test media
+.workbench/tmp/
+downloads/
+voice/
+制作/
+
+# Machine-specific deployment config and internal notes
+platforms/public-api/Caddyfile.*
+!platforms/public-api/Caddyfile.example
+docs/HANDOFF-*.md

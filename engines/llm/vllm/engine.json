@@ -1,0 +1,10 @@
+{
+  "name": "vLLM 原生",
+  "entrypoint": null,
+  "status": "模型已登记，运行环境待配置",
+  "upstream": "engines/llm/vllm/upstream",
+  "cache": "workspace/data/llm/vllm",
+  "outputs": "workspace/outputs/llm/vllm",
+  "reports": "workspace/reports/llm/vllm",
+  "category": "llm"
+}

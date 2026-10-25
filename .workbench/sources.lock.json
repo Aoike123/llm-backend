@@ -1,0 +1,27 @@
+{
+  "paiton": {
+    "url": "https://github.com/Eliovp-BV/paiton-vllm-plugin.git",
+    "commit": "a91c7db9d5663ecaad498986c627eba23497da0c",
+    "path": "engines/shared/paiton/upstream"
+  },
+  "lm-evaluation-harness": {
+    "url": "https://github.com/EleutherAI/lm-evaluation-harness.git",
+    "commit": "d6de81643928d653435c431bae19945d41d32520",
+    "path": ".workbench/vendor/lm-evaluation-harness"
+  },
+  "geneval": {
+    "url": "https://github.com/djghosh13/geneval.git",
+    "commit": "af4902f24d3ca90ebbb446dd9891a59e0f82725f",
+    "path": ".workbench/vendor/geneval"
+  },
+  "vbench": {
+    "url": "https://github.com/Vchitect/VBench.git",
+    "commit": "fd18b3d055cb0fc6f066ca90fe2c3c8cbb698490",
+    "path": ".workbench/vendor/vbench"
+  },
+  "comfyui": {
+    "url": "https://github.com/Comfy-Org/ComfyUI.git",
+    "commit": "efa6c8f804bff78b46a0fd458ebd2e47bba07a30",
+    "path": ".workbench/vendor/comfyui"
+  }
+}

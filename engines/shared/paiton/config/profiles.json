@@ -1,0 +1,110 @@
+{
+  "llm": {
+    "directory": "Qwen3.8-MXFP4-DFlash2",
+    "launcher": "run-mxfp4.sh",
+    "args": [
+      "--profile",
+      "desktop",
+      "--thinking",
+      "off",
+      "--detach",
+      "--port",
+      "18983"
+    ],
+    "url": "http://127.0.0.1:18983",
+    "container": "paiton-qwen38"
+  },
+  "llm-fast": {
+    "directory": "Qwen3.8-MXFP4-DFlash2",
+    "launcher": "run-3bit.sh",
+    "args": [
+      "--mode",
+      "long-kv4",
+      "--vision",
+      "--context",
+      "262144",
+      "--max-num-seqs",
+      "8",
+      "--kv-cache-memory-bytes",
+      "8589934592",
+      "--long-prefill-threshold",
+      "512",
+      "--thinking",
+      "on",
+      "--reasoning-effort",
+      "medium",
+      "--ignore-vram-check",
+      "--detach",
+      "--image",
+      "ghcr.nju.edu.cn/eliovp/paiton-vllm-plugin:qwen38-rocm10-vllm029-20261005-r1@sha256:245c71d54f046f89b74dbfbd4c894003754561e55c9d215a8d3ce65364fb0f80",
+      "--port",
+      "18983",
+      "--max-num-batched-tokens",
+      "1024",
+      "--prefix-caching",
+      "on",
+      "--lm-head",
+      "bf16"
+    ],
+    "url": "http://127.0.0.1:18983",
+    "container": "paiton-qwen38",
+    "served_model_name": "qwen38-27b-w3a4"
+  },
+  "image": {
+    "directory": "FLUX.2-klein",
+    "launcher": "launch.sh",
+    "args": [],
+    "url": "http://127.0.0.1:8188/?paiton=1",
+    "compose": "paiton-flux2"
+  },
+  "image-hq": {
+    "directory": "Qwen-Image-2.1",
+    "launcher": "serve-docker.sh",
+    "args": [],
+    "url": "http://127.0.0.1:8191",
+    "container": "paiton-qwen-image21"
+  },
+  "video-audio": {
+    "directory": "MiniMax-H3",
+    "launcher": "launch.sh",
+    "args": [],
+    "url": "http://127.0.0.1:8188/?paiton=1&studio=1&preset=turbo8",
+    "compose": "paiton-h3"
+  },
+  "llm-throughput": {
+    "directory": "Qwen3.8-MXFP4-DFlash2",
+    "launcher": "run-3bit.sh",
+    "args": [
+      "--mode",
+      "long-kv4",
+      "--vision",
+      "--context",
+      "262144",
+      "--max-num-seqs",
+      "8",
+      "--kv-cache-memory-bytes",
+      "8589934592",
+      "--long-prefill-threshold",
+      "512",
+      "--thinking",
+      "on",
+      "--reasoning-effort",
+      "medium",
+      "--ignore-vram-check",
+      "--detach",
+      "--image",
+      "ghcr.nju.edu.cn/eliovp/paiton-vllm-plugin:qwen38-rocm10-vllm029-20261005-r1@sha256:245c71d54f046f89b74dbfbd4c894003754561e55c9d215a8d3ce65364fb0f80",
+      "--port",
+      "18983",
+      "--max-num-batched-tokens",
+      "1024",
+      "--prefix-caching",
+      "on",
+      "--lm-head",
+      "bf16"
+    ],
+    "url": "http://127.0.0.1:18983",
+    "container": "paiton-qwen38",
+    "served_model_name": "qwen38-27b-w3a4"
+  }
+}

@@ -1,0 +1,27 @@
+workspace/
+.workbench/envs/
+.workbench/cache/
+.workbench/vendor/lm-evaluation-harness/
+.workbench/vendor/geneval/
+.workbench/vendor/vbench/.git/
+engines/
+.git/
+.codex/
+.agents/
+.aws/
+.env
+
+.workbench/vendor/comfyui/.git/
+
+# UI dependencies and all isolated Next.js build directories
+**/node_modules/
+**/.next/
+**/.next-*/
+**/__pycache__/
+**/*.pyc
+**/.pytest_cache/
+**/.ruff_cache/
+.research-tmp/
+.env.*
+!.env.example
+!.env.*.example

@@ -1,0 +1,12 @@
+{
+  "name": "Qwen-Image / Diffusers",
+  "status": "ROCm 10.1：1024 文生图、RGBA、参考图编辑及 ComfyUI 工作流通过；编辑保真度与长期稳定性仍待验证",
+  "entrypoint": "engines/image/pation-model-qwen-image-21/controller.py",
+  "models_available_locally": true,
+  "category": "image",
+  "cache": "workspace/data/image/qwen-image",
+  "outputs": "workspace/outputs/image/qwen-image",
+  "reports": "workspace/reports/image/qwen-image21",
+  "deployment_id": "pation-model-qwen-image-21",
+  "backend": "Paiton / Diffusers"
+}

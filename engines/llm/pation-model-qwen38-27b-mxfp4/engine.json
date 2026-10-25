@@ -1,0 +1,18 @@
+{
+  "name": "Qwen3.8 27B MXFP4",
+  "entrypoint": "engines/shared/paiton/controller.py",
+  "status": "权重已准备；GPU 推理待验证",
+  "upstream": "engines/shared/paiton/upstream",
+  "cache": "workspace/data/llm/paiton",
+  "outputs": "workspace/outputs/llm/paiton",
+  "reports": "workspace/reports/llm/paiton",
+  "category": "llm",
+  "kind": "model-deployment",
+  "backend": "Paiton / vLLM",
+  "profiles": {
+    "mxfp4": "llm"
+  },
+  "deployment_id": "pation-model-qwen38-27b-mxfp4",
+  "default_profile": "llm",
+  "hardware": "Radeon AI PRO R9700 32GB"
+}

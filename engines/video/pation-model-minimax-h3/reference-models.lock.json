@@ -1,0 +1,23 @@
+{
+  "repository": "starsfriday/MiniMax-H3-w4a8",
+  "revision": "2a5ad5871296af3506fda7c5edd571612253cedb",
+  "download_bytes": 14497051008,
+  "files": [
+    {
+      "repository": "starsfriday/MiniMax-H3-w4a8",
+      "revision": "2a5ad5871296af3506fda7c5edd571612253cedb",
+      "file": "minimax_h3_ref2va_pruned_w4a8_mixed.safetensors",
+      "destination": "diffusion_models/minimax_h3_ref2va_pruned_w4a8_mixed.safetensors",
+      "bytes": 12540858008,
+      "sha256": "daf6a8227ac3f37065bcce6bdb9c9a96ff0d4c0ce9cf790c5a7e1d1c94f692e0"
+    },
+    {
+      "repository": "Comfy-Org/MiniMax-H3",
+      "revision": "e5eb578a89295337b8ff433a035929ce0279e0b6",
+      "file": "loras/minimax_h3_ref2v_turbo_4step_v0.1_comfyui_bf16.safetensors",
+      "destination": "loras/minimax_h3_ref2v_turbo_4step_v0.1_comfyui_bf16.safetensors",
+      "bytes": 1956193000,
+      "sha256": "5b9ab5ade15d0775676d01a907268a69a1468dc6033b3b0d3ded5502f3ebb84c"
+    }
+  ]
+}

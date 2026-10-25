@@ -1,0 +1,10 @@
+[
+  {
+    "id": "qwen38-27b-mxfp4-dflash2",
+    "format": "MXFP4 runtime / NVFP4 source + FP8 drafter",
+    "paths": [
+      "/mnt/Code/llm-backend/workspace/data/llm/paiton/models/qwen38-nvfp4",
+      "/mnt/Code/llm-backend/workspace/data/llm/paiton/models/qwen38-dflash2"
+    ]
+  }
+]
