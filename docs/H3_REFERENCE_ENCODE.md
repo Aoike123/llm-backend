@@ -44,7 +44,7 @@ token 数量（`ref_image_size=match`，每张 2048² 参考图缩到 1216²）�
 1. **文本编码器注意力**：只把 `comfy.text_encoders.llama` 的 small-input 注意力换成 `attention_sub_quad`（按空闲显存把 query 分块，峰值约 1 GiB）；Qwen3-VL 视觉塔保持 `attention_basic`；扩散模型保持 `--use-ck-attention` 的 Comfy Kitchen int8 注意力。
 2. **kv 分块下限**：`efficient_dot_product_attention` 的 `kv_chunk_size` 默认取 `sqrt(k_tokens)`（14k token 时为 118），显存紧张时会让内层循环增加约 10 倍。下限固定为 1024（最多约 33 MiB），实测只快 2%，因为显存充足时原逻辑本就选中大 chunk；保留是为了避免极端显存压力下的退化。
 3. **参考图视觉缓存**：见下节。
-4. **Anima LLM adapter**：`comfy.ldm.anima.model.Attention` 直接调用 `F.scaled_dot_product_attention`，本机 ROCm 10.0 / gfx1201 上 flash 与 memory-efficient 内核（有无掩码）均报 `hipErrorInvalidValue`，只有 math 后端可用。仅在该 adapter 内强制 math；它只处理几百个文本 token，Anima 扩散块与 H3 路径不变。
+4. **全容器 SDPA 改走 math**：本机 ROCm 10.0 / gfx1201 上所有非 math 的 `scaled_dot_product_attention` 内核（flash、memory-efficient；因果或非因果、有无掩码、head 64/128/512、bf16/fp16/fp32）首次调用即报 `hipErrorInvalidValue`（2026-10-25 逐项独立进程复现）。ComfyUI 仍为 gfx1201 开启 PyTorch attention，`comfy.ops` 优先 flash，直接调用 SDPA 的代码都会崩：Anima LLM adapter、H3 音频 VAE 的因果注意力（参考视频音轨）、SelfLift H3 upscaler。补丁把 `torch.nn.functional.scaled_dot_product_attention` 统一改为 math，分数矩阵超过 1 GiB 时按 query 分块（因果与掩码语义保持，与不分块结果逐元素一致）。原本可用的路径（sub-quadratic / Comfy Kitchen 注意力、VAE split attention）本就不经过 SDPA，不受影响。
 
 LoRA、采样与解码路径不变。
 

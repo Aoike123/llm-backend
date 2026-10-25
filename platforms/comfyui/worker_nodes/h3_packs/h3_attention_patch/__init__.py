@@ -17,9 +17,8 @@ spends ~250 s in the Qwen3-VL vision tower (6084 patch tokens per image, fp32
 activations, memory-bound), ~28 s in VAE encodes and ~90 s in the language
 encoder. Running the vision tower in bfloat16 was tried and only saved ~25 s, so
 it is not enabled here. Flash SDPA for the language encoder is unusable on this
-ROCm 10.0 / gfx1201 build: the causal flash kernel returns
-``hipErrorInvalidValue`` on its second launch in the same process (non-causal
-launches repeat fine).
+ROCm 10.0 / gfx1201 build: no non-math SDPA kernel runs at all (see the
+container-wide SDPA section below).
 """
 import inspect
 import logging
@@ -135,26 +134,63 @@ _minimax.MiniMaxQwen3VL.preprocess_embed = preprocess_embed_cached
 logging.info("[h3-attention-patch] reference vision embeddings cached by image content")
 
 
-# --- Anima LLM adapter attention ---------------------------------------------
-# ``comfy.ldm.anima.model.Attention`` calls ``F.scaled_dot_product_attention``
-# directly instead of ComfyUI's selected kernel. On this ROCm 10.0 / gfx1201
-# build the flash and memory-efficient SDPA kernels both fail with
-# ``hipErrorInvalidValue`` (masked and unmasked); only the math backend runs.
-# The adapter attends over text tokens only (a few hundred), so math SDPA is
-# cheap here. The Anima diffusion blocks keep ComfyUI's attention selection.
+# --- Container-wide SDPA: math backend, query-chunked ---------------------------
+# On this ROCm 10.0 / gfx1201 build every non-math ``scaled_dot_product_attention``
+# kernel fails with ``hipErrorInvalidValue`` (flash and memory-efficient; causal
+# or not, masked or not, head dims 64/128/512, bf16/fp16/fp32; reproduced
+# 2026-10-25 in fresh processes on the first launch). ComfyUI still enables
+# PyTorch attention for gfx1201 and ``comfy.ops`` puts flash first, so any code
+# that calls SDPA directly crashed: the Anima LLM adapter, the H3 audio VAE
+# causal attention (reference-video audio) and the SelfLift H3 upscaler block.
+# The paths that already worked never reach SDPA (sub-quadratic / Comfy Kitchen
+# attention, split attention in VAEs), so routing SDPA to math changes nothing
+# for them.
+#
+# Math SDPA materialises a [B, H, Lq, Lk] score matrix. Callers like the
+# upscaler attend over every latent position with one head, so queries are
+# processed in chunks whenever that matrix would exceed _SDPA_SCORE_BUDGET.
 from torch.nn.attention import SDPBackend, sdpa_kernel
-from comfy.ldm.anima import model as _anima
+import torch.nn.functional as _F
 
-_ORIGINAL_ANIMA_ATTENTION = _anima.Attention.forward
+_ORIGINAL_SDPA = _F.scaled_dot_product_attention
+_SDPA_SCORE_BUDGET = 1 << 30
 
 
-def anima_attention_forward(self, *args, **kwargs):
+def _math_sdpa(q, k, v, attn_mask=None, dropout_p=0.0, is_causal=False, scale=None, enable_gqa=False):
     with sdpa_kernel([SDPBackend.MATH]):
-        return _ORIGINAL_ANIMA_ATTENTION(self, *args, **kwargs)
+        return _ORIGINAL_SDPA(q, k, v, attn_mask=attn_mask, dropout_p=dropout_p, is_causal=is_causal, scale=scale, enable_gqa=enable_gqa)
 
 
-_anima.Attention.forward = anima_attention_forward
-logging.info("[h3-attention-patch] Anima LLM adapter SDPA -> math backend")
+def scaled_dot_product_attention(query, key, value, attn_mask=None, dropout_p=0.0, is_causal=False, scale=None, enable_gqa=False):
+    lq, lk = query.shape[-2], key.shape[-2]
+    rows = query.numel() // (query.shape[-1] * lq)
+    # Scores and softmax are float32 in the math path.
+    chunk = max(1, _SDPA_SCORE_BUDGET // max(1, rows * lk * 4))
+    if chunk >= lq:
+        return _math_sdpa(query, key, value, attn_mask, dropout_p, is_causal, scale, enable_gqa)
+    out = []
+    positions = torch.arange(lk, device=query.device)
+    for start in range(0, lq, chunk):
+        stop = min(lq, start + chunk)
+        mask = None
+        if attn_mask is not None:
+            mask = attn_mask[..., start:stop, :] if attn_mask.shape[-2] == lq else attn_mask
+        if is_causal:
+            # PyTorch's is_causal is the top-left aligned lower triangle.
+            causal = positions[None, :] <= torch.arange(start, stop, device=query.device)[:, None]
+            if mask is None:
+                mask = causal
+            elif mask.dtype == torch.bool:
+                mask = mask & causal
+            else:
+                mask = mask.masked_fill(~causal, float("-inf"))
+        out.append(_math_sdpa(query[..., start:stop, :], key, value, mask, dropout_p, False, scale, enable_gqa))
+    return torch.cat(out, dim=-2)
+
+
+_F.scaled_dot_product_attention = scaled_dot_product_attention
+torch.nn.functional.scaled_dot_product_attention = scaled_dot_product_attention
+logging.info("[h3-attention-patch] all SDPA -> math backend (query-chunked above %d MiB of scores)", _SDPA_SCORE_BUDGET >> 20)
 
 NODE_CLASS_MAPPINGS = {}
 NODE_DISPLAY_NAME_MAPPINGS = {}

@@ -23,7 +23,7 @@ Anima 是 2B 动漫/插画模型（CircleStone Labs 与 Comfy Org，ComfyUI 原�
 python3 .workbench/scripts/fetch-locked-checkpoint.py --lock platforms/comfyui/models/anima.lock.json --destination workspace/data/video/minimax-h3/models
 ```
 
-2026-10-25 实测（R9700，1024²，含首次加载）：Turbo 文生图 14.4 秒、Aesthetic 30 步 15.9 秒、Turbo 图生图 6.0 秒，三张图内容与提示词一致。Anima adapter 需要 `h3_attention_patch` 的 math SDPA 修复，否则 KSampler 报 `hipErrorInvalidValue`。复测：`python3 .workbench/scripts/check-anima.py`（取得 h3 租约，报告在 `workspace/reports/image/anima/`）。
+2026-10-25 实测（R9700，1024²，含首次加载）：Turbo 文生图 14.4 秒、Aesthetic 30 步 15.9 秒、Turbo 图生图 6.0 秒，三张图内容与提示词一致。Anima adapter 依赖 `h3_attention_patch` 的全容器 math SDPA 修复，否则 KSampler 报 `hipErrorInvalidValue`。复测：`python3 .workbench/scripts/check-anima.py`（取得 h3 租约，报告在 `workspace/reports/image/anima/`）。
 
 模型为 CircleStone Labs 非商用许可（不得付费托管 API），生成图像可商用。Anima 目前只作为原生画布 / `/prompt` 工作流发布，未接入 MCP `generate_image`。
 
