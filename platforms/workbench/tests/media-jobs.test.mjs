@@ -87,6 +87,8 @@ test('media routes require real owner identity; console and telemetry remain sep
   const managed=await(await fetch(base+'/api/mcp/jobs')).json();assert.equal(managed.jobs[0].job_id,job.job_id);assert.equal(managed.jobs[0].owner_id,undefined);assert.equal(managed.jobs[0].request,undefined);
   assert.equal((await fetch(base+'/api/mcp/jobs',{headers:{Origin:'https://example.com'}})).status,403);
   assert.equal((await fetch(base+'/api/mcp/jobs?offset=-1')).status,400);
+  f.jobs.jobs.set('job_'+'c'.repeat(32),{job_id:'job_'+'c'.repeat(32),state:'unknown',engine:'qwen-image',kind:'image',artifacts:[],updated_at:'2000-01-01T00:00:00.000Z'});
+  const legacy=await(await fetch(base+'/api/mcp/jobs')).json();assert.equal(legacy.total,2);assert.equal(legacy.jobs.at(-1).job_id,'job_'+'c'.repeat(32));f.jobs.jobs.delete('job_'+'c'.repeat(32));
   const details=await (await fetch(base+'/v1/media/jobs/'+job.job_id,{headers:auth})).json(),artifact=details.artifacts[0];
   assert.equal((await fetch(base+'/v1/media/artifacts/'+artifact.artifact_id+'/content',{headers:{Authorization:'Bearer '+other}})).status,404);
   assert.equal((await fetch(base+'/v1/media/artifacts/'+artifact.artifact_id+'/content',{headers:auth})).headers.get('content-type'),'image/png');

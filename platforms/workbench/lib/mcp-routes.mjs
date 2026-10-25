@@ -79,7 +79,7 @@ export function mcpRoutes(jobs,info,keys,lifecycle){
       if(path==='/api/mcp/jobs'){
         const offset=Number(url.searchParams.get('offset')??0),limit=Number(url.searchParams.get('limit')??30);
         if(!Number.isInteger(offset)||offset<0||!Number.isInteger(limit)||limit<1||limit>100)throw fail('Invalid pagination');
-        const rows=[...jobs.jobs.values()].sort((a,b)=>b.created_at.localeCompare(a.created_at));
+        const rows=[...jobs.jobs.values()].sort((a,b)=>(b.created_at??b.updated_at??'').localeCompare(a.created_at??a.updated_at??''));
         return send(res,200,{jobs:rows.slice(offset,offset+limit).map(job=>jobs.public(job)),total:rows.length,offset,has_more:offset+limit<rows.length});
       }
       if(path==='/api/mcp/calls'){
