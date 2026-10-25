@@ -14,7 +14,7 @@ async function setup(){
   const response=await fetch(controller,{method:'POST',redirect:'error',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'create',name:'本机媒体 MCP',maxConcurrent:1,requestsPerMinute:600,maxQueued:8}),signal:AbortSignal.timeout(10000)});
   const value=await response.json();if(!response.ok||!value.secret)throw new Error('Unable to create local MCP API key');
   await mkdir(dirname(file),{recursive:true,mode:0o700});const temp=file+'.tmp-'+process.pid,fd=await open(temp,'wx',0o600);
-  try{await fd.writeFile(JSON.stringify({version:1,base:url.origin,api_key:value.secret,telemetry_token:token,import_roots:[join(home,'图片'),join(home,'视频'),join(home,'音乐')]},null,2)+'\n');await fd.sync();}finally{await fd.close();}await rename(temp,file);
+  try{await fd.writeFile(JSON.stringify({version:1,base:url.origin,api_key:value.secret,telemetry_token:token},null,2)+'\n');await fd.sync();}finally{await fd.close();}await rename(temp,file);
   console.log('已保存本机 MCP 配置（0600）：'+file);console.log('接入命令：'+root+'lab mcp stdio');
 }
 try{

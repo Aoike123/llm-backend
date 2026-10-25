@@ -77,7 +77,7 @@ MCP 客户端 ──stdio──> platforms/mcp/server.mjs ──HTTP 18982 + Bea
 | `generate_video` | 生成 | `POST /v1/media/jobs`（tool=generate_video，H3 原版工作流） |
 | `generate_audio` | 生成 | `POST /v1/media/jobs`（tool=generate_audio，CosyVoice 3 RL，支持 `[shan4]` 拼音） |
 | `list_media_models` | 目录 | 本地返回图像/语音模型与视频工作流清单，不加载模型 |
-| `import_media` | 素材 | `POST /v1/media/assets` |
+| `import_media` | 素材 | `POST /v1/media/assets`；可读资源盘 `Assets`、`Project`、工作区与追加的 `import_roots` |
 | `get_job` | 任务 | `GET /v1/media/jobs/{id}?wait_seconds=` |
 | `list_jobs` | 任务 | `GET /v1/media/jobs` |
 | `cancel_job` | 任务 | `POST /v1/media/jobs/{id}/cancel` |

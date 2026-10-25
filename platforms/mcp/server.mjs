@@ -3,7 +3,7 @@ import {StdioServerTransport} from '@modelcontextprotocol/sdk/server/stdio.js';
 import {ListToolsRequestSchema,CallToolRequestSchema,ListResourcesRequestSchema,ReadResourceRequestSchema} from '@modelcontextprotocol/sdk/types.js';
 import {randomUUID} from 'node:crypto';
 import {ID,TOOLS,MODELS,WORKFLOWS,validateInput} from './manifest.mjs';
-import {configuration,request,openImport,downloadArtifact} from './client.mjs';
+import {configuration,request,openImport,importRoots,downloadArtifact} from './client.mjs';
 export async function start(){
   const config=await configuration(),instance_id='instance_'+randomUUID().replaceAll('-','');let sequence=0,protocol_version,reporting=Promise.resolve(),closing=false;
   // Event ordering is per process; a failed report cannot block media tools.
@@ -18,7 +18,7 @@ export async function start(){
     validateInput(name,input);
     if(name==='list_media_models')return {models:MODELS,workflows:WORKFLOWS};
     if(name==='import_media'){
-      const fd=await openImport(input.path,config.import_roots);
+      const fd=await openImport(input.path,importRoots(config));
       try{return await request(config,'/v1/media/assets?kind='+input.kind,{method:'POST',headers:{'Content-Type':'application/octet-stream'},body:fd.createReadStream({autoClose:false}),timeout:120000});}finally{await fd.close();}
     }
     if(name==='download_artifact')return downloadArtifact(config,input.artifact_id,input.path);

@@ -29,14 +29,14 @@
 | `MEDIA_MCP_CONFIG` | 本机凭据文件路径 |
 | `MEDIA_GATEWAY_URL` | 默认 `http://127.0.0.1:18982` |
 | `MEDIA_API_KEY` | 覆盖本机 API 身份，不能放入文档或工具结果 |
-| `MEDIA_IMPORT_ROOTS` | 冒号分隔的导入目录；新配置默认 `~/图片`，已有配置中的目录仍保留 |
+| `MEDIA_IMPORT_ROOTS` | 冒号分隔的追加导入目录（覆盖凭据文件的 `import_roots`）。资源盘 `/media/aoike/Resource_Trad/Assets`（随 `MEDIA_ASSETS_ROOT`）、`/media/aoike/Resource_Trad/Project` 与工作区（`MEDIA_DOWNLOAD_ROOTS`，默认当前工作目录）始终可导入 |
 
 ## 当前工具
 
 | 工具 | 用途 |
 | --- | --- |
 | `list_media_models` | 查询 FLUX、Qwen-Image 能力；不启动模型 |
-| `import_media` | 导入允许目录内的图像 / 视频 / 音频，返回 asset_id |
+| `import_media` | 导入工作区或允许目录内的图像 / 视频 / 音频，返回 asset_id |
 | `generate_image` | 提交 FLUX / Qwen 生图持久任务 |
 | `edit_image` | Qwen 图片编辑，1–4 张参考图 |
 | `generate_video` | H3 视频生成（原版工作流），可选图像/视频/音频参考及原版开关，原生 ComfyUI 执行；旧名 `run_goldfish_workflow` 仍兼容 |
@@ -127,7 +127,7 @@
 
 返回持久 `job_id`，通过 `get_job`、`get_artifact` 取回MP4。任务经过现有身份准入和 GPU 服务切换，动态编译上述原版分支后向原生 `/prompt` 提交；原生 `prompt_id` 保存以便恢复，避免重复提交。输出位于 `/home/aoike/视频/llm-backend/MCP/<job_id>/output.mp4`。通用视频工具保持移除，不接受任意工作流 JSON、节点或模型路径。
 
-新安装默认允许图片、视频、音乐目录。已有客户端保留自定义导入目录；如需音频导入，可把音频放在现有允许目录或显式配置 `MEDIA_IMPORT_ROOTS`。升级后重新连接 MCP 客户端以刷新 Schema。
+导入目录默认是资源盘的 `Assets` 与 `Project` 加当前工作区，由代码给出，不再写入凭据文件；凭据文件的 `import_roots` 或 `MEDIA_IMPORT_ROOTS` 只用于追加目录。升级后重新连接 MCP 客户端以刷新 Schema。
 
 ## ComfyUI 原生调用
 

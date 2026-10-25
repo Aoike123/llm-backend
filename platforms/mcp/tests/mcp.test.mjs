@@ -7,7 +7,7 @@ import http from 'node:http';
 import {Client} from '@modelcontextprotocol/sdk/client/index.js';
 import {StdioClientTransport} from '@modelcontextprotocol/sdk/client/stdio.js';
 import {TOOLS,validateInput} from '../manifest.mjs';
-import {openImport} from '../client.mjs';
+import {openImport,importRoots,defaultImportRoots} from '../client.mjs';
 test('strict tool schemas reject unknown fields, bad IDs and unsafe seeds',()=>{
   assert.equal(TOOLS.length,11);assert.ok(TOOLS.some(t=>t.name==='generate_audio'));assert.ok(TOOLS.some(t=>t.name==='generate_video'));assert.ok(TOOLS.some(t=>t.name==='download_artifact'));assert.throws(()=>validateInput('generate_video_v2',{}),/Unknown media tool/);assert.throws(()=>validateInput('generate_video',{}),/request_id is required/);assert.ok(validateInput('import_media',{path:'/tmp/video.mp4',kind:'video'}));assert.ok(validateInput('import_media',{path:'/tmp/audio.wav',kind:'audio'}));for(const t of TOOLS)assert.ok(!t.name.includes('workbench'));
   assert.throws(()=>validateInput('run_goldfish_workflow',{request_id:'x',prompt:'x',reference_asset_ids:Array(10).fill('a')}),/count/);
@@ -36,6 +36,14 @@ test('local file import refuses symlinks, root escapes and nonregular files',asy
   const root=await mkdtemp(join(tmpdir(),'mcp-import-'));t.after(()=>rm(root,{recursive:true,force:true}));await mkdir(join(root,'allowed'));await writeFile(join(root,'allowed','ok.png'),'png');await writeFile(join(root,'outside'),'secret');await symlink(join(root,'outside'),join(root,'allowed','escape'));
   const fd=await openImport(join(root,'allowed','ok.png'),[join(root,'allowed')]);assert.equal((await fd.readFile()).toString(),'png');await fd.close();
   await assert.rejects(openImport(join(root,'allowed','escape'),[join(root,'allowed')]),/outside/);await assert.rejects(openImport(join(root,'allowed'),[join(root,'allowed')]),/regular/);
+});
+test('workspace download roots are also import roots',async t=>{
+  const root=await mkdtemp(join(tmpdir(),'mcp-workspace-'));t.after(()=>rm(root,{recursive:true,force:true}));await writeFile(join(root,'ref.mp4'),'mp4');
+  const previous=process.env.MEDIA_DOWNLOAD_ROOTS;process.env.MEDIA_DOWNLOAD_ROOTS=root;t.after(()=>{if(previous===undefined)delete process.env.MEDIA_DOWNLOAD_ROOTS;else process.env.MEDIA_DOWNLOAD_ROOTS=previous;});
+  const roots=importRoots({import_roots:[join(root,'missing')]});assert.ok(roots.includes(root));
+  for(const resource of defaultImportRoots())assert.ok(roots.includes(resource));assert.ok(roots.includes(join(root,'missing')));
+  const fd=await openImport(join(root,'ref.mp4'),roots);assert.equal((await fd.readFile()).toString(),'mp4');await fd.close();
+  await assert.rejects(openImport(join(root,'ref.mp4'),[join(root,'missing')]),/outside/);
 });
 test('official SDK stdio initializes, discovers image tools and Goldfish workflow, reports calls and returns resource links',async t=>{
   const events=[],job={job_id:'job_'+'a'.repeat(32),state:'queued'},artifact={artifact_id:'artifact_'+'b'.repeat(32),uri:'media://artifacts/artifact_'+'b'.repeat(32),mime_type:'image/png',local_path:'/tmp/output.png'};let forwardedPrompt=0;
