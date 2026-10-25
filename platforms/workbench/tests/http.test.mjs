@@ -30,9 +30,10 @@ test('service log browsing cannot load an engine or inherit another service swit
   s.c.current='llm';s.c.pendingLlmMode='custom';s.c.modeSwitch={phase:'draining',policy:{context_tokens:65536},events:[{message:'LLM switching'}]};
   const response=await fetch(s.api.base+'/api/engine-logs?model=flux');assert.equal(response.status,200);
   const logs=await response.json();assert.equal(logs.model,'flux');assert.equal(logs.current_model,'llm');assert.equal(logs.switching,false);assert.equal(logs.policy,null);assert.deepEqual(logs.events,[]);assert.equal(logs.startup_output,'startup flux');
+  assert.equal((await fetch(s.api.base+'/api/engine-logs?model=tts')).status,200);assert.equal((await fetch(s.api.base+'/data?model=tts')).status,200);
   assert.equal((await fetch(s.api.base+'/api/engine-logs?model=unknown')).status,400);
   assert.equal((await fetch(s.api.base+'/data?model=unknown')).status,400);
-  assert.deepEqual(seen,['flux']);assert.deepEqual(s.backend.calls,[]);assert.equal(s.c.status().leased,false);
+  assert.deepEqual(seen,['flux','tts']);assert.deepEqual(s.backend.calls,[]);assert.equal(s.c.status().leased,false);
  }finally{await s.close();}
 });
 test('invalid model never starts GPU; nonlocal Origin rejected',async()=>{

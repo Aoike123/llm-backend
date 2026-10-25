@@ -1,7 +1,7 @@
 import {comfyRuntime} from './comfy-runtime.mjs';
 import {KV_CALIBRATION,VRAM_DEFAULTS} from './llm.mjs';
 import {runtimeTopology} from './runtime-topology.mjs';
-export const NAMES={llm:'Qwen3.8 · 27B W3A4','qwen-image':'Qwen-Image · 2.1',flux:'FLUX.2 · klein',h3:'ComfyUI'};
+export const NAMES={llm:'Qwen3.8 · 27B W3A4','qwen-image':'Qwen-Image · 2.1',flux:'FLUX.2 · klein',h3:'ComfyUI',tts:'CosyVoice 3 · RL'};
 const selector='{job="llm",model_name="qwen38-27b-w3a4"}';
 const llmUp='(min(min_over_time(up{job="llm"}[30s])) == 1)';
 const input=`sum(increase(vllm:prompt_tokens_total${selector}[1m])) and on() ${llmUp}`;
