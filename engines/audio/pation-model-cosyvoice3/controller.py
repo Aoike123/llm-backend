@@ -43,6 +43,12 @@ def post(path, payload, timeout=600):
         return json.load(response)
 
 
+def concurrency():
+    """Requests sharing the resident model; the gateway grants the same number of leases."""
+    runtime = json.loads((ROOT / 'platforms/runtime-topology.json').read_text())['runtimes']['tts']
+    return int(runtime.get('concurrency', 1))
+
+
 def health(timeout=2):
     with urlopen(API + '/health', timeout=timeout) as response:
         return json.load(response)
@@ -94,6 +100,7 @@ def start(model_dir=MODEL):
         '-e', 'PYTHONUNBUFFERED=1',
         IMAGE, '-u', '/srv/server.py',
         '--host', '0.0.0.0', '--port', '18986', '--model-dir', str(model_dir).replace(str(DATA), '/tts'),
+        '--concurrency', str(concurrency()),
     )
     print('语音服务正在加载：' + API + '；使用 check 查看就绪状态')
 

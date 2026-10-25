@@ -2,11 +2,12 @@ import { randomBytes } from 'node:crypto';
 import {llmProfile, servingPolicy, policyBudget,enginePolicyKey} from './llm.mjs';
 import {ApiError} from './api-errors.mjs';
 import {EngineScheduling} from './engine-scheduling.mjs';
+import {sharedEngines as topologySharedEngines} from './runtime-topology.mjs';
 export const pause = ms => new Promise(r => setTimeout(r, ms));
 export class Coordinator {
-  constructor(backend, {clock = () => performance.now()/1000, leaseSeconds = 120, sharedLimit = 8, engineScheduling = {}} = {}) {
+  constructor(backend, {clock = () => performance.now()/1000, leaseSeconds = 120, sharedLimit = 8, engineScheduling = {}, sharedEngines = topologySharedEngines()} = {}) {
     this.scheduling=new EngineScheduling(engineScheduling);
-    Object.assign(this, {backend, clock, leaseSeconds, sharedLimit, selectedLlmMode:'long',policy:servingPolicy('long'), pendingLlmMode:null, modeSwitch:null, engineSwitch:null, queue: [], owner: null, switching: false, target: null, current: null, error: null});
+    Object.assign(this, {backend, clock, leaseSeconds, sharedLimit, sharedEngines, selectedLlmMode:'long',policy:servingPolicy('long'), pendingLlmMode:null, modeSwitch:null, engineSwitch:null, queue: [], owner: null, switching: false, target: null, current: null, error: null});
   }
   selectWaitingRequest(requests) {
     return this.scheduling.choose(requests,this.target??this.current,this.clock()).request;
@@ -105,7 +106,7 @@ export class Coordinator {
   async acquire(model, timeout = 900, shared = false, profileId = 'qwen38-27b-w3a4-192k', switchRequest = false, {signal,enqueuedAt=this.clock()} = {}) {
     this.assertAcceptingRequests();
     if (!Object.hasOwn(this.backend.models, model)) throw new Error('Unknown model');
-    shared = !!shared && model === 'llm';
+    shared = !!shared && (model === 'llm' || this.sharedEngines[model] > 1);
     const profile=model==='llm'?this.requestProfile(profileId):null;
     if(model==='llm'&&!profile)throw new Error('Unknown LLM profile');
     const ticket = {engine:model,enqueuedAt,signal}, deadline = this.clock() + timeout;
@@ -116,8 +117,8 @@ export class Coordinator {
         await this.recover();
         if (this.clock() >= deadline) throw new ApiError('GPU_LEASE_QUEUE_TIMEOUT');
         if (this.selectWaitingRequest(this.queue.filter(job=>!job.signal?.aborted)) === ticket && !this.switching) {
-          if (shared && this.owner?.shared && this.owner.model === model && this.owner.mode===profile.mode &&
-              this.owner.tokens.size < Math.min(this.sharedLimit,this.policy.concurrency)) return this.ticket(model,profile.slot);
+          if (shared && this.owner?.shared && this.owner.model === model && this.owner.mode===profile?.mode &&
+              this.owner.tokens.size < (model==='llm'?Math.min(this.sharedLimit,this.policy.concurrency):this.sharedEngines[model])) return this.ticket(model,profile?.slot);
           if (!this.owner) {
             this.switching = true; this.target = model;
             const track=this.current!==model||(model==='llm'&&this.backend.loadedLlmMode!==enginePolicyKey(this.policy));

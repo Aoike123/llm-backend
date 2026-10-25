@@ -96,3 +96,13 @@ test('disconnected GPU waiters leave the queue without starting another engine',
  assert.equal(c.status().queued,0);assert.deepEqual(backend.calls,['media']);assert.equal(c.status().active_leases,1);
  await c.release(owner.token);
 });
+test('TTS shares one resident model up to its topology concurrency; other media stays exclusive',async()=>{
+  const b=fake();b.models.tts=[];const c=new Coordinator(b,{sharedEngines:{tts:3}});
+  const leases=await Promise.all([1,2,3].map(()=>c.acquire('tts',2,true)));
+  assert.equal(c.status().active_leases,3);assert.deepEqual(b.calls,['tts']);
+  let fourth=null;const pending=c.acquire('tts',2,true).then(t=>fourth=t);await pause(20);assert.equal(fourth,null);assert.equal(c.status().queued,1);
+  await c.release(leases[0].token);await pending;assert.equal(c.status().active_leases,3);
+  for(const t of [...leases.slice(1),fourth])await c.release(t.token);assert.equal(c.status().leased,false);
+  const m=await c.acquire('media',2,true);let second=null;const queued=c.acquire('media',2,true).then(t=>second=t);await pause(20);
+  assert.equal(second,null);await c.release(m.token);await c.release((await queued).token);
+});

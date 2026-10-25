@@ -2,6 +2,8 @@ import {readFileSync} from 'node:fs';
 export const TOPOLOGY=JSON.parse(readFileSync(new URL('../../runtime-topology.json',import.meta.url),'utf8'));
 export const runtimeFor=engine=>Object.entries(TOPOLOGY.runtimes).find(([,runtime])=>runtime.engines.includes(engine))?.[0]??null;
 export const sameRuntime=(a,b)=>a===b||(runtimeFor(a)!==null&&runtimeFor(a)===runtimeFor(b));
+// Media engines whose single resident model serves several leases at once (LLM sharing follows its own policy).
+export const sharedEngines=()=>Object.fromEntries(Object.values(TOPOLOGY.runtimes).filter(runtime=>runtime.concurrency>1).flatMap(runtime=>runtime.engines.map(engine=>[engine,runtime.concurrency])));
 export const modelBackends=()=>Object.fromEntries(Object.values(TOPOLOGY.runtimes).flatMap(runtime=>runtime.engines.map(engine=>[engine,[[...runtime.launch],runtime.port,runtime.container]])));
 export function runtimeTopology(status={}) {
   const current=runtimeFor(status.current);

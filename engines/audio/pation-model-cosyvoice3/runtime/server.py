@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 """CosyVoice 3 speech service: zero-shot cloning, instruct, pinyin tags.
 
-Runs inside the TTS container on 127.0.0.1:18986. The model stays resident;
-requests are serialized because there is a single GPU and one model instance.
+Runs inside the TTS container on 127.0.0.1:18986. The model stays resident and
+up to ``--concurrency`` requests share it: CosyVoice keeps per-request state by
+uuid, so only the LLM token sampler needs isolating. Each request samples from
+its own seeded CUDA generator, which keeps seeds reproducible under concurrency.
 """
 import argparse
 import base64
@@ -29,8 +31,56 @@ from pinyin_tags import convert
 
 app = FastAPI(title='Paiton TTS', version='1.0')
 state = {'model': None, 'model_dir': None, 'model_name': 'Fun-CosyVoice3-0.5B-rl',
-         'sample_rate': 24000, 'lock': threading.Lock(), 'requests': 0, 'busy': False}
+         'sample_rate': 24000, 'lock': threading.Lock(), 'requests': 0, 'active': 0,
+         'concurrency': 1, 'slots': threading.BoundedSemaphore(1)}
 PROMPT_MARKER = '<|endofprompt|>'
+sampler = threading.local()
+
+
+def isolate_sampling():
+    """Give every request its own token-sampling generator.
+
+    The flow decoder and causal HiFT use fixed noise buffers at inference, so the
+    LLM sampler's ``multinomial`` is the only random draw. CosyVoice runs that
+    sampler in a worker thread it starts per request, so the generator is handed
+    from the request thread to that worker when it is created.
+    """
+    import types
+    import cosyvoice.cli.model as model_module
+    import cosyvoice.utils.common as common
+
+    class SeededThread(threading.Thread):
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+            self.generator = getattr(sampler, 'generator', None)
+
+        def run(self):
+            sampler.generator = self.generator
+            super().run()
+
+    model_module.threading = types.SimpleNamespace(Thread=SeededThread, Lock=threading.Lock)
+
+    def nucleus_sampling(weighted_scores, top_p=0.8, top_k=25):
+        prob, indices = [], []
+        cum_prob = 0.0
+        sorted_value, sorted_idx = weighted_scores.softmax(dim=0).sort(descending=True, stable=True)
+        for i in range(len(sorted_idx)):
+            if cum_prob < top_p and len(prob) < top_k:
+                cum_prob += sorted_value[i]
+                prob.append(sorted_value[i])
+                indices.append(sorted_idx[i])
+            else:
+                break
+        prob = torch.tensor(prob).to(weighted_scores)
+        indices = torch.tensor(indices, dtype=torch.long).to(weighted_scores.device)
+        return indices[prob.multinomial(1, replacement=True, generator=getattr(sampler, 'generator', None))].item()
+
+    def random_sampling(weighted_scores, decoded_tokens, sampling):
+        return weighted_scores.softmax(dim=0).multinomial(
+            1, replacement=True, generator=getattr(sampler, 'generator', None)).item()
+
+    # ras_sampling looks both helpers up as module globals at call time.
+    common.nucleus_sampling, common.random_sampling = nucleus_sampling, random_sampling
 
 
 class SpeechRequest(BaseModel):
@@ -44,6 +94,7 @@ class SpeechRequest(BaseModel):
 
 def load_model(model_dir: str):
     from cosyvoice.cli.cosyvoice import CosyVoice3
+    isolate_sampling()
     started = time.time()
     model = CosyVoice3(model_dir, load_trt=False, load_vllm=False, fp16=False)
     state.update(model=model, model_dir=model_dir, sample_rate=model.sample_rate)
@@ -74,11 +125,13 @@ def synthesize(req: SpeechRequest):
     elif PROMPT_MARKER not in text:
         text += PROMPT_MARKER
     started = time.time()
-    with state['lock']:
-        state['busy'] = True
+    with state['slots']:
+        with state['lock']:
+            state['active'] += 1
         try:
+            sampler.generator = None
             if req.seed is not None:
-                torch.manual_seed(req.seed)
+                sampler.generator = torch.Generator(device=model.model.device).manual_seed(req.seed)
             chunks = []
             if instruct:
                 stream = model.inference_instruct2(text, instruct, req.reference_path,
@@ -88,9 +141,12 @@ def synthesize(req: SpeechRequest):
                                                    req.reference_path, stream=True, speed=req.speed)
             for chunk in stream:
                 chunks.append(chunk['tts_speech'])
-            state['requests'] += 1
+            with state['lock']:
+                state['requests'] += 1
         finally:
-            state['busy'] = False
+            sampler.generator = None
+            with state['lock']:
+                state['active'] -= 1
     if not chunks:
         raise HTTPException(status_code=500, detail='model produced no audio')
     audio = torch.cat(chunks, dim=1)
@@ -111,7 +167,8 @@ def synthesize(req: SpeechRequest):
 def health():
     return {'ok': state['model'] is not None, 'model': state['model_name'],
             'model_dir': state['model_dir'], 'sample_rate': state['sample_rate'],
-            'requests': state['requests'], 'busy': state['busy'],
+            'requests': state['requests'], 'busy': state['active'] > 0,
+            'active': state['active'], 'concurrency': state['concurrency'],
             'gpu': torch.cuda.get_device_name(0) if torch.cuda.is_available() else None}
 
 
@@ -131,7 +188,12 @@ def main():
     parser.add_argument('--host', default='127.0.0.1')
     parser.add_argument('--port', type=int, default=18986)
     parser.add_argument('--model-dir', required=True)
+    parser.add_argument('--concurrency', type=int, default=3,
+                        help='requests sharing the resident model; 1 restores strict serial execution')
     args = parser.parse_args()
+    if args.concurrency < 1:
+        parser.error('--concurrency must be at least 1')
+    state.update(concurrency=args.concurrency, slots=threading.BoundedSemaphore(args.concurrency))
     load_model(args.model_dir)
     import uvicorn
     uvicorn.run(app, host=args.host, port=args.port, log_level='warning')

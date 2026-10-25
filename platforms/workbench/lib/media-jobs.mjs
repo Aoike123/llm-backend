@@ -180,7 +180,7 @@ export class MediaJobs{
       releasePreparation=await this.reservePreparation(job,controller.signal);check();
       await this.change(job,'preparing');check();const d=await this.payload(job),preparedVideos=job.engine==='h3'?(isVideoTool(job.tool)?(d.reference_videos_b64.length?await prepareH3Videos({...d,preset:'reference',frames:goldfishFrames(d.duration_seconds??10)}):[]):await prepareH3Videos(d)):undefined;check();
       await this.store.quota(256*2**20);await this.change(job,'waiting_for_engine');check();
-      ticket=await this.coordinator.acquire(job.engine,900,false,job.model,false,{signal:controller.signal,enqueuedAt});
+      ticket=await this.coordinator.acquire(job.engine,900,job.engine==='tts',job.model,false,{signal:controller.signal,enqueuedAt});
       timer=setInterval(()=>{try{this.coordinator.renew(ticket.token);}catch{}},30000);check();
       await this.serial(async()=>{check();job.state='dispatching';job.recovery_required=true;job.updated_at=new Date().toISOString();await this.persist(job);dispatched=true;});
       // Persist dispatch BEFORE sending. Lost network responses must never trigger an automatic retry.
