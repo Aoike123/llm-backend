@@ -56,7 +56,7 @@ test('draining rejects new work; status and model catalog stay available',async(
 test('browser switch endpoint is removed and cannot acquire GPU',async()=>{
  const s=await setup();try{assert.equal((await post(s.api.base,'/api/switch',{model:'llm'})).status,404);assert.deepEqual(s.backend.calls,[]);assert.equal(s.c.status().leased,false);}finally{await s.close();}
 });
-test('model catalog advertises profiles and token limits reject oversized short-slot prompts',async()=>{
+test('model catalog advertises profiles and token limits clamp oversized output to the remaining window',async()=>{
  let sent;
  const upstream=await listen(async(req,res)=>{let raw='';for await(const chunk of req)raw+=chunk;res.setHeader('Content-Type','application/json');
  if(req.url==='/tokenize')return res.end(JSON.stringify({count:196550}));sent=JSON.parse(raw);res.end(JSON.stringify({model:sent.model,choices:[]}));});
@@ -73,7 +73,7 @@ test('model catalog advertises profiles and token limits reject oversized short-
  assert.deepEqual(s.backend.calls,[]);
  assert.equal(catalog.find(m=>m.id==='qwen38-27b-w3a4').max_concurrent_requests,2);
 
- const response=await post(s.api.base,'/v1/chat/completions',{model:'qwen38-27b-128k',messages:[{role:'user',content:'x'}],max_tokens:100});assert.equal(response.status,400);assert.equal(sent,undefined);
+ const response=await post(s.api.base,'/v1/chat/completions',{model:'qwen38-27b-128k',messages:[{role:'user',content:'x'}],max_tokens:100});assert.equal(response.status,200);await response.json();assert.equal(sent.max_tokens,58);
  const ok=await post(s.api.base,'/v1/chat/completions',{model:'qwen38-27b-128k',messages:[{role:'user',content:'x'}],max_tokens:50});assert.equal(ok.status,200);assert.equal((await ok.json()).model,'qwen38-27b-128k');assert.equal(sent.model,'qwen38-27b-w3a4');assert.equal(ok.headers.get('x-reasoning-effort'),'medium');
  assert.equal(catalog[0].vision,true);
  assert.equal(sent.reasoning_effort,'medium');assert.equal(sent.chat_template_kwargs.reasoning_effort,'medium');assert.equal(sent.chat_template_kwargs.enable_thinking,true);

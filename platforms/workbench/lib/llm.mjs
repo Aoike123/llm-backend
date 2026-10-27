@@ -46,8 +46,10 @@ export function completionBudget(data, profile, promptTokens) {
   const requested=data.max_completion_tokens??data.max_tokens;
   if(requested!==undefined&&(!Number.isInteger(requested)||requested<1))throw new Error('Output token limit must be a positive integer');
   const remaining=profile.maxModelLen-promptTokens;
-  if(remaining<1||requested!==undefined&&requested>remaining)throw new Error(`Input plus output exceeds ${profile.maxModelLen} tokens for this model`);
-  return requested??Math.min(4096,remaining);
+  if(remaining<1)throw new Error(`Input plus output exceeds ${profile.maxModelLen} tokens for this model`);
+  // The output limit is a ceiling, not a reservation: clients that send a fixed
+  // large value would otherwise be refused long before the input fills the window.
+  return Math.min(requested??4096,remaining);
 }
 
 export const KV_BUDGET_BYTES=8859648000;

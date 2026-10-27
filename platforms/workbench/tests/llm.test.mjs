@@ -4,7 +4,7 @@ import {llmProfile,completionBudget,servingPolicy,policyBudget,activeModelId,pre
 test('context budget counts output and defaults to remaining space',()=>{
  const p=llmProfile('qwen38-27b-128k');
  assert.equal(completionBudget({},p,131000),72);
- assert.throws(()=>completionBudget({max_tokens:100},p,131000),/exceeds/);
+ assert.equal(completionBudget({max_tokens:100},p,131000),72);
  assert.throws(()=>completionBudget({},p,131072),/exceeds/);
  assert.throws(()=>completionBudget({},p,undefined),/valid prompt/);
  assert.equal(completionBudget({max_completion_tokens:100},p,100),100);
@@ -13,7 +13,9 @@ test('context budget counts output and defaults to remaining space',()=>{
 test('192K long policy caps combined input and output at 196608 tokens',()=>{
  const p=llmProfile('qwen38-27b-w3a4-192k');assert.equal(p.maxModelLen,196608);assert.equal(p.limit,2);
  assert.equal(completionBudget({max_tokens:4096},p,192512),4096);
- assert.throws(()=>completionBudget({max_tokens:4097},p,192512),/196608/);
+ assert.equal(completionBudget({max_tokens:4097},p,192512),4096);
+ assert.equal(completionBudget({max_tokens:128000},p,68809),127799);
+ assert.throws(()=>completionBudget({max_tokens:128000},p,196608),/196608/);
  assert.equal(llmProfile('qwen38-27b-w3a4-64k').maxModelLen,65536);
 });
 

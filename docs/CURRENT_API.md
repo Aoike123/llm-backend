@@ -65,7 +65,7 @@
 - `/v1/models` 的 `reasoningEfforts.off` 映射到请求值 `none`；写 `off` 也视为 `none`。
 - 响应头 `X-Reasoning-Effort` 回显实际生效的强度（`high` 显示为转发值 `xhigh`）。
 - 输入、思考、回答共用每路上下文上限；网关通过工作进程 tokenize 后检查输入加输出额度。
-- 省略输出上限时使用 `min(4096, 剩余上下文)`；同时填写两个字段时 `max_completion_tokens` 优先。
+- 输出上限是封顶而非预留：超出剩余上下文时自动压到 `剩余上下文`，只有输入本身占满上下文才返回 400。省略时使用 `min(4096, 剩余上下文)`；同时填写两个字段时 `max_completion_tokens` 优先。
 - `stream:true` 返回 `text/event-stream`，默认请求 usage；普通请求返回 JSON。
 - 网关统一设置 thinking 开关，关闭思考使用 `reasoning_effort:"none"`。
 
