@@ -40,7 +40,7 @@
 | `generate_image` | 提交 FLUX / Qwen 生图持久任务 |
 | `edit_image` | Qwen 图片编辑，1–4 张参考图 |
 | `generate_video` | H3 视频生成（原版工作流），可选图像/视频/音频参考及原版开关，原生 ComfyUI 执行；旧名 `run_goldfish_workflow` 仍兼容 |
-| `generate_audio` | CosyVoice 3 RL 语音合成：参考音频零样本克隆、Instruct 语气、`[shan4]` 拼音标注；持久任务与 WAV 作品 |
+| `generate_audio` | CosyVoice 3 RL 语音合成：参考音频零样本克隆、Instruct 语气、`[shan4]` 拼音标注；`speed`（0.5–2）必填；`reference_text` 强烈建议提供（省略时降级为 cross-lingual 模式，只克隆音色，相似度明显下降）；持久任务与 WAV 作品 |
 | `get_job` | 查询自己的任务；可短等待，最多 20 秒 |
 | `list_jobs` | 查询自己的任务历史 |
 | `cancel_job` | 排队中立即取消；运行中的视频任务中断 ComfyUI 当前生成，停止后为 `cancelled`；图像/语音开始后不可中断 |

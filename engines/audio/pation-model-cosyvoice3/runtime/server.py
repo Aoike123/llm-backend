@@ -115,6 +115,10 @@ def synthesize(req: SpeechRequest):
     # the instruction, never to the sentence (otherwise the style text is read
     # into the spoken prompt).
     instruct = (req.instruct or '').strip()
+    # Zero-shot cloning without the reference transcript decodes to a few
+    # milliseconds of audio, so voice-only references use cross-lingual mode.
+    reference_text = (req.reference_text or '').strip()
+    cross_lingual = not instruct and not reference_text
     if instruct:
         # CosyVoice3 was trained with this exact prefix; without it the model
         # treats the instruction as content and reads it aloud.
@@ -122,6 +126,9 @@ def synthesize(req: SpeechRequest):
             instruct = 'You are a helpful assistant. ' + instruct
         if PROMPT_MARKER not in instruct:
             instruct += PROMPT_MARKER
+    elif cross_lingual:
+        if PROMPT_MARKER not in text:
+            text = 'You are a helpful assistant.' + PROMPT_MARKER + text
     elif PROMPT_MARKER not in text:
         text += PROMPT_MARKER
     started = time.time()
@@ -133,12 +140,18 @@ def synthesize(req: SpeechRequest):
             if req.seed is not None:
                 sampler.generator = torch.Generator(device=model.model.device).manual_seed(req.seed)
             chunks = []
+            # CosyVoice3 can only resample the mel for speed on a whole utterance;
+            # streamed chunks silently collapse to a few milliseconds of audio.
+            streaming = req.speed == 1.0
             if instruct:
                 stream = model.inference_instruct2(text, instruct, req.reference_path,
-                                                   stream=True, speed=req.speed)
+                                                   stream=streaming, speed=req.speed)
+            elif cross_lingual:
+                stream = model.inference_cross_lingual(text, req.reference_path,
+                                                       stream=streaming, speed=req.speed)
             else:
-                stream = model.inference_zero_shot(text, req.reference_text or '',
-                                                   req.reference_path, stream=True, speed=req.speed)
+                stream = model.inference_zero_shot(text, reference_text,
+                                                   req.reference_path, stream=streaming, speed=req.speed)
             for chunk in stream:
                 chunks.append(chunk['tts_speech'])
             with state['lock']:

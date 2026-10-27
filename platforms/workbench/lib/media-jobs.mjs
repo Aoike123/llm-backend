@@ -166,7 +166,7 @@ export class MediaJobs{
     if(job.kind==='audio'){
       const asset=this.store.getAsset(job.owner_id,input.reference_asset_id,'audio');
       return {text:input.text,reference_path:asset.file,reference_text:input.reference_text??'',
-              speed:input.speed??1,seed:input.seed??42,...(input.instruct?{instruct:input.instruct}:{})};
+              speed:input.speed,seed:input.seed??42,...(input.instruct?{instruct:input.instruct}:{})};
     }
     const bytes=async(id,kind='image')=>id?readFile(this.store.getAsset(job.owner_id,id,kind).file):undefined;
     if(isVideoTool(job.tool)){
