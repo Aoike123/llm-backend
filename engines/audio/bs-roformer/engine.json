@@ -1,0 +1,54 @@
+{
+  "name": "BS-RoFormer",
+  "status": "ep368 q8_0；MVSEP Multisong 人声 SDR 11.89",
+  "entrypoint": "engines/shared/audiocpp/controller.py",
+  "category": "audio",
+  "deployment_id": "bs-roformer",
+  "cache": "workspace/data/audio/audiocpp",
+  "outputs": "workspace/outputs/audio/bs-roformer",
+  "backend": "audio.cpp 0.9.3 (GGML / HIP)",
+  "platform": {
+    "engine": "bs-roformer",
+    "default_enabled": false,
+    "adapter": "adapter.mjs",
+    "runtime": {
+      "id": "audiocpp",
+      "name": "audio.cpp · ROCm",
+      "port": 18986,
+      "container": "paiton-audiocpp",
+      "launch": [
+        "bs-roformer",
+        "start"
+      ]
+    },
+    "ui": {
+      "name": "BS-RoFormer",
+      "version": "ep368",
+      "full_name": "BS-RoFormer · 人声分离",
+      "description": "人声分离 · 人声 / 伴奏",
+      "kind": "人声分离",
+      "accent": "#a9c7e6",
+      "symbol": "S",
+      "panel": "media",
+      "log_name": "audio.cpp · BS-RoFormer",
+      "summary": "把音频分成人声与伴奏两轨，用于去背景音乐后做克隆参考"
+    },
+    "models": [
+      {
+        "id": "bs-roformer",
+        "priority": 10,
+        "capabilities": [
+          "audio.separate"
+        ],
+        "info": {
+          "tasks": [
+            "vocals",
+            "instrumental"
+          ],
+          "sample_rate": 44100,
+          "max_seconds": 1800
+        }
+      }
+    ]
+  }
+}

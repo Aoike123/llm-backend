@@ -2,8 +2,9 @@ import {readFile} from 'node:fs/promises';
 import {createReadStream} from 'node:fs';
 import {createHmac,randomBytes,timingSafeEqual} from 'node:crypto';
 import {join} from 'node:path';
-import {ID,CAPABILITIES,COMMON_TOOLS,capabilityForTool,catalog,validateToolInput} from './capabilities.mjs';
-const KNOWN_TOOLS=new Set([...COMMON_TOOLS.map(t=>t.name),...Object.values(CAPABILITIES).flatMap(c=>[c.tool,...(c.aliases??[])])]);
+import {ID,CAPABILITIES,TOOL_GROUPS,COMMON_TOOLS,capabilityForTool,isGenerationTool,catalog,validateToolInput} from './capabilities.mjs';
+import {LEGACY_TOOLS} from './media-tools.mjs';
+const KNOWN_TOOLS=new Set([...COMMON_TOOLS.map(t=>t.name),...Object.keys(LEGACY_TOOLS),...Object.keys(TOOL_GROUPS),...Object.values(CAPABILITIES).flatMap(c=>[c.tool,...(c.aliases??[])])]);
 const validateCommon=(name,input)=>validateToolInput(COMMON_TOOLS,name,input);
 import {ROOT} from './backend.mjs';
 import {runtimeTopology} from './runtime-topology.mjs';
@@ -137,7 +138,7 @@ export function mcpRoutes(jobs,info,keys,lifecycle){
       }
       if(path==='/v1/media/jobs'&&req.method==='POST'){
         // 32000-character prompts are up to 96 KiB as UTF-8, so the job body needs 128 KiB.
-        const body=await jsonBody(req,131072);if(!capabilityForTool(body.tool))throw fail('Invalid generation tool');
+        const body=await jsonBody(req,131072);if(!isGenerationTool(body.tool))throw fail('Invalid generation tool');
         return send(res,202,await jobs.create(key.id,body.tool,body.arguments));
       }
       const match=/^\/v1\/media\/jobs\/(job_[a-f0-9]{32})(\/cancel)?$/.exec(path);

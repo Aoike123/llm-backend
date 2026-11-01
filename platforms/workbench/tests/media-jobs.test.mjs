@@ -194,7 +194,7 @@ test('Goldfish imports owned audio, preserves controls and rejects audio-only or
  const f=await fixture(t);f.jobs.launch=()=>{};
  const pcm=Buffer.alloc(44+32000*2*2);pcm.write('RIFF');pcm.writeUInt32LE(pcm.length-8,4);pcm.write('WAVEfmt ',8);pcm.writeUInt32LE(16,16);pcm.writeUInt16LE(1,20);pcm.writeUInt16LE(1,22);pcm.writeUInt32LE(32000,24);pcm.writeUInt32LE(64000,28);pcm.writeUInt16LE(2,32);pcm.writeUInt16LE(16,34);pcm.write('data',36);pcm.writeUInt32LE(pcm.length-44,40);
  const audio=await f.store.import(f.key.id,'audio',Readable.from(pcm)),picture=await f.store.import(f.key.id,'image',Readable.from(image));
- assert.equal(audio.kind,'audio');assert.equal(audio.seconds,2);assert.equal(audio.sample_rate,32000);
+ assert.equal(audio.kind,'audio');assert.equal(audio.seconds,2);assert.equal(audio.sample_rate,44100);
  const args={request_id:'sound',prompt:'Dialogue',reference_asset_ids:[picture.asset_id,picture.asset_id,picture.asset_id],reference_slots:{images:[true,false,true]},reference_audio_asset_ids:[audio.asset_id],loras:{combat:{enabled:true}}};
  const accepted=await f.jobs.create(f.key.id,'run_goldfish_workflow',args),payload=await f.jobs.payload(f.jobs.get(f.key.id,accepted.job_id));
  assert.deepEqual(accepted.reference_mapping.images,[{input_slot:1,tag:'<Picture 1>'},{input_slot:3,tag:'<Picture 2>'}]);

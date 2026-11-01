@@ -3,7 +3,7 @@ import {useEffect,useState} from 'react';
 import {ActionButton,Icon} from './ui-controls.mjs';
 import {ArtifactView} from './artifact-view';
 const tabs=[['overview','概览'],['config','接入配置'],['tools','工具清单'],['calls','调用记录']];
-const toolGroups=[['目录与素材',['list_media_models','import_media']],['任务与作品',['get_job','list_jobs','cancel_job','get_artifact','download_artifact']]],COMMON=new Set(toolGroups.flatMap(([,names])=>names));
+const toolGroups=[['目录与素材',['list_media_models','import_media']],['任务与作品',['get_job','cancel_job','get_artifact']]],COMMON=new Set(toolGroups.flatMap(([,names])=>names));
 const date=v=>v?new Date(v).toLocaleString('zh-CN',{timeZone:'Asia/Shanghai'}):'暂无记录';
 const states={queued:'已排队',preparing:'素材准备',waiting_for_admission:'等待名额',waiting_for_engine:'等待引擎',dispatching:'已派发',running:'生成中',saving:'保存中',succeeded:'已完成',failed:'失败',cancelled:'已取消',recovering:'恢复检查',unknown:'结果未知'};
 function Code({value}){

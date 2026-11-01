@@ -1,0 +1,53 @@
+{
+  "name": "Qwen3-ASR 1.7B",
+  "status": "q8_0；中文、方言与多语种识别",
+  "entrypoint": "engines/shared/audiocpp/controller.py",
+  "category": "audio",
+  "deployment_id": "qwen3-asr",
+  "cache": "workspace/data/audio/audiocpp",
+  "outputs": "workspace/outputs/audio/qwen3-asr",
+  "backend": "audio.cpp 0.9.3 (GGML / HIP)",
+  "platform": {
+    "engine": "qwen3-asr",
+    "default_enabled": false,
+    "adapter": "adapter.mjs",
+    "runtime": {
+      "id": "audiocpp",
+      "name": "audio.cpp · ROCm",
+      "port": 18986,
+      "container": "paiton-audiocpp",
+      "launch": [
+        "qwen3-asr",
+        "start"
+      ]
+    },
+    "ui": {
+      "name": "Qwen3-ASR",
+      "version": "1.7B",
+      "full_name": "Qwen3-ASR · 1.7B",
+      "description": "语音识别 · 中文 / 方言 / 多语种",
+      "kind": "语音识别",
+      "accent": "#b6e0b0",
+      "symbol": "A",
+      "panel": "media",
+      "log_name": "audio.cpp · Qwen3-ASR",
+      "summary": "把音频转成文本；也为语音克隆自动补全参考音频的逐字文本"
+    },
+    "models": [
+      {
+        "id": "qwen3-asr",
+        "priority": 10,
+        "capabilities": [
+          "audio.transcribe"
+        ],
+        "info": {
+          "tasks": [
+            "transcribe"
+          ],
+          "languages": "zh, en, yue, ja, ko 等 30 种及中文方言",
+          "max_seconds": 1800
+        }
+      }
+    ]
+  }
+}

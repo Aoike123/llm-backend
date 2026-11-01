@@ -1,0 +1,58 @@
+{
+  "name": "Fish Audio Drama 3",
+  "status": "experimental：Q4_K_S GGUF 全部驻留显存；中文克隆、情绪标签已实测",
+  "entrypoint": "engines/shared/audiocpp/controller.py",
+  "category": "audio",
+  "deployment_id": "fish-drama3",
+  "cache": "workspace/data/audio/audiocpp",
+  "outputs": "workspace/outputs/audio/fish-drama3",
+  "backend": "audio.cpp 0.9.3 (GGML / HIP)",
+  "platform": {
+    "engine": "fish-drama3",
+    "default_enabled": false,
+    "adapter": "adapter.mjs",
+    "runtime": {
+      "id": "audiocpp",
+      "name": "audio.cpp · ROCm",
+      "port": 18986,
+      "container": "paiton-audiocpp",
+      "launch": [
+        "fish-drama3",
+        "start"
+      ]
+    },
+    "ui": {
+      "name": "Drama 3",
+      "version": "Q4_K_S",
+      "full_name": "Fish Audio Drama 3 · Q4_K_S",
+      "description": "语音合成 · 声音克隆 · 多角色 · 情绪标签",
+      "kind": "语音合成",
+      "accent": "#e6a5c7",
+      "symbol": "D",
+      "panel": "media",
+      "log_name": "audio.cpp · Drama 3",
+      "summary": "文本转语音；参考音频克隆音色，最多 4 个角色；行内标签如 [laughing]、[sighs]"
+    },
+    "models": [
+      {
+        "id": "fish-drama3",
+        "priority": 10,
+        "capabilities": [
+          "speech.synthesize"
+        ],
+        "info": {
+          "tasks": [
+            "text-to-speech",
+            "voice-clone",
+            "multi-speaker",
+            "inline-tags"
+          ],
+          "sample_rate": 44100,
+          "max_references": 4,
+          "max_reference_seconds": 30,
+          "languages": "auto"
+        }
+      }
+    ]
+  }
+}

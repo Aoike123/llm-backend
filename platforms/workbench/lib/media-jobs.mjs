@@ -4,7 +4,7 @@ import {createHash} from 'node:crypto';
 import {execFile} from 'node:child_process';
 import {promisify} from 'node:util';
 import sharp from 'sharp';
-import {CAPABILITIES,capabilityForTool,validateInput,candidates} from './capabilities.mjs';
+import {CAPABILITIES,capabilityForTool,isGenerationTool,validateGeneration,candidates} from './capabilities.mjs';
 import {registry} from './registry.mjs';
 import {atomic,uid,fail} from './media-store.mjs';
 import {executeMedia} from './media-executor.mjs';
@@ -69,20 +69,22 @@ export class MediaJobs{
   list(owner,{offset=0,limit=20}={}){const rows=[...this.jobs.values()].filter(j=>j.owner_id===owner).reverse();return {jobs:rows.slice(offset,offset+limit).map(j=>this.public(j)),offset,has_more:offset+limit<rows.length,total:rows.length};}
   // Engine-specific reference checks; returns the bytes preparation may hold in memory.
   async validateAssets(owner,capability,input,model){
-    const asset=(id,kind)=>this.store.getAsset(owner,id,kind),adapter=await registry.adapter(model.engine);
-    const refs=adapter?.assets?.(capability,input,{asset,model})??[];
+    const asset=(id,kind)=>this.store.getAsset(owner,id,kind),artifact=id=>this.artifact(owner,id),adapter=await registry.adapter(model.engine);
+    const refs=adapter?.assets?.(capability,input,{asset,artifact,model})??[];
     const estimate=128*2**20+refs.reduce((total,a)=>total+a.bytes*3,0);
     if(estimate>this.preparationBudget)throw fail('Combined references exceed the 512 MiB preparation memory budget',413);
     return estimate;
   }
   async create(owner,tool,input){
-    const capability=capabilityForTool(tool);if(!capability)throw fail('Invalid generation tool');
-    tool=CAPABILITIES[capability].tool;
-    await validateInput(tool,input);
+    if(!isGenerationTool(tool))throw fail('Invalid generation tool');
+    // The task selector only picks the capability; the job records the capability's own arguments.
+    const {capability,args}=await validateGeneration(tool,input);input=args;
     const asset=(id,kind)=>this.store.getAsset(owner,id,kind);
-    const {models,pinned}=await candidates(capability,input,{assets:asset});
+    const {models,pinned}=await candidates(capability,input,{assets:asset,artifact:id=>this.artifact(owner,id)});
     await this.validateAssets(owner,capability,input,models[0]);
-    const fingerprint=createHash('sha256').update(canonical({tool,input})).digest('hex');
+    // Per-capability names keep fingerprints of jobs created before tools were grouped.
+    tool=CAPABILITIES[capability].group;
+    const fingerprint=createHash('sha256').update(canonical({tool:CAPABILITIES[capability].tool,input})).digest('hex');
     return this.serial(async()=>{
       const existing=[...this.jobs.values()].find(j=>j.owner_id===owner&&j.request_id===input.request_id);
       if(existing){if(existing.fingerprint!==fingerprint)throw fail('request_id already used with different arguments',409);return this.public(existing);}
@@ -118,10 +120,12 @@ export class MediaJobs{
     return this.public(job);
   }
   async payload(job,capability=capabilityOf(job),model=registry.model(job.model)??{engine:job.engine}){
-    const input=job.request,asset=(id,kind)=>this.store.getAsset(job.owner_id,id,kind);
+    const input=job.request,asset=(id,kind)=>this.store.getAsset(job.owner_id,id,kind),artifact=id=>this.artifact(job.owner_id,id);
     const bytes=async(id,kind='image')=>id?readFile(asset(id,kind).file):undefined;
     const adapter=await registry.adapter(model.engine);
-    return adapter?.payload?adapter.payload(capability,input,{bytes,asset,job,model}):{...input};
+    // Adapters may stage files (clipped references, converted audio) in the job directory.
+    const outputDirectory=this.store.outputDirectory(job);await mkdir(outputDirectory,{recursive:true,mode:0o700});
+    return adapter?.payload?adapter.payload(capability,input,{bytes,asset,artifact,job,model,outputDirectory}):{...input};
   }
   async reservePreparation(job,signal){
     const bytes=await this.validateAssets(job.owner_id,capabilityOf(job),job.request,registry.model(job.model)??{engine:job.engine}),deadline=Date.now()+900000;
@@ -228,7 +232,8 @@ export class MediaJobs{
       artifact.uri='media://artifacts/'+artifact.artifact_id;this.store.account(row.file,info.size);artifacts.push(artifact);
     }
     const input=job.request,media=artifacts[0].media,capability=capabilityOf(job);
-    const effective={...input,seed:input.seed??42,model:job.model};delete effective.prompt;delete effective.request_id;
+    // Prompts and spoken text are content, not parameters; they stay out of the job record view.
+    const effective={...input,seed:input.seed??42,model:job.model};delete effective.prompt;delete effective.text;delete effective.request_id;
     Object.assign(effective,(await registry.adapter(job.engine).catch(()=>null))?.effective?.(capability,input,media,job)??{});
     if(job.kind==='video')Object.assign(effective,{width:media.width,height:media.height,fps:media.fps,effective_frames:media.frames??effective.effective_frames??effective.frames});
     await this.change(job,'succeeded',{artifacts,served_by:job.model,effective_parameters:effective,metrics:{...result.metrics,...timing},finished_at:new Date().toISOString()});

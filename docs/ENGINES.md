@@ -12,6 +12,9 @@
 | 图像 | [Qwen-Image 2.1](../engines/image/pation-model-qwen-image-21/README.md) | 文生图、透明图与编辑通过，保真仍待验收 |
 | 图像 | [FLUX.2 klein](../engines/image/pation-model-flux2-klein/README.md) | Paiton / Stock 文生图通过 |
 | 视频 | [MiniMax H3](../engines/video/pation-model-minimax-h3/README.md) | 文生视频、首帧/首尾帧通过，含音频 |
+| 语音 | [Fish Audio Drama 3](../engines/audio/fish-drama3/engine.json) | audio.cpp Q4_K_S，全部驻留显存；中文克隆与情绪标签已实测，质量对比待做 |
+| 语音 | [BS-RoFormer](../engines/audio/bs-roformer/engine.json) | 人声 / 伴奏分离，3 分钟音频约 2 分钟 |
+| 语音 | [Qwen3-ASR 1.7B](../engines/audio/qwen3-asr/engine.json) | 中文与方言识别；为语音克隆自动补全参考文本 |
 | 文本 | [Qwen38 MXFP4](../engines/llm/pation-model-qwen38-27b-mxfp4/README.md) | 入口已登记，未完成验收 |
 | 文本 | [原生 vLLM](../engines/llm/vllm/README.md) / [llama.cpp](../engines/llm/llama-cpp/README.md) / [Strata](../engines/llm/strata/README.md) | 资源或配置已登记，运行环境待接入 |
 
@@ -25,8 +28,9 @@ llm-backend/
 │   ├── llm/                      # Qwen3.8 专用部署及通用引擎
 │   ├── image/                    # FLUX / Qwen-Image
 │   ├── video/                    # MiniMax H3
-│   ├── audio/                    # 语音引擎（Fish Audio，接入中）
-│   └── shared/paiton/            # 共用后端源码及控制器
+│   ├── audio/                    # Drama 3 / BS-RoFormer / Qwen3-ASR（共用 audio.cpp 运行时）
+│   ├── shared/paiton/            # 共用后端源码及控制器
+│   └── shared/audiocpp/          # audio.cpp 运行时控制器与客户端
 ├── docs/                         # 使用与评测说明
 ├── workspace/
 │   ├── data/                     # 模型与运行缓存

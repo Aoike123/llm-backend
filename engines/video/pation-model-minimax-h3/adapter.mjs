@@ -1,12 +1,16 @@
 // MiniMax H3 on the native ComfyUI runtime. Durable jobs run the approved Goldfish workflow;
 // the synchronous /v1/videos/generations API keeps the original H3 graph presets.
-import {call,seed,list,fail} from '../../../platforms/workbench/lib/engine-sdk.mjs';
+import {readFile} from 'node:fs/promises';
+import {join} from 'node:path';
+import {call,seed,list,fail,audioClip} from '../../../platforms/workbench/lib/engine-sdk.mjs';
 import {video,validateVideoRequest,saveVideoOutput,comfyFailure,interruptPrompt,H3_REFERENCE_LIMITS} from '../../../platforms/workbench/lib/media.mjs';
 import {prepareH3Videos} from '../../../platforms/workbench/lib/h3-references.mjs';
 import {GOLDFISH_CONTROLS,validateGoldfishControls,goldfishReferenceSlots} from '../../../platforms/workbench/lib/goldfish-controls.mjs';
 import {GOLDFISH_ID,GOLDFISH_SEED,goldfishFrames,runGoldfish} from '../../../platforms/workbench/lib/goldfish-workflow.mjs';
 import {pause} from '../../../platforms/workbench/lib/engine-sdk.mjs';
 const groups=[['images','reference_asset_ids','image'],['videos','reference_video_asset_ids','video'],['audios','reference_audio_asset_ids','audio']];
+// H3 hears at most 15 seconds of each reference audio; longer assets are cut, never refused.
+const AUDIO_SECONDS=15,heard=a=>a.kind==='audio'?Math.min(a.seconds,AUDIO_SECONDS):a.seconds;
 export default {
   async idle(ctx){const q=await call(ctx.base,'/queue');return q.queue_running.length===0&&q.queue_pending.length===0;},
   async ready(ctx){await call(ctx.base,'/system_stats');return true;},
@@ -22,7 +26,7 @@ export default {
     const enabled=groups.flatMap(([slots,key])=>goldfishReferenceSlots(input,slots,input[key])).map(({value})=>refs.find(a=>a.asset_id===value));
     if(enabled.length>12)throw fail('Goldfish supports at most 12 reference files');
     if(enabled.some(a=>a.kind==='audio')&&!enabled.some(a=>a.kind!=='audio'))throw fail('Audio references require image or video references');
-    for(const kind of ['video','audio'])if(enabled.filter(a=>a.kind===kind).reduce((sum,a)=>sum+a.seconds,0)>15.05)throw fail('Reference '+kind+' total exceeds 15 seconds');
+    for(const kind of ['video','audio'])if(enabled.filter(a=>a.kind===kind).reduce((sum,a)=>sum+heard(a),0)>15.05)throw fail('Reference '+kind+' total exceeds 15 seconds');
     if(enabled.some(a=>a.kind==='video'&&a.seconds>goldfishFrames(input.duration_seconds??10)/24+1/24))throw fail('Reference video is longer than the output');
     return refs;
   },
@@ -34,9 +38,11 @@ export default {
     const audios=goldfishReferenceSlots(input,'audios',input.reference_audio_asset_ids).map(({index})=>({input_slot:index+1,tag:'<Audio '+(++audioOrdinal)+'>'}));
     job.reference_mapping={images,videos,audios};
   },
-  async payload(capability,input,{bytes}){
+  async payload(capability,input,{bytes,asset,outputDirectory}){
     const payload={...input,workflow:GOLDFISH_ID};delete payload.model;
-    for(const [kind,key,type] of groups){const slots=goldfishReferenceSlots(input,kind,input[key]);payload['reference_'+kind+'_b64']=await Promise.all(slots.map(({value})=>bytes(value,type)));payload['reference_'+kind+'_slots']=slots.map(({index})=>index);}
+    // Reference audio goes to ComfyUI as the 15 s, 32 kHz stereo clip H3 was tuned on.
+    const audio=async(id,i)=>readFile(await audioClip(asset(id,'audio').file,join(outputDirectory,'reference-audio-'+i+'.wav'),{seconds:AUDIO_SECONDS,rate:32000,channels:2}));
+    for(const [kind,key,type] of groups){const slots=goldfishReferenceSlots(input,kind,input[key]);payload['reference_'+kind+'_b64']=await Promise.all(slots.map(({value},i)=>type==='audio'?audio(value,i):bytes(value,type)));payload['reference_'+kind+'_slots']=slots.map(({index})=>index);}
     return payload;
   },
   async prepare(capability,d){

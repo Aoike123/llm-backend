@@ -46,6 +46,7 @@ export default function EnginesPanel(){
   const view=latest??value;useEffect(()=>{setLatest(null);},[value]);
   return <div className="control-center engines-panel">
     {error&&<p className="error-banner" role="alert">{error}</p>}
+    {view?.scan_error&&<p className="error-banner" role="alert">新引擎目录有误，未载入：{view.scan_error}</p>}
     <section className="mcp-card"><div className="charthead"><h2>引擎包</h2><span className="muted tiny">engines/*/*/engine.json · 新增目录后在此启用</span></div>
       <p className="note">一个引擎就是一个目录（清单 + adapter）。停用后它从 API、MCP 和服务列表中消失，文件保留；正在使用或排队的引擎不能停用。</p>
       {view?view.packages.map(pkg=><PackageRow key={pkg.id} pkg={pkg} onChange={setLatest}/>):<div className="empty">正在读取引擎包…</div>}

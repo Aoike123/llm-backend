@@ -40,10 +40,12 @@ export function validatePackage(pkg){
 }
 
 export class Registry{
-  constructor({enginesDir=ROOT+'engines',statePath=process.env.WORKBENCH_PLATFORM_STATE??ROOT+PLATFORM.state_file}={}){
+  // Under `node --test` the operator's state file is neither read nor written: tests see the
+  // manifest defaults whatever engines are switched on in this workbench.
+  constructor({enginesDir=ROOT+'engines',statePath=process.env.WORKBENCH_PLATFORM_STATE??(process.env.NODE_TEST_CONTEXT?null:ROOT+PLATFORM.state_file)}={}){
     this.enginesDir=enginesDir;this.statePath=statePath;this.adapters=new Map();this.listeners=new Set();this.load();
   }
-  readState(){return existsSync(this.statePath)?JSON.parse(readFileSync(this.statePath,'utf8')):{};}
+  readState(){return this.statePath&&existsSync(this.statePath)?JSON.parse(readFileSync(this.statePath,'utf8')):{};}
   // Validates manifests against a candidate state; this.state changes only if it is consistent.
   load(state=this.readState()){
     const packages=readManifests(this.enginesDir);packages.forEach(validatePackage);
@@ -101,6 +103,7 @@ export class Registry{
     return {capability,primary,fallbacks:[...new Set(fallbacks)].filter(id=>id!==primary),providers,fallback_on_backend_error:saved.fallback_on_backend_error===true};
   }
   persist(){
+    if(!this.statePath)return;
     mkdirSync(dirname(this.statePath),{recursive:true});
     const tmp=this.statePath+'.tmp';writeFileSync(tmp,JSON.stringify(this.state,null,2)+'\n',{mode:0o600});renameSync(tmp,this.statePath);
   }

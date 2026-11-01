@@ -2,7 +2,7 @@ import {Server} from '@modelcontextprotocol/sdk/server/index.js';
 import {StdioServerTransport} from '@modelcontextprotocol/sdk/server/stdio.js';
 import {ListToolsRequestSchema,CallToolRequestSchema,ListResourcesRequestSchema,ReadResourceRequestSchema} from '@modelcontextprotocol/sdk/types.js';
 import {randomUUID} from 'node:crypto';
-import {ID,COMMON_TOOLS,capabilityForTool,validateToolInput} from './manifest.mjs';
+import {ID,COMMON_TOOLS,LEGACY_TOOLS,isGenerationTool,validateToolInput} from './manifest.mjs';
 import {configuration,request,openImport,importRoots,downloadArtifact} from './client.mjs';
 export async function start(){
   const config=await configuration(),instance_id='instance_'+randomUUID().replaceAll('-','');let sequence=0,protocol_version,reporting=Promise.resolve(),closing=false;
@@ -21,7 +21,7 @@ export async function start(){
     reporting=reporting.then(()=>request(config,'/internal/mcp/events',{method:'POST',headers:{'x-media-telemetry-token':config.telemetry_token},body:JSON.stringify(input),timeout:2000})).catch(()=>{});return reporting;
   }
   const server=new Server(ID,{capabilities:{tools:{},resources:{}},instructions:'Local media generation through the workbench gateway: the available tools follow the engines enabled there. Generation tools return durable jobs, not completed media: poll get_job and inspect unknown outcomes before retrying; download_artifact writes results into the workspace. Prefer the engine that is already running: check list_media_models first (it names the primary and fallback model of every capability), batch work on the same engine, and avoid switching engines between jobs because a switch drains the queue and cold-starts the backend.'});
-  server.setRequestHandler(ListToolsRequestSchema,async()=>({tools:(await toolList()).map(({example,...tool})=>({name:tool.name,description:tool.description,inputSchema:tool.inputSchema,annotations:{readOnlyHint:['list_media_models','get_job','list_jobs','get_artifact'].includes(tool.name),destructiveHint:false,openWorldHint:false}}))}));
+  server.setRequestHandler(ListToolsRequestSchema,async()=>({tools:(await toolList()).map(({example,...tool})=>({name:tool.name,description:tool.description,inputSchema:tool.inputSchema,annotations:{readOnlyHint:['list_media_models','get_job'].includes(tool.name),destructiveHint:false,openWorldHint:false}}))}));
   async function invoke(name,input){
     validateToolInput(await toolList(),name,input);
     if(name==='list_media_models'){const media=await catalog();return {models:media.models,capabilities:media.capabilities,workflows:media.workflows};}
@@ -29,19 +29,25 @@ export async function start(){
       const fd=await openImport(input.path,importRoots(config));
       try{return await request(config,'/v1/media/assets?kind='+input.kind,{method:'POST',headers:{'Content-Type':'application/octet-stream'},body:fd.createReadStream({autoClose:false}),timeout:120000});}finally{await fd.close();}
     }
-    if(name==='download_artifact')return downloadArtifact(config,input.artifact_id,input.path);
-    if(capabilityForTool(name))return request(config,'/v1/media/jobs',{method:'POST',body:JSON.stringify({tool:name,arguments:input})});
-    if(name==='get_job')return request(config,'/v1/media/jobs/'+input.job_id+'?wait_seconds='+(input.wait_seconds??0));
-    if(name==='list_jobs')return request(config,'/v1/media/jobs?'+new URLSearchParams(input));
+    if(isGenerationTool(name))return request(config,'/v1/media/jobs',{method:'POST',body:JSON.stringify({tool:name,arguments:input})});
+    const tool=LEGACY_TOOLS[name]??name;
+    if(tool==='get_job'){
+      if(input.job_id)return request(config,'/v1/media/jobs/'+input.job_id+'?wait_seconds='+(input.wait_seconds??0));
+      const {wait_seconds,...page}=input;return request(config,'/v1/media/jobs?'+new URLSearchParams(page));
+    }
     if(name==='cancel_job')return request(config,'/v1/media/jobs/'+input.job_id+'/cancel',{method:'POST'});
-    if(name==='get_artifact')return request(config,'/v1/media/artifacts/'+input.artifact_id);
+    if(tool==='get_artifact'){
+      const artifact=await request(config,'/v1/media/artifacts/'+input.artifact_id);
+      if(name==='download_artifact'||input.download||input.path)return {...artifact,download:await downloadArtifact(config,input.artifact_id,input.path)};
+      return artifact;
+    }
   }
   server.setRequestHandler(CallToolRequestSchema,async req=>{
     const started=performance.now(),name=req.params.name;let result;
     try{
       result=await invoke(name,req.params.arguments??{});
       void report({type:'call',tool:name,status:'success',duration_ms:performance.now()-started,job_id:result.job_id});
-      return {structuredContent:result,content:[{type:'text',text:JSON.stringify(result)},...(name==='get_artifact'?[{type:'resource_link',uri:result.uri,name:result.artifact_id,mimeType:'application/json',description:'Artifact metadata resource; use local_path for image/video viewing.'}]:[])]};
+      return {structuredContent:result,content:[{type:'text',text:JSON.stringify(result)},...(result?.uri&&['get_artifact','download_artifact'].includes(name)?[{type:'resource_link',uri:result.uri,name:result.artifact_id,mimeType:'application/json',description:'Artifact metadata resource; use local_path for image/video viewing.'}]:[])]};
     }catch(e){void report({type:'call',tool:name,status:'error',duration_ms:performance.now()-started});return {isError:true,content:[{type:'text',text:e.message}]};}
   });
   server.setRequestHandler(ListResourcesRequestSchema,async()=>({resources:[]}));

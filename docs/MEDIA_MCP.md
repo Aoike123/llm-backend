@@ -35,18 +35,18 @@
 
 | 工具 | 用途 |
 | --- | --- |
-| `list_media_models` | 查询 FLUX、Qwen-Image 能力；不启动模型 |
-| `import_media` | 导入工作区或允许目录内的图像 / 视频 / 音频，返回 asset_id |
-| `generate_image` | 提交 FLUX / Qwen 生图持久任务 |
-| `edit_image` | Qwen 图片编辑，1–4 张参考图 |
-| `generate_video` | H3 视频生成（原版工作流），可选图像/视频/音频参考及原版开关，原生 ComfyUI 执行；旧名 `run_goldfish_workflow` 仍兼容 |
-| `get_job` | 查询自己的任务；可短等待，最多 20 秒 |
-| `list_jobs` | 查询自己的任务历史 |
-| `cancel_job` | 排队中立即取消；运行中的视频任务中断 ComfyUI 当前生成，停止后为 `cancelled`；图像开始后不可中断 |
-| `get_artifact` | 获取作品本机路径与资源元数据 |
-| `download_artifact` | 把作品下载到工作区（默认 `artifacts/`），返回路径、大小与 sha256 |
+| `generate_image` | 生图；带 `reference_asset_ids` 时为图片编辑（1–4 张参考图）。默认主推 Qwen-Image，FLUX 降级 |
+| `generate_video` | H3 视频生成（原版工作流），可选图像/视频/音频参考及原版开关，原生 ComfyUI 执行 |
+| `generate_audio` | `task=speech` 语音合成与声音克隆（Drama 3，最多 4 个参考音色，参考文本可自动识别）；`task=separate` 人声分离（BS-RoFormer，产出 vocals / instrumental）；`task=transcribe` 语音识别（Qwen3-ASR） |
+| `list_media_models` | 列出已启用的能力、每种能力的主推与降级，以及各模型参数；不启动模型 |
+| `import_media` | 导入工作区或允许目录内的图像 / 视频 / 音频（音频最长 30 分钟，可直接给视频取音轨），返回 asset_id |
+| `get_job` | 查询自己的任务，可短等待最多 20 秒；不带 `job_id` 时按 `offset` / `limit` 列出任务 |
+| `cancel_job` | 排队中立即取消；可中断的后端（ComfyUI）运行中也能中断，其他后端开始后自行完成 |
+| `get_artifact` | 获取作品本机路径与资源元数据；`download=true` 或给 `path` 时同时下载到工作区，返回路径、大小与 sha256 |
 
-当前共 **10 个工具**（3 个生成、7 个公共）。生成工具按能力定义，每种能力一个，由已启用的引擎包生成：MCP 进程从网关 `/v1/media/catalog` 读取工具列表，控制台启用或停用引擎后几秒内生效。工具的 `model` 参数可选，默认 `auto` 走主推、失败时按降级顺序；点名模型不降级。`list_media_models` 返回每个模型的参数，以及每种能力的主推和降级。视频统一走 `generate_video`（底层为 H3 原版工作流）。该视频工作流单独列在 `workflows`，不冒充通用模型。
+旧名 `edit_image`、`run_goldfish_workflow`、`generate_speech`、`separate_audio`、`transcribe_audio`、`list_jobs`、`download_artifact` 仍可调用，但不再出现在工具列表中。
+
+当前共 **8 个工具**（3 个生成、5 个公共）。生成工具按类别分组（图像、视频、音频），每组内的能力用 `task` 区分，组内能力全部停用时该工具不出现。
 
 `prompt` 最长 **32000 字符**（Qwen 图片最长 4000 字符，2.1 管线不做截断），超长在创建任务前拒绝，并返回实际长度；金鱼提示词由原生节点完整编码（本地 tokenizer 未设截断），长度主要影响耗时与显存。任务请求体上限 128 KiB，MCP stdio 帧上限 256 KiB，均按 32000 字符的 UTF-8 体积留有余量。
 

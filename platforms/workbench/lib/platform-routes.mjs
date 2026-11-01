@@ -19,6 +19,7 @@ export function packageRows(){
       models:p.models.map(model=>({id:model.id,capabilities:model.capabilities}))};
   });
 }
+const labels=()=>Object.fromEntries(Object.entries(CAPABILITIES).map(([id,c])=>[id,c.label]));
 export function platformRoutes(coordinator,lifecycle){
   // An engine in use keeps its lease, queue and loaded weights until that work is done.
   function assertIdle(engine){
@@ -29,7 +30,10 @@ export function platformRoutes(coordinator,lifecycle){
     if(!localManagement(req))return send(res,403,{error:'Local same-origin console only'});
     const path=new URL(req.url,'http://localhost').pathname;
     try{
-      if(req.method==='GET'&&path==='/api/platform')return send(res,200,{packages:packageRows(),capabilities:routes(),capability_labels:Object.fromEntries(Object.entries(CAPABILITIES).map(([id,c])=>[id,c.label]))});
+      // New package directories appear without a restart; a broken manifest is reported and the
+      // registry keeps its previous, valid view.
+      try{registry.load(registry.state);}catch(e){if(req.method==='GET')return send(res,200,{packages:packageRows(),capabilities:routes(),capability_labels:labels(),scan_error:e.message});throw Object.assign(e,{status:409});}
+      if(req.method==='GET'&&path==='/api/platform')return send(res,200,{packages:packageRows(),capabilities:routes(),capability_labels:labels()});
       if(req.method!=='POST')return send(res,405,{error:'Method not allowed'});
       if(lifecycle.draining||process.env.WORKBENCH_READ_ONLY==='1')throw fail('Gateway is draining or read-only',503);
       const engine=/^\/api\/platform\/engines\/([A-Za-z0-9_.-]+)$/.exec(path);

@@ -2,7 +2,7 @@
 
 [文档目录](README.md)
 
-更新：2026-11-02。状态：**P0–P2 已上线，P3（音频引擎）进行中**。接入规范见 [引擎目录 · 接入新引擎](ENGINES.md#接入新引擎)。
+更新：2026-11-02。状态：**P0–P3 已上线**；S2-Pro 语音降级与 Drama 3 高精度版本对比待做。接入规范见 [引擎目录 · 接入新引擎](ENGINES.md#接入新引擎)。
 
 ## 为什么要改
 
@@ -157,7 +157,7 @@ ComfyUI、vLLM、audiocpp_server 这类第三方服务器只需要一个很薄�
 | P0 ✅ | 清单 Schema 与注册表加载器；从现有清单生成拓扑、模型表、服务卡片 | 生成结果与当前硬编码完全一致（对拍测试），行为不变 |
 | P1 ✅ | flux、qwen-image、h3（ComfyUI）、llm 迁到 adapter；删除 `backend`/`media-executor`/`media-jobs`/`panel`/`page.jsx` 里按 id 的分支 | 现有 148 + 6 个测试全过；控制台各页显示不变（语音标签修正除外） |
 | P2 ✅ | 能力驱动的 API/MCP、`platform-state.json`、主推与降级、控制台「引擎」页，以及每个引擎的「作品与历史」面板 | 在控制台把 `image.generate` 主推切到 FLUX，不改代码，API/MCP 立即生效 |
-| P3 ⏳ | audio.cpp 引擎包：Drama 3（语音合成）、人声分离、ASR；S2-Pro 作为语音降级 | **验收即目标**：新增 = 一个目录 + 控制台启用；卸载 = 停用，零代码改动 |
+| P3 ✅ | audio.cpp 引擎包：Drama 3（语音合成）、人声分离、ASR；S2-Pro 作为语音降级 | **验收即目标**：新增 = 一个目录 + 控制台启用；卸载 = 停用，零代码改动 |
 
 LLM 的模式切换、KV 预算等是它特有的功能，作为 adapter 的扩展面板保留，不强行套进通用表单。
 
@@ -167,3 +167,10 @@ LLM 的模式切换、KV 预算等是它特有的功能，作为 adapter 的扩�
 2. 后端明确报错时默认不降级，按能力可开启。
 3. CosyVoice 下线单独提交，之后在 `gateway-scheduler-redesign` 分支按 P0→P3 推进。
 4. 人声分离用 BS-RoFormer，语音识别用 Qwen3-ASR 1.7B，均运行在 audio.cpp。
+
+## 实施记录
+
+- 2026-11-02：P3 验收通过。三个音频引擎包（`engines/audio/fish-drama3`、`bs-roformer`、`qwen3-asr`）共用 `engines/shared/audiocpp/` 运行时，没有改动网关、MCP 或控制台代码，只用 `./lab engine enable` 启用。端到端链路：导入 3 分 10 秒视频 → 人声分离（132 秒）→ 从人声作品截 15 秒并自动识别参考文本 → Drama 3 克隆（15.7 秒音频，总计 30 秒）。
+- 运行中的网关在「引擎」页和 `./lab engine` 每次操作前重新扫描引擎目录，新增包不需要重启网关；清单有误时报错并保留原注册表。
+- MCP 工具按类别合并为 8 个：`generate_image`（含编辑）、`generate_video`、`generate_audio`（`task` 区分），公共工具合并 `list_jobs` 到 `get_job`、`download_artifact` 到 `get_artifact`。旧名继续可调用。
+

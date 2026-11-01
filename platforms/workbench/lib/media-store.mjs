@@ -41,7 +41,8 @@ export class MediaStore{
     if(!['image','video','audio'].includes(kind))throw fail('Invalid media kind');
     if(this.uploads>=2)throw fail('Too many simultaneous imports',429);
     if(this.assetIndex.size>=1000||[...this.assetIndex.values()].filter(a=>a.owner_id===owner).length>=200)throw fail('Asset count quota reached',429);
-    const limit=(kind==='image'?16:128)*2**20;this.uploads++;try{await this.quota(this.uploads*128*2**20);}catch(e){this.uploads--;throw e;}
+    // Audio may arrive inside a long video; only its soundtrack is kept.
+    const limit=(kind==='image'?16:kind==='audio'?1024:128)*2**20;this.uploads++;try{await this.quota(this.uploads*128*2**20);}catch(e){this.uploads--;throw e;}
     const id=uid('asset'),directory=join(this.assets,id),source=join(directory,'upload');let bytes=0;
     try{
       await mkdir(directory,{mode:0o700});
@@ -61,10 +62,12 @@ export class MediaStore{
         const formats='wav,mp3,flac,ogg,aac,mov,matroska,webm';
         let probe;try{probe=JSON.parse((await run('ffprobe',['-v','error','-protocol_whitelist','file,pipe','-format_whitelist',formats,'-show_streams','-show_format','-of','json',source],{timeout:30000,maxBuffer:2**20})).stdout);}catch{throw fail('Invalid audio file');}
         const audio=probe.streams?.find(s=>s.codec_type==='audio'),seconds=Number(audio?.duration??probe.format?.duration);
-        if(!audio||!Number.isFinite(seconds)||seconds<=0||seconds>30.05)throw fail('Audio must contain at most 30 seconds');
+        // Full length is kept: separation and transcription take long recordings; engines that need
+        // short references (H3, voice cloning) trim their own copy.
+        if(!audio||!Number.isFinite(seconds)||seconds<=0||seconds>1800.05)throw fail('Audio must contain at most 30 minutes');
         file=join(directory,'source.wav');
-        try{await run('ffmpeg',['-nostdin','-v','error','-protocol_whitelist','file,pipe','-format_whitelist',formats,'-i',source,'-map','0:a:0','-t','15','-ar','32000','-ac','2','-c:a','pcm_s16le','-y',file],{timeout:30000,maxBuffer:2**20});}catch{throw fail('Audio could not be normalized');}
-        await chmod(file,0o600);await rm(source);bytes=(await stat(file)).size;metadata={seconds:Math.min(seconds,15),sample_rate:32000,channels:2};
+        try{await run('ffmpeg',['-nostdin','-v','error','-protocol_whitelist','file,pipe','-format_whitelist',formats,'-i',source,'-map','0:a:0','-ar','44100','-ac',String(Math.min(2,Number(audio.channels)||1)),'-c:a','pcm_s16le','-y',file],{timeout:300000,maxBuffer:2**20});}catch{throw fail('Audio could not be normalized');}
+        await chmod(file,0o600);await rm(source);bytes=(await stat(file)).size;metadata={seconds,sample_rate:44100,channels:Math.min(2,Number(audio.channels)||1)};
       }else{
         // ffprobe never receives a caller-supplied path or URL.
         const {execFile}=await import('node:child_process');const {promisify}=await import('node:util');
