@@ -10,4 +10,4 @@
 
 入口：`./lab pation-model-qwen-image-21 prepare|start|stop|status|logs|check|generate`。可用 `start --precision-profile exact --no-native-fusions` 回到保守路径（该路径也已验证）。先停止其他 GPU 引擎再启动。
 
-自定义节点和模板位于 `platforms/comfyui/`，公共入口 http://127.0.0.1:8188。完整实测见 [媒体验证结果](../../../docs/MEDIA_RESULTS.md)。
+Qwen-Image 是独立容器，不经过 ComfyUI；API 与 MCP 直接调用其 8191 端口。

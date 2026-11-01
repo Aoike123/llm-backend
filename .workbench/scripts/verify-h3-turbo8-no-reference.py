@@ -11,7 +11,7 @@ parser.add_argument('--profile',choices=['long','short'],default='long')
 args=parser.parse_args()
 frames=362 if args.profile=='long' else 124
 STAMP='no-reference-turbo8-paiton' if args.profile=='long' else 'no-reference-turbo8-short-paiton'
-graph=json.loads((ROOT/'platforms/comfyui/custom_nodes/pation_h3/turbo8.api.json').read_text())
+graph=json.loads((ROOT/'engines/video/pation-model-minimax-h3/graphs/turbo8.api.json').read_text())
 graph['5']['inputs'].update(width=864,height=480,length=frames)
 graph['17']['inputs']['filename_prefix']='H3/'+STAMP
 control={'prompt':graph['5']['inputs']['prompt'],'width':864,'height':480,'frames':frames,'steps':8,'seed':771,'engine':'paiton','preset':'turbo8','model':graph['1']['inputs']['unet_name'],'lora':graph['6']['inputs']['lora_name'],'sampler':'euler','scheduler':'simple','reference_image_count':0,'reference_video_count':0}

@@ -26,9 +26,11 @@ def enabled(package_id, manifest):
 
 
 def native_runtime():
-    """The enabled runtime that hosts the native ComfyUI canvas."""
+    """The enabled runtime that hosts the native ComfyUI canvas, with the engines that share it."""
     for package_id, manifest in manifests().items():
         runtime = manifest.get("platform", {}).get("runtime", {})
         if runtime.get("native_ui") and enabled(package_id, manifest):
-            return runtime
+            engines = [m["platform"]["engine"] for p, m in manifests().items()
+                       if m.get("platform", {}).get("runtime", {}).get("id") == runtime["id"] and enabled(p, m)]
+            return {**runtime, "engines": engines}
     raise RuntimeError("没有启用提供 ComfyUI 原生界面的引擎")

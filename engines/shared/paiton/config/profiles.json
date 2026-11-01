@@ -50,13 +50,6 @@
     "container": "paiton-qwen38",
     "served_model_name": "qwen38-27b-w3a4"
   },
-  "image": {
-    "directory": "FLUX.2-klein",
-    "launcher": "launch.sh",
-    "args": [],
-    "url": "http://127.0.0.1:8188/?paiton=1",
-    "compose": "paiton-flux2"
-  },
   "image-hq": {
     "directory": "Qwen-Image-2.1",
     "launcher": "serve-docker.sh",

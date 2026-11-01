@@ -82,7 +82,7 @@ def arrange(nodes,entry):
                 x=1380 if pipeline and seed_row else prompt_x
                 node.update(pos=[x,450],size=[390,110]);seed_row+=1
             elif kind=='ImageBatch':node.update(pos=[460,650],size=[390,100])
-            elif kind.startswith(('PationQwen','PaitonFlux')):node.update(pos=[generate_x,100],size=[390,330])
+            elif kind.startswith('PationQwen'):node.update(pos=[generate_x,100],size=[390,330])
             elif kind=='PationH3Video':node.update(pos=[1840,100],size=[390,430],title='H3 · 跨模型 API 生成')
             elif kind=='JoinImageWithAlpha':node.update(pos=[generate_x+450,100],size=[330,130],title='合并图像与透明度')
             elif kind=='SaveImage':

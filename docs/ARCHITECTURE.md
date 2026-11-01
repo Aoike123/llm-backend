@@ -30,4 +30,4 @@ ComfyUI 在 8188 提供原生画布和 GPU 执行，服务检测覆盖全部原�
 
 `./lab comfyui sync` 只更新磁盘上的模板库，不重启服务，也不覆盖已打开画布。自定义模板建议另存到“我的工作流”。重复同步不会新增副本，模板文件被用户修改时先保留修改版本再更新。旧模板保留供恢复。
 
-systemd 用户服务负责常驻、开机启动与异常进程恢复；Docker运行独立推理环境。详细服务名与启停方式见 [服务与架构](SERVICES.md)，工作流清单见 [模板说明](../platforms/comfyui/workflows/README.md)。
+systemd 用户服务只负责网关与监控的常驻、开机启动和异常恢复；GPU 运行时（含 ComfyUI）由网关按需启动。服务名与启停方式见 [服务说明](SERVICES.md)，模板清单见 [ComfyUI 运行时](COMFYUI.md#工作流模板)。

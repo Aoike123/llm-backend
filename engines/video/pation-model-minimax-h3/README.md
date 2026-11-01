@@ -4,11 +4,11 @@
 
 类别：video。ROCm 10.1 下文生视频、参考首帧、首尾帧均通过实测，带原生音频。默认 Turbo8、864×480、124帧、24fps，约5.17秒；该冷请求用时105.54秒，仍有粗糙纹理。
 
-启动：`./lab pation-model-minimax-h3 start`；停止：`./lab pation-model-minimax-h3 stop`。先停止当前 GPU 引擎。Turbo8/Turbo4 共35.92GB权重已校验，位于项目 NVMe 的 `workspace/data/video/minimax-h3/models`。
+按需启动：请求或 `./lab comfyui start` 通过调度器拉起共享 ComfyUI，不需要手工停止其他引擎。Turbo8/Turbo4 共35.92GB权重已校验，位于项目 NVMe 的 `workspace/data/video/minimax-h3/models`。
 
 FL2VA参考图作为首帧约束，也可提供末帧；多图、视频和混合参考使用新增Ref2VA路径，见下文。任意人物或物体参考一致性仍需按素材验收。Turbo4 可用于快速预览；首尾帧与参考模板保留已验证的576×320设置。
 
-唯一 H3 ComfyUI http://127.0.0.1:8188；API/MCP 共用此后端，8190 已停用。当前结构见 [运行模式](../../../docs/RUNTIME_TOPOLOGY.md)。完整实测见 [媒体验证结果](../../../docs/MEDIA_RESULTS.md)。
+运行在 [共享 ComfyUI](../../../docs/COMFYUI.md)（http://127.0.0.1:8188），与 Anima 共用容器。包内结构：`graphs/` 是同步 API 的四个图预设，`lib/` 放图构建、金鱼工作流与参考素材处理，`tests/` 随 `./lab check` 运行。
 
 ## 多图 / 视频 / 混合参考（Ref2VA）
 

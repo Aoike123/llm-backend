@@ -53,10 +53,10 @@ class LabTests(unittest.TestCase):
                 dispatcher.main(["pation-model-qwen38-27b-" + name, "start"])
                 self.assertEqual(execute.call_args.args[0][-2:], ["start", profile])
 
-    def test_media_entrypoint_selects_image_profile(self):
+    def test_media_entrypoint_selects_its_profile(self):
         with patch.object(dispatcher.subprocess, "run", return_value=subprocess.CompletedProcess([], 0)) as execute:
-            self.assertEqual(dispatcher.main(["flux", "start"]), 0)
-            self.assertEqual(execute.call_args.args[0][-2:], ["start", "image"])
+            self.assertEqual(dispatcher.main(["minimax-h3", "start"]), 0)
+            self.assertEqual(execute.call_args.args[0][-2:], ["start", "video-audio"])
 
     def test_media_stop_is_scoped_to_selected_profile(self):
         with patch.object(dispatcher.subprocess, "run", return_value=subprocess.CompletedProcess([], 0)) as execute:
@@ -65,7 +65,7 @@ class LabTests(unittest.TestCase):
 
     def test_media_help_does_not_become_launcher_extra_argument(self):
         with patch.object(dispatcher.subprocess, "run", return_value=subprocess.CompletedProcess([], 0)) as execute:
-            dispatcher.main(["flux", "start", "--help"])
+            dispatcher.main(["minimax-h3", "start", "--help"])
             self.assertEqual(execute.call_args.args[0][-2:], ["start", "--help"])
 
     def test_does_not_select_unrelated_containers(self):

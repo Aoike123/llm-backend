@@ -59,7 +59,7 @@ def main():
         run('docker','build','--build-arg','BASE_IMAGE='+entry['base'],'-t',entry['target'],context)
         inspect=json.loads(run('docker','image','inspect',entry['target'],capture=True).stdout)[0]
         (REPORT/(args.engine+'-image.json')).write_text(json.dumps({'base':entry['base'],'target':entry['target'],'id':inspect['Id'],'sdk_packages':rows,'gpu_qualified':False},indent=2)+'\n')
-        if args.engine in ['flux2','flux2-tools','flux2-comfyui','minimax-h3']:
+        if args.engine in ['minimax-h3']:
             run(sys.executable,HERE/'controller.py','torch-upgrade','--engine',args.engine)
     elif args.command in ('finalize','torch-upgrade'):
         # Finish SDK-only images built before explicit library-path setup.
@@ -71,7 +71,7 @@ def main():
         shutil.copy2(HERE/'init-sdk.py',context/'init-sdk.py')
         options=['--build-arg','BASE_IMAGE='+before['Id']]
         if args.command=='torch-upgrade':
-            assert args.engine in ['flux2','flux2-tools','flux2-comfyui','minimax-h3']
+            assert args.engine in ['minimax-h3']
             torch_image=json.loads(run('docker','image','inspect',IMAGES['llm']['target'],capture=True).stdout)[0]['Id']
             options+=['--build-arg','TORCH_IMAGE='+torch_image]
         run('docker','build',*options,'-t',entry['target'],context)
@@ -81,8 +81,6 @@ def main():
         data.update(id=image['Id'],gpu_qualified=False)
         if args.command=='torch-upgrade':data['torch_source']=torch_image
         receipt.write_text(json.dumps(data,indent=2)+'\n')
-        if args.command=='torch-upgrade' and args.engine in ['flux2','flux2-tools']:
-            run(sys.executable,HERE/'build-flux-sdpa.py','--engine',args.engine,'--build-only')
     else:
         result=run('docker','run','--rm','--entrypoint','python','-v',str(HERE/'check-runtime.py')+':/tmp/check-runtime.py:ro',entry['target'],'/tmp/check-runtime.py',capture=True)
         print(result.stdout)

@@ -11,7 +11,6 @@ export const fmt=(v,d=1)=>v==null||!Number.isFinite(v)?'—':v.toLocaleString('z
 export const clock=t=>Number.isFinite(t)?new Date(t*1000).toLocaleTimeString('zh-CN',{hour12:false,hour:'2-digit',minute:'2-digit',second:'2-digit',timeZone:'Asia/Shanghai'}):'—';
 export function serviceState(data,model){
   if(!data)return 'loading';
-  if(serviceOf(model)?.panel==='comfy'&&data.comfyui?.available&&!data.switching)return data.comfyui.running.length?'busy':'ready';
   if(data.switching_target===model||(model==='llm'&&data.pending_llm_mode))return 'switching';
   if(data.current_model===model&&!data.switching)return data.active>0?'busy':'ready';
   return 'inactive';

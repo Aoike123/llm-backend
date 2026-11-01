@@ -38,24 +38,33 @@ test('conflicting or incomplete manifests fail with the file that caused them',a
   const broken=manifest('c',[]);delete broken.platform.runtime.port;
   const incomplete=await packages(t,[['c',broken]]);
   assert.throws(()=>new Registry(incomplete),/engine\.json: platform\.runtime\.port is required/);
+  // A runtime is never a console card of its own: engines on it keep their own panels.
+  const runtimeCard=manifest('d',[]);runtimeCard.platform.ui.panel='comfy';
+  const runtimeCards=await packages(t,[['d',runtimeCard]]);
+  assert.throws(()=>new Registry(runtimeCards),/platform\.ui\.panel must be media or llm/);
+});
+test('engines sharing ComfyUI each keep their own card and name the runtime',()=>{
+  const cards=new Registry().services().filter(s=>s.runtime==='comfy');
+  assert.deepEqual(cards.map(s=>[s.id,s.name,s.panel]).sort(),[['anima','Anima','media'],['h3','MiniMax H3','media']]);
+  assert.ok(cards.every(s=>s.native_ui==='http://127.0.0.1:8188'));
 });
 test('tools are generated per capability with the union of model parameters and an auto default',async()=>{
   const image=(await tools()).find(t=>t.name==='generate_image');
-  assert.deepEqual(image.inputSchema.properties.model.enum,['auto','qwen-image21','flux2-klein']);assert.equal(image.inputSchema.properties.model.default,'auto');
-  for(const key of ['mode','size','engine'])assert.ok(image.inputSchema.properties[key],key);
+  assert.deepEqual(image.inputSchema.properties.model.enum,['auto','qwen-image21','anima']);assert.equal(image.inputSchema.properties.model.default,'auto');
+  for(const key of ['mode','size','quality','aspect_ratio'])assert.ok(image.inputSchema.properties[key],key);
   assert.deepEqual(image.inputSchema.required,['request_id','prompt']);assert.match(image.description,/qwen-image21 \(primary\)/);
   assert.ok(routes().some(r=>r.capability==='video.generate'&&r.primary==='minimax-h3'));
 });
 test('model parameters narrow the chain and a pinned model never falls back',async t=>{
   withRouting(t,{});
-  assert.deepEqual((await candidates('image.generate',{request_id:'a',prompt:'cup'})).models.map(m=>m.id),['qwen-image21','flux2-klein']);
-  assert.deepEqual((await candidates('image.generate',{request_id:'a',prompt:'cup',engine:'stock'})).models.map(m=>m.id),['flux2-klein']);
-  // Qwen refuses long prompts; FLUX can still serve them.
-  assert.deepEqual((await candidates('image.generate',{request_id:'a',prompt:'x'.repeat(4001)})).models.map(m=>m.id),['flux2-klein']);
+  assert.deepEqual((await candidates('image.generate',{request_id:'a',prompt:'cup'})).models.map(m=>m.id),['qwen-image21','anima']);
+  assert.deepEqual((await candidates('image.generate',{request_id:'a',prompt:'cup',quality:'aesthetic'})).models.map(m=>m.id),['anima']);
+  // Qwen refuses long prompts; Anima can still serve them.
+  assert.deepEqual((await candidates('image.generate',{request_id:'a',prompt:'x'.repeat(4001)})).models.map(m=>m.id),['anima']);
   await assert.rejects(candidates('image.generate',{request_id:'a',prompt:'x'.repeat(4001),model:'qwen-image21'}),/4000 characters/);
-  await assert.rejects(candidates('image.generate',{request_id:'a',prompt:'cup',model:'flux2-klein',size:'1024x1024'}),/flux2-klein does not accept size/);
-  withRouting(t,{'image.generate':{primary:'flux2-klein',fallbacks:['qwen-image21']}});
-  assert.deepEqual((await candidates('image.generate',{request_id:'a',prompt:'cup'})).models.map(m=>m.id),['flux2-klein','qwen-image21']);
+  await assert.rejects(candidates('image.generate',{request_id:'a',prompt:'cup',model:'anima',size:'1024x1024'}),/anima does not accept size/);
+  withRouting(t,{'image.generate':{primary:'anima',fallbacks:['qwen-image21']}});
+  assert.deepEqual((await candidates('image.generate',{request_id:'a',prompt:'cup'})).models.map(m=>m.id),['anima','qwen-image21']);
 });
 test('Goldfish rejects disabled lift routes using effective sampling defaults',async()=>{
   const input={request_id:'selflift',prompt:'A continuous shot'};
@@ -70,7 +79,7 @@ async function jobs(t,execute){
   const root=await mkdtemp(join(tmpdir(),'fallback-'));t.after(()=>rm(root,{recursive:true,force:true}));
   const store=await new MediaStore({root,maxBytes:2**30,minFreeBytes:0}).open(),keys=await AccessKeys.open(join(root,'keys.json'),{defaults:{maxConcurrent:8,requestsPerMinute:600}});
   const key=keys.authenticate('Bearer '+(await keys.mutate({action:'create',name:'test',requestsPerMinute:600,maxConcurrent:2})).secret);
-  const coordinator=new Coordinator({models:{flux:[],'qwen-image':[],h3:[]},idle:async()=>true,ensure:async()=>{}});
+  const coordinator=new Coordinator({models:{anima:[],'qwen-image':[],h3:[]},idle:async()=>true,ensure:async()=>{}});
   keys.clock=coordinator.clock;keys.selectWaitingRequest=rows=>coordinator.selectWaitingRequest(rows);
   const manager=await new MediaJobs(store,keys,coordinator,{start(){},finish(){}},{draining:false},{execute}).open();await manager.recovery;
   t.after(()=>Promise.all([...manager.workers]));return {manager,key};
@@ -80,7 +89,7 @@ test('a primary that never received the work falls back in order and the job nam
   withRouting(t,{});const seen=[];
   const {manager,key}=await jobs(t,async engine=>{seen.push(engine);if(engine==='qwen-image')throw Object.assign(new Error('Qwen worker refused the request'),{code:'NOT_SUBMITTED'});return {data:[{b64_json:image.toString('base64')}]};});
   const job=await done(manager,(await manager.create(key.id,'generate_image',{request_id:'auto',prompt:'cup'})).job_id);
-  assert.equal(job.state,'succeeded');assert.equal(job.served_by,'flux2-klein');assert.deepEqual(seen,['qwen-image','flux']);
+  assert.equal(job.state,'succeeded');assert.equal(job.served_by,'anima');assert.deepEqual(seen,['qwen-image','anima']);
   assert.deepEqual(job.fallback_from.map(f=>[f.model,f.code]),[['qwen-image21','NOT_SUBMITTED']]);
   await Promise.all([...manager.workers]);assert.equal(job.recovery_required,false);
 });
@@ -88,11 +97,11 @@ test('a pinned model fails alone and a backend error does not fall back unless r
   withRouting(t,{});
   const failing=async engine=>{throw Object.assign(new Error(engine+' failed'),{code:engine==='qwen-image'?'BACKEND_FAILED':'NOT_SUBMITTED'});};
   const {manager,key}=await jobs(t,failing);
-  const pinned=await done(manager,(await manager.create(key.id,'generate_image',{request_id:'pinned',prompt:'cup',model:'flux2-klein'})).job_id);
+  const pinned=await done(manager,(await manager.create(key.id,'generate_image',{request_id:'pinned',prompt:'cup',model:'anima'})).job_id);
   assert.equal(pinned.state,'failed');assert.equal(pinned.fallback_from,undefined);
   const backend=await done(manager,(await manager.create(key.id,'generate_image',{request_id:'backend',prompt:'cup'})).job_id);
   assert.equal(backend.state,'failed');assert.equal(backend.error.code,'BACKEND_FAILED');assert.equal(backend.fallback_from,undefined);
-  withRouting(t,{'image.generate':{primary:'qwen-image21',fallbacks:['flux2-klein'],fallback_on_backend_error:true}});
+  withRouting(t,{'image.generate':{primary:'qwen-image21',fallbacks:['anima'],fallback_on_backend_error:true}});
   const opted=await done(manager,(await manager.create(key.id,'generate_image',{request_id:'opted',prompt:'cup'})).job_id);
   assert.deepEqual(opted.fallback_from.map(f=>f.model),['qwen-image21']);assert.equal(opted.error.code,'JOB_FAILED');
 });

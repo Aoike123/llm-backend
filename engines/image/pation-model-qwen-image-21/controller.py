@@ -22,7 +22,7 @@ if RUNTIME_CONFIG.exists():
     IMAGE=json.loads(RUNTIME_CONFIG.read_text()).get('qwen-image21',{}).get('target',IMAGE)
 NAME='paiton-qwen-image21'
 API='http://127.0.0.1:8191'
-GPU_NAMES={'paiton-qwen38',NAME,'paiton-flux2','paiton-h3','ai-vbench'}
+GPU_NAMES={'paiton-qwen38',NAME,'paiton-h3','ai-vbench'}
 
 
 def docker(*args,capture=False):
@@ -64,7 +64,7 @@ def main():
             sys.path.insert(0,str(ROOT/'platforms/scheduler'))
             import residency
             if residency.sleeping():occupied.remove('paiton-qwen38')
-        occupied.update(row.split('|')[0] for row in rows if row.split('|')[1] in {'paiton-flux2','paiton-h3'})
+        occupied.update(row.split('|')[0] for row in rows if row.split('|')[1] in {'paiton-h3'})
         if occupied:raise RuntimeError('请先停止其他单卡模型服务：'+', '.join(sorted(occupied)))
         old=docker('ps','-a','--filter','name=^/'+NAME+'$','--format','{{.Names}}',capture=True).stdout.strip()
         if old:docker('rm',NAME)

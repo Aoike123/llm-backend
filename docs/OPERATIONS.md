@@ -41,32 +41,31 @@ cd /mnt/Code/llm-backend
 
 ## 手动模型维护
 
-日常通过统一 API 或公共 ComfyUI 请求模型，自动排队与切换。常驻服务用 `./lab services start|stop|status` 管理；以下手动入口仅供维护，操作前等待任务结束。服务名与架构见 [服务说明](SERVICES.md)。
+日常通过统一 API / MCP 请求模型，自动排队与切换；要用 ComfyUI 画布时执行 `./lab comfyui start`。常驻服务用 `./lab services start|stop|status` 管理；以下手动入口仅供维护，操作前等待任务结束。服务名与架构见 [服务说明](SERVICES.md)。
 
 | 部署 | 启动命令 | 工作服务 |
 | --- | --- | --- |
 | W3A4 文本 | `./lab pation-model-qwen38-27b-w3a4 start w3a4` | 内部后端 18983；公共 API 18982 |
-| FLUX.2 klein | `./lab pation-model-flux2-klein start` | API 7861/7862；公共界面8188 |
 | Qwen-Image | `./lab pation-model-qwen-image-21 start` | API 8191 |
-| MiniMax H3 | `./lab pation-model-minimax-h3 start` | 统一 GPU ComfyUI 8188（仅 H3 原生节点） |
+| ComfyUI（H3 / Anima） | `./lab comfyui start` | 原生 ComfyUI 8188，经调度器租约启动 |
 
-停止指定部署时将 `start` 换成 `stop`。模型加载、编译或预热期间需等待服务就绪。Wan / FastWan 已从当前引擎注册移除。
+停止指定部署时将 `start` 换成 `stop`。模型加载、编译或预热期间需等待服务就绪。
 
 手动入口用于维护和独立检查。直接访问后端或手动启停不受完整调度互斥保证。旧 `./lab start llm` 指向独立 MXFP4 配置；当前已验证文本入口使用上表 W3A4 命令。
 
 ## 维护检查
 
 ```bash
-./lab check              # 四组 Python 测试及工作台 Node.js 测试
-./lab check --suite python  # 仅 Python；可用 --suite node 单独检查工作台
+./lab check              # Python 四组、工作台、引擎包与 MCP 的 Node.js 测试
+./lab check --suite python  # 仅 Python；--suite node 只跑 Node.js
 ./lab doctor             # 宿主环境检查
 ./lab runtime status     # 查看运行时配置
 ./lab monitor check      # 检查指标接入，不执行测速
-./lab comfyui check      # 检查公共工作流服务
+./lab comfyui check      # 检查 ComfyUI 节点注册（需已运行）
 ./lab comfyui sync       # 同步磁盘模板，不重启服务
 ```
 
-ROCm 10.1 的迁移过程与运行时构建说明见 [升级记录](rocm101-upgrade.md)，工作流同步与自定义说明见 [模板目录](../platforms/comfyui/workflows/README.md)。
+ROCm 10.1 的迁移过程与运行时构建说明见 [升级记录](rocm101-upgrade.md)，工作流同步与自定义说明见 [ComfyUI 运行时](COMFYUI.md)。
 测试依赖、执行环境及整理约定见 [开发与整理](DEVELOPMENT.md)。
 
 ## 测速与测能力
@@ -99,7 +98,7 @@ ROCm 10.1 的迁移过程与运行时构建说明见 [升级记录](rocm101-upgr
 
 作品、报告、研究资料、设计稿与归档已迁到 `/home/aoike/` 下的图片、视频和文档目录；上述 `workspace/outputs/` 子目录及 `workspace/reports/` 等入口通过符号链接访问外部文件，后续生成也写入外部目录。实际目录与挂载维护方法见 [外部生成物存储](DEVELOPMENT.md#外部生成物存储)。模型、运行缓存、依赖与生产构建仍保存在项目中。
 
-Qwen 文本的模型 revisions 固定；Qwen 容器由上游按 digest 锁定。FLUX／Qwen-Image 使用上游发布 tag，其他视频容器使用上游固定底座构建；正式评测还应保存实际镜像 digest。H3 Compose 文件做了本地补丁，将发布地址改为 `127.0.0.1`；`bootstrap` 会复用补丁，保留缓存和已有改动。
+Qwen 文本的模型 revisions 固定；Qwen 容器由上游按 digest 锁定。Qwen-Image 使用上游发布 tag，其他视频容器使用上游固定底座构建；正式评测还应保存实际镜像 digest。H3 Compose 文件做了本地补丁，将发布地址改为 `127.0.0.1`；`bootstrap` 会复用补丁，保留缓存和已有改动。
 
 所有工作负载按需下载，避免一次拉取全部模型。为全套镜像、权重、编译缓存和输出预留约 200–300 GB，是规划值。2026-10-19 的容器存储维护将 Docker 与 containerd 分别迁往 `/mnt/Code/.runtime/docker` 和 `/mnt/Code/.runtime/containerd`，执行状态及检查方法见 [容器存储与空间维护](CONTAINER_STORAGE.md)。模型与运行缓存保存在项目 NVMe，作品与报告通过上述符号链接保存到家目录。实际余量用 `df -h / /mnt/Code` 查看。
 

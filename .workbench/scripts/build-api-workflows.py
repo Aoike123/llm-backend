@@ -3,7 +3,7 @@ import argparse
 import json
 from pathlib import Path
 from urllib.request import urlopen
-ROOT=Path(__file__).resolve().parents[2];HERE=ROOT/'platforms/comfyui/workflows'
+ROOT=Path(__file__).resolve().parents[2];HERE=ROOT/'engines/shared/comfyui/workflows'
 parser=argparse.ArgumentParser(description=__doc__);parser.add_argument('--schema',type=Path);args=parser.parse_args()
 if args.schema:public_info=json.loads(args.schema.read_text())
 else:

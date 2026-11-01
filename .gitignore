@@ -29,9 +29,9 @@ Thumbs.db
 *.swp
 *.swo
 
-# Third-party ComfyUI node packs, restored from worker_nodes/h3_packs/manifest.json
-platforms/comfyui/worker_nodes/h3_packs/*/
-!platforms/comfyui/worker_nodes/h3_packs/h3_attention_patch/
+# Third-party ComfyUI node packs, restored from engines/shared/comfyui/nodes/packs/manifest.json
+engines/shared/comfyui/nodes/packs/*/
+!engines/shared/comfyui/nodes/packs/h3_attention_patch/
 *.bak
 
 # Scratch, downloads and local test media

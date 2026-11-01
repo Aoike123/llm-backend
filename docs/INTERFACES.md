@@ -30,10 +30,10 @@ MCP 客户端 ──stdio──> platforms/mcp/server.mjs ──HTTP 18982 + Bea
 
 | 方法 | 路径 | 说明 |
 | --- | --- | --- |
-| POST | `/v1/images/generations` | 生图（FLUX / Qwen），同步返回 |
-| POST | `/v1/images/edits` | Qwen 编辑，同步返回，1–4 张参考 |
+| POST | `/v1/images/generations` | 生图（Qwen-Image / Anima），同步返回 |
+| POST | `/v1/images/edits` | 编辑（Qwen，1–4 张参考）或单图重绘（Anima），同步返回 |
 | POST | `/v1/videos/generations` | 视频生成（H3），同步返回 |
-| POST | `/v1/media/jobs` | 持久任务（图像 / 视频），返回 202，MCP 走这条 |
+| POST | `/v1/media/jobs` | 持久任务（图像 / 视频 / 音频），返回 202，MCP 走这条 |
 
 ### 目录与素材
 
@@ -171,7 +171,7 @@ platforms/workbench/lib/media-tools.mjs  # 能力定义与公共工具（不含�
 platforms/workbench/lib/capabilities.mjs # 按已启用引擎生成工具、模型目录与候选顺序
 platforms/workbench/lib/registry.mjs     # 引擎包注册表：清单、启用状态、路由
 platforms/workbench/lib/platform-routes.mjs # 控制台「引擎」页接口 /api/platform
-platforms/comfyui/...                    # ComfyUI 原生执行
+engines/shared/comfyui/client.mjs        # ComfyUI 提交、轮询、中断、恢复（H3 / Anima 共用）
 platforms/mcp/server.mjs                 # stdio 服务与工具分发
 platforms/mcp/client.mjs                 # HTTP 客户端、导入与下载
 platforms/mcp/manifest.mjs               # MCP 只保留公共工具；生成工具取自网关 /v1/media/catalog

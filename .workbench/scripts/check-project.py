@@ -11,7 +11,7 @@ ROOT = Path(__file__).resolve().parents[2]
 APP = ROOT / "platforms/workbench"
 PYTHON_SUITES = (
     ("tools", ".workbench/tests"),
-    ("comfyui", "platforms/comfyui/tests"),
+    ("comfyui", "engines/shared/comfyui/tests"),
     ("scheduler", "platforms/scheduler/tests"),
     ("cpu-vision", ".workbench/runtime/cpu-vision"),
 )
@@ -54,6 +54,10 @@ def main(argv=None):
                 results.append(("workbench", False))
             else:
                 results.append(("workbench", run("workbench", [node, "--test", *tests], APP)))
+            # Engine packages carry their own tests (engines/<category>/<id>/tests, engines/shared/*/tests).
+            engine_tests = sorted(str(path.relative_to(ROOT)) for path in ROOT.glob("engines/*/*/tests/*.test.mjs"))
+            if engine_tests:
+                results.append(("engines", run("engines", [node, "--test", *engine_tests], ROOT)))
             mcp_app = ROOT / "platforms/mcp"
             mcp_tests = sorted(str(path.relative_to(mcp_app)) for path in (mcp_app / "tests").glob("*.test.mjs"))
             results.append(("media-mcp", run("media-mcp", [node, "--test", *mcp_tests], mcp_app) if mcp_tests else False))

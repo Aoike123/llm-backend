@@ -1,0 +1,70 @@
+{
+  "name": "Anima / ComfyUI",
+  "status": "Turbo v1.1 / Aesthetic v1.1；与 H3 共用原生 ComfyUI，文生图与图生图重绘",
+  "entrypoint": "engines/shared/comfyui/controller.py",
+  "models_available_locally": true,
+  "category": "image",
+  "cache": "workspace/data/video/minimax-h3/models",
+  "outputs": "workspace/outputs/image/anima",
+  "reports": "workspace/reports/image/anima",
+  "deployment_id": "anima",
+  "backend": "ComfyUI 原生节点",
+  "platform": {
+    "engine": "anima",
+    "default_enabled": true,
+    "adapter": "adapter.mjs",
+    "interruptible": true,
+    "runtime": {
+      "id": "comfy",
+      "name": "ComfyUI",
+      "port": 8188,
+      "container": "paiton-h3-comfyui-1",
+      "launch": [
+        "comfyui",
+        "launch"
+      ],
+      "native_ui": "http://127.0.0.1:8188"
+    },
+    "ui": {
+      "name": "Anima",
+      "version": "v1.1",
+      "full_name": "Anima · v1.1",
+      "description": "图像生成 · 动漫与插画",
+      "kind": "图像生成",
+      "accent": "#c9a8e0",
+      "symbol": "N",
+      "panel": "media",
+      "log_name": "ComfyUI · Anima",
+      "summary": "文生图（Turbo 10 步 / Aesthetic 30 步）与图生图重绘；与 H3 共用 ComfyUI，互相切换不重启"
+    },
+    "models": [
+      {
+        "id": "anima",
+        "priority": 30,
+        "capabilities": [
+          "image.generate",
+          "image.edit"
+        ],
+        "info": {
+          "tasks": [
+            "text-to-image",
+            "image-to-image"
+          ],
+          "qualities": [
+            "turbo",
+            "aesthetic"
+          ],
+          "aspect_ratios": [
+            "1:1",
+            "3:4",
+            "4:3",
+            "9:16",
+            "16:9"
+          ],
+          "max_reference_images": 1,
+          "style": "anime / illustration"
+        }
+      }
+    ]
+  }
+}

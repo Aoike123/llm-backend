@@ -11,14 +11,14 @@ STAMP='no-reference-quality-paiton' if args.profile=='long' else 'no-reference-s
 control=json.loads((REPORT/'maximum-quality-paiton-request.json').read_text())
 control.update(reference_image_count=0,reference_video_count=0)
 if args.profile=='small':control.update(width=576,height=320,frames=124)
-graph=json.loads((ROOT/'platforms/comfyui/custom_nodes/pation_h3/reference.api.json').read_text())
+graph=json.loads((ROOT/'engines/video/pation-model-minimax-h3/graphs/reference.api.json').read_text())
 graph['5']['inputs'].update(prompt=control['prompt'],width=control['width'],height=control['height'],length=control['frames'])
 graph['8']['inputs']['engine']=control['engine'];graph['11']['inputs']['steps']=control['steps'];graph['12']['inputs']['noise_seed']=control['seed']
 graph['17']['inputs']['filename_prefix']='H3/Ref2VA-'+STAMP
 assert not any(k.startswith('ref_images.') or k.startswith('ref_videos.') for k in graph['5']['inputs'])
 (REPORT/(STAMP+'.api.json')).write_text(json.dumps(graph,indent=2))
 # Also provide an importable canvas with every orphan reference branch removed.
-ui=json.loads((ROOT/'platforms/comfyui/workflows/ui/视频生成/H3 · 图像与视频混合参考.json').read_text())
+ui=json.loads((ROOT/'engines/shared/comfyui/workflows/ui/视频生成/H3 · 图像与视频混合参考.json').read_text())
 keep={int(k) for k in graph}
 ui['nodes']=[n for n in ui['nodes'] if n['id'] in keep or n['type']=='Note']
 ui['links']=[link for link in ui['links'] if link[1] in keep and link[3] in keep]

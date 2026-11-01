@@ -1,7 +1,7 @@
 import json,time,urllib.request
 from pathlib import Path
 root=Path(__file__).resolve().parents[2];report=root/'workspace/reports/h3-reference-20261019';base='http://127.0.0.1:8188'
-graph=json.loads((root/'platforms/comfyui/workflows/api/02-video/minimax-h3-multireference-mixed.api.json').read_text());graph['5']['inputs'].update(width=576,height=320,length=124);graph['17']['inputs']['filename_prefix']='H3/Ref2VA-native-mixed'
+graph=json.loads((root/'engines/shared/comfyui/workflows/api/02-video/minimax-h3-multireference-mixed.api.json').read_text());graph['5']['inputs'].update(width=576,height=320,length=124);graph['17']['inputs']['filename_prefix']='H3/Ref2VA-native-mixed'
 start=time.monotonic()
 with urllib.request.urlopen(urllib.request.Request(base+'/prompt',data=json.dumps({'prompt':graph}).encode(),headers={'Content-Type':'application/json'}),timeout=30) as r:submission=json.load(r)
 print('Native mixed reference submitted',submission,flush=True);pid=submission['prompt_id']

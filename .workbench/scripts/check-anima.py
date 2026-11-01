@@ -11,9 +11,9 @@ import uuid
 from PIL import Image
 
 ROOT=Path(__file__).resolve().parents[2]
-sys.path.insert(0,str(ROOT/'platforms/comfyui/custom_nodes'))
-from pation_scheduler.client import lease
-WORKFLOWS=ROOT/'platforms/comfyui/workflows'
+sys.path.insert(0,str(ROOT/'platforms/scheduler'))
+from client import lease
+WORKFLOWS=ROOT/'engines/shared/comfyui/workflows'
 sys.path.insert(0,str(ROOT/'.workbench'))
 import registry  # noqa: E402
 BASE='http://127.0.0.1:'+str(registry.native_runtime()['port'])
@@ -63,7 +63,7 @@ def main():
     # Text graphs first: the first Turbo image becomes the image-to-image source.
     entries.sort(key=lambda e:e['id'].endswith('image'))
     summary=[];source=None
-    with lease('h3'):
+    with lease('anima'):
         for entry in entries:
             if entry['id'].endswith('image'):
                 if source is None:raise RuntimeError('No text-to-image result to use as the image-to-image source')

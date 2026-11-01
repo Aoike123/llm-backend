@@ -7,7 +7,7 @@ import {handlers} from '../lib/http.mjs';
 async function listen(handler){const server=http.createServer(handler);await new Promise(r=>server.listen(0,'127.0.0.1',r));return {server,base:'http://127.0.0.1:'+server.address().port};}
 async function close(server){server.closeAllConnections();await new Promise(r=>server.close(r));}
 async function setup(options={}){
- const backend={models:{llm:[],flux:[],h3:[],'qwen-image':[]},calls:[],async ensure(m){this.calls.push(m);},async idle(){return true;},async residency(){return {enabled:false,llm:'cold'};}};
+ const backend={models:{llm:[],anima:[],h3:[],'qwen-image':[]},calls:[],async ensure(m){this.calls.push(m);},async idle(){return true;},async residency(){return {enabled:false,llm:'cold'};}};
  const c=new Coordinator(backend),metrics=new Metrics(),lifecycle={draining:false},h=handlers(c,metrics,lifecycle,options),api=await listen(h.api),control=await listen(h.control);return {backend,c,metrics,lifecycle,api,control,async close(){await close(api.server);await close(control.server);}};
 }
 const post=(base,path,data,headers={})=>fetch(base+path,{method:'POST',headers:{'Content-Type':'application/json',...headers},body:JSON.stringify(data)});
@@ -28,12 +28,12 @@ test('service log browsing cannot load an engine or inherit another service swit
  s.backend.engineLogs=async model=>{seen.push(model);return {available:true,output:'logs '+model,startup_output:'startup '+model};};
  try{
   s.c.current='llm';s.c.pendingLlmMode='custom';s.c.modeSwitch={phase:'draining',policy:{context_tokens:65536},events:[{message:'LLM switching'}]};
-  const response=await fetch(s.api.base+'/api/engine-logs?model=flux');assert.equal(response.status,200);
-  const logs=await response.json();assert.equal(logs.model,'flux');assert.equal(logs.current_model,'llm');assert.equal(logs.switching,false);assert.equal(logs.policy,null);assert.deepEqual(logs.events,[]);assert.equal(logs.startup_output,'startup flux');
+  const response=await fetch(s.api.base+'/api/engine-logs?model=anima');assert.equal(response.status,200);
+  const logs=await response.json();assert.equal(logs.model,'anima');assert.equal(logs.current_model,'llm');assert.equal(logs.switching,false);assert.equal(logs.policy,null);assert.deepEqual(logs.events,[]);assert.equal(logs.startup_output,'startup anima');
   assert.equal((await fetch(s.api.base+'/api/engine-logs?model=qwen-image')).status,200);assert.equal((await fetch(s.api.base+'/data?model=qwen-image')).status,200);
   assert.equal((await fetch(s.api.base+'/api/engine-logs?model=unknown')).status,400);
   assert.equal((await fetch(s.api.base+'/data?model=unknown')).status,400);
-  assert.deepEqual(seen,['flux','qwen-image']);assert.deepEqual(s.backend.calls,[]);assert.equal(s.c.status().leased,false);
+  assert.deepEqual(seen,['anima','qwen-image']);assert.deepEqual(s.backend.calls,[]);assert.equal(s.c.status().leased,false);
  }finally{await s.close();}
 });
 test('invalid model never starts GPU; nonlocal Origin rejected',async()=>{
@@ -67,7 +67,7 @@ test('model catalog advertises profiles and token limits clamp oversized output 
  assert.deepEqual(catalog.map(m=>m.contextWindow),[196608]);
  assert.ok(catalog.every(m=>m.context_length===m.max_model_len&&m.inputModalities.includes('image')&&m.input.includes('image')));
  const media=(await (await fetch(s.api.base+'/v1/media/models')).json()).data;
- assert.deepEqual(media.map(m=>m.id),['qwen-image21','flux2-klein','minimax-h3']);
+ assert.deepEqual(media.map(m=>m.id),['qwen-image21','anima','minimax-h3']);
  assert.deepEqual(media.map(m=>m.tasks[0]),['image','image','video']);
  assert.ok(media.every(m=>!m.tasks.includes('chat')));
  assert.deepEqual(s.backend.calls,[]);
@@ -113,9 +113,9 @@ test('engine log source follows running and switching models and exposes applied
   const idle=await logs();assert.equal(idle.model,null);assert.equal(idle.available,false);
   s.c.current='llm';await s.c.selectLlmMode('custom',135168,3);
   const applied=await logs();assert.equal(applied.model,'llm');assert.equal(applied.model_id,'qwen38-27b-w3a4');assert.equal(applied.policy.concurrency,3);assert.equal(applied.events.length,3);assert.equal(applied.output,'raw llm');
-  s.c.switching=true;s.c.target='flux';const switching=await logs();assert.equal(switching.model,'flux');assert.equal(switching.policy,null);assert.deepEqual(switching.events,[]);assert.equal(switching.switching,true);
+  s.c.switching=true;s.c.target='anima';const switching=await logs();assert.equal(switching.model,'anima');assert.equal(switching.policy,null);assert.deepEqual(switching.events,[]);assert.equal(switching.switching,true);
   s.c.switching=false;s.c.target=null;s.c.current='h3';const media=await logs('/api/llm-mode/logs');assert.equal(media.model,'h3');assert.equal(media.model_id,null);assert.equal(media.output,'raw h3');
-  assert.deepEqual(seen,[null,'llm','flux','h3']);assert.deepEqual(s.backend.calls,['llm']);
+  assert.deepEqual(seen,[null,'llm','anima','h3']);assert.deepEqual(s.backend.calls,['llm']);
  }finally{await s.close();}
 });
 
@@ -123,12 +123,12 @@ test('media switch exposes launcher, health and errors only for its target servi
  const s=await setup();let finish,entered;const gate=new Promise(r=>finish=r),started=new Promise(r=>entered=r);const seen=[];
  s.backend.ensure=async(model,deadline,clock,policy,report)=>{report('loading','weights loading','launcher');report('health-check','checking worker');entered();await gate;throw Error('worker health failed');};
  s.backend.engineLogs=async(model,options)=>{seen.push({model,...options});return {model,available:false,output:'container not created'};};
- const task=s.c.acquire('flux').catch(e=>e);await started;
+ const task=s.c.acquire('anima').catch(e=>e);await started;
  try{
-  const logs=await(await fetch(s.api.base+'/api/engine-logs')).json();assert.equal(logs.model,'flux');assert.equal(logs.switching,true);assert.equal(logs.engine_switch.phase,'health-check');assert.ok(logs.engine_switch.events.some(e=>e.source==='launcher'&&e.message==='weights loading'));assert.equal(seen[0].since,new Date(logs.engine_switch.started_at).toISOString());
+  const logs=await(await fetch(s.api.base+'/api/engine-logs')).json();assert.equal(logs.model,'anima');assert.equal(logs.switching,true);assert.equal(logs.engine_switch.phase,'health-check');assert.ok(logs.engine_switch.events.some(e=>e.source==='launcher'&&e.message==='weights loading'));assert.equal(seen[0].since,new Date(logs.engine_switch.started_at).toISOString());
   const other=await(await fetch(s.api.base+'/api/engine-logs?model=h3')).json();assert.equal(other.engine_switch,null);assert.equal(other.switching,false);
   finish();assert.match((await task).message,/worker health failed/);
-  const failed=await(await fetch(s.api.base+'/api/engine-logs?model=flux')).json();assert.equal(failed.engine_switch.phase,'error');assert.match(failed.engine_switch.events.at(-1).message,/worker health failed/);assert.equal(seen.at(-1).since,undefined);
+  const failed=await(await fetch(s.api.base+'/api/engine-logs?model=anima')).json();assert.equal(failed.engine_switch.phase,'error');assert.match(failed.engine_switch.events.at(-1).message,/worker health failed/);assert.equal(seen.at(-1).since,undefined);
  }finally{finish();await task;await s.close();}
 });
 

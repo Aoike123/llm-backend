@@ -111,7 +111,7 @@ ComfyUI、vLLM、audiocpp_server 这类第三方服务器只需要一个很薄�
 ```json
 {
   "speech.synthesize": {"primary": "fish-drama3", "fallbacks": ["fish-s2pro"]},
-  "image.generate": {"primary": "qwen-image21", "fallbacks": ["flux2-klein"]}
+  "image.generate": {"primary": "qwen-image21", "fallbacks": ["anima"]}
 }
 ```
 
@@ -173,4 +173,4 @@ LLM 的模式切换、KV 预算等是它特有的功能，作为 adapter 的扩�
 - 2026-11-02：P3 验收通过。三个音频引擎包（`engines/audio/fish-drama3`、`bs-roformer`、`qwen3-asr`）共用 `engines/shared/audiocpp/` 运行时，没有改动网关、MCP 或控制台代码，只用 `./lab engine enable` 启用。端到端链路：导入 3 分 10 秒视频 → 人声分离（132 秒）→ 从人声作品截 15 秒并自动识别参考文本 → Drama 3 克隆（15.7 秒音频，总计 30 秒）。
 - 运行中的网关在「引擎」页和 `./lab engine` 每次操作前重新扫描引擎目录，新增包不需要重启网关；清单有误时报错并保留原注册表。
 - MCP 工具按类别合并为 8 个：`generate_image`（含编辑）、`generate_video`、`generate_audio`（`task` 区分），公共工具合并 `list_jobs` 到 `get_job`、`download_artifact` 到 `get_artifact`。旧名继续可调用。
-
+- 2026-11-02：ComfyUI 改为共享运行时 `engines/shared/comfyui/`（客户端、节点、模板），H3 的图与金鱼逻辑移进 H3 包，删掉 `platforms/comfyui/` 及其中未挂载的桥接节点、CPU 镜像和中继。新增 Anima 引擎包（`image.generate` / `image.edit`），与 H3 共用 `comfy` 运行时。ComfyUI 不再有 systemd 单元，改为按需启动。FLUX.2 klein 下线：删除引擎包、Paiton `image` profile 和 ROCm 运行时配方，这一步改了 Paiton 启动器与运行时清单，因为它们是 FLUX 专用的部署代码。引擎包的 Node 测试放在各自的 `tests/`，`./lab check` 自动发现。

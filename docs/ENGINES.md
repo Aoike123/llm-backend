@@ -10,7 +10,7 @@
 |---|---|---|
 | 文本 | [Qwen38 W3A4](../engines/llm/pation-model-qwen38-27b-w3a4/README.md) | 已有实际推理记录，当前统一 API 的文本后端 |
 | 图像 | [Qwen-Image 2.1](../engines/image/pation-model-qwen-image-21/README.md) | 文生图、透明图与编辑通过，保真仍待验收 |
-| 图像 | [FLUX.2 klein](../engines/image/pation-model-flux2-klein/README.md) | Paiton / Stock 文生图通过 |
+| 图像 | [Anima v1.1](../engines/image/anima/README.md) | ComfyUI 原生文生图与图生图，与 H3 共用运行时 |
 | 视频 | [MiniMax H3](../engines/video/pation-model-minimax-h3/README.md) | 文生视频、首帧/首尾帧通过，含音频 |
 | 语音 | [Fish Audio Drama 3](../engines/audio/fish-drama3/engine.json) | audio.cpp Q4_K_S，全部驻留显存；中文克隆与情绪标签已实测，质量对比待做 |
 | 语音 | [BS-RoFormer](../engines/audio/bs-roformer/engine.json) | 人声 / 伴奏分离，3 分钟音频约 2 分钟 |
@@ -26,10 +26,11 @@ llm-backend/
 ├── README.md                     # 首页
 ├── engines/
 │   ├── llm/                      # Qwen3.8 专用部署及通用引擎
-│   ├── image/                    # FLUX / Qwen-Image
+│   ├── image/                    # Qwen-Image / Anima
 │   ├── video/                    # MiniMax H3
 │   ├── audio/                    # Drama 3 / BS-RoFormer / Qwen3-ASR（共用 audio.cpp 运行时）
 │   ├── shared/paiton/            # 共用后端源码及控制器
+│   ├── shared/comfyui/           # ComfyUI 运行时：客户端、节点、模板（H3 / Anima 共用）
 │   └── shared/audiocpp/          # audio.cpp 运行时控制器与客户端
 ├── docs/                         # 使用与评测说明
 ├── workspace/
@@ -47,7 +48,7 @@ llm-backend/
     └── sources.lock.json         # 上游版本锁
 ```
 
-每个引擎目录保存 `engine.json`、`config/models.json` 和说明；接入网关的引擎另有 `adapter.mjs`，规范见下文「接入新引擎」。图像／视频目录按可操作的生成方案登记；其中多个方案使用同一 Paiton 优化后端和 Diffusers／ComfyUI。公共源码保留一份，以避免重复拉取、版本漂移和混用依赖。
+每个引擎目录保存 `engine.json`、`config/models.json` 和说明；接入网关的引擎另有 `adapter.mjs` 和可选的 `tests/`（随 `./lab check` 运行），规范见下文「接入新引擎」。共用同一服务进程的引擎把运行时放在 `engines/shared/<运行时>/`，引擎包只保留自己的图、参数和校验。
 
 日常请求走统一 API；下面的启动命令用于空闲时的手动维护。
 
@@ -55,23 +56,21 @@ llm-backend/
 ./lab engines
 ./lab models
 ./lab pation-model-qwen38-27b-w3a4 start w3a4  # 已验证文本部署
-./lab pation-model-flux2-klein start
 ./lab pation-model-qwen-image-21 start
-./lab pation-model-minimax-h3 start
-./lab pation-model-flux2-klein stop
+./lab comfyui start                # H3 / Anima 共用的 ComfyUI
 ./lab stop                       # 停止当前接入的 Paiton 系列服务
 ```
 
-W3A4 文本部署已通过长上下文、视觉、思考与8路混合请求检查。Qwen-Image 2.1、FLUX.2 klein、MiniMax H3 已通过媒体生成及中央 ComfyUI 路径验证，权重在项目 NVMe。MXFP4 独立文本入口以及原生 vLLM、llama.cpp、Strata 尚未完成部署验收（原 FastWan 预设已随 Wan 下线）；这些不属于本轮已通过的四个主部署。
+W3A4 文本部署已通过长上下文、视觉、思考与 8 路混合请求检查。Qwen-Image 2.1、MiniMax H3 与 Anima 已通过媒体生成验证，权重在项目 NVMe。MXFP4 独立文本入口以及原生 vLLM、llama.cpp、Strata 尚未完成部署验收。
 
 
-现有 `./lab start llm`、`./lab fetch`、`./lab bench image` 等命令继续可用。新方案优先使用显式引擎名称。文本权重路径保存在 `engines/llm/pation-model-qwen38-27b-w3a4/config/local-models.json`；运行权重已复制到项目 NVMe，并只读挂载，资源盘原件保留。
+现有 `./lab start llm`、`./lab fetch`、`./lab bench video-audio` 等命令继续可用。新方案优先使用显式引擎名称。文本权重路径保存在 `engines/llm/pation-model-qwen38-27b-w3a4/config/local-models.json`；运行权重已复制到项目 NVMe，并只读挂载，资源盘原件保留。
 
 目录名优先标识模型部署或通用引擎。`pation-model-qwen38-27b-w3a4` 的后端记录为 Paiton / vLLM，`pation-model-qwen38-27b-mxfp4` 为独立的 MXFP4 部署入口，二者共享模型资源；公共后端源码仍放在 `engines/shared/paiton/`。旧 `paiton` 命令仅作为迁移兼容入口，注册表不再将其列作通用引擎。
 
 目录按 `pation-model-<模型型号>-<量化版本>` 命名，设备型号记录在配置中。已清理废弃的评测环境与旧 Python 缓存；当前运行缓存、模型、标准评测源码与图像／视频部署配置保留。
 
-2026-10-20：Wan/FastWan 下线；历史结果仅供追溯。当前五服务、API/MCP 与 H3 原生执行见 [运行模式](RUNTIME_TOPOLOGY.md)。
+下线记录：2026-10-20 Wan/FastWan；2026-11 CosyVoice；2026-11-02 FLUX.2 klein（使用频率低，由 Anima 补位图像降级）。当前运行时与调度见 [运行模式](RUNTIME_TOPOLOGY.md)。
 
 ## 接入新引擎
 
@@ -80,10 +79,13 @@ W3A4 文本部署已通过长上下文、视觉、思考与8路混合请求检�
 ```text
 engines/audio/fish-drama3/
 ├── engine.json     # 清单：lab 字段 + platform 段
-├── adapter.mjs     # 生命周期与能力实现，只引用 platforms/workbench/lib/engine-sdk.mjs
+├── adapter.mjs     # 生命周期与能力实现，只引用 engine-sdk.mjs 和 engines/shared/<运行时>/client.mjs
+├── tests/          # 可选：*.test.mjs，./lab check 自动发现
 ├── controller.py   # lab 的启停入口（engine.json 的 entrypoint）
 └── README.md
 ```
+
+共用运行时的引擎（ComfyUI 上的 H3 与 Anima、audio.cpp 上的三个音频引擎）声明相同的 `runtime`，用 `engines/shared/<运行时>/client.mjs` 里的 `idle`、`ready`、提交与恢复函数；引擎包只写自己的图和参数。
 
 ### engine.json 的 platform 段
 
@@ -98,9 +100,9 @@ engines/audio/fish-drama3/
 | `runtime.launch` | 是 | `./lab` 的启动参数；停止时自动把第二项换成 `stop` |
 | `runtime.concurrency` | 否 | 一个已加载实例能同时服务的请求数，默认 1 |
 | `runtime.extra_containers` | 否 | 也算作该引擎在运行的其他容器 |
-| `runtime.native_ui` | 否 | 原生界面地址；有此字段的运行时提供 ComfyUI 画布 |
+| `runtime.native_ui` | 否 | 原生画布地址；有此字段的运行时提供 ComfyUI 画布，原生队列显示在任务中心 |
 | `ui.name` / `version` / `description` / `symbol` / `accent` | 是 | 控制台卡片 |
-| `ui.panel` | 是 | `media`（通用媒体面板）、`comfy`（原生队列）或 `llm`（对话引擎配置） |
+| `ui.panel` | 是 | `media`（通用媒体面板）或 `llm`（对话引擎配置）。运行时不单独成卡；共用 ComfyUI 的引擎在配置页显示运行时与画布入口 |
 | `ui.full_name` / `log_name` / `summary` | 否 | 监控标题、日志标题、配置页的任务说明 |
 | `models[].id` | 是 | 对外模型 id，API/MCP 的 `model` 参数 |
 | `models[].capabilities` | 是 | 提供的能力，如 `image.generate`、`speech.synthesize` |

@@ -1,6 +1,6 @@
 # H3 多参考编码：32GB 显存边界与修复
 
-更新：2026-10-25。[原生 ComfyUI](COMFYUI_NATIVE.md) · [媒体 MCP](MEDIA_MCP.md) · [H3 参考可行性](H3_REFERENCE_FEASIBILITY.md)
+更新：2026-10-25。[ComfyUI 运行时](COMFYUI.md) · [媒体 MCP](MEDIA_MCP.md)
 
 ## 现象
 
@@ -39,7 +39,7 @@ token 数量（`ref_image_size=match`，每张 2048² 参考图缩到 1216²）�
 
 ## 修复
 
-新增原生节点 `platforms/comfyui/worker_nodes/h3_packs/h3_attention_patch/`，当前承担四项职责：
+新增原生节点 `engines/shared/comfyui/nodes/packs/h3_attention_patch/`，当前承担四项职责：
 
 1. **文本编码器注意力**：只把 `comfy.text_encoders.llama` 的 small-input 注意力换成 `attention_sub_quad`（按空闲显存把 query 分块，峰值约 1 GiB）；Qwen3-VL 视觉塔保持 `attention_basic`；扩散模型保持 `--use-ck-attention` 的 Comfy Kitchen int8 注意力。
 2. **kv 分块下限**：`efficient_dot_product_attention` 的 `kv_chunk_size` 默认取 `sqrt(k_tokens)`（14k token 时为 118），显存紧张时会让内层循环增加约 10 倍。下限固定为 1024（最多约 33 MiB），实测只快 2%，因为显存充足时原逻辑本就选中大 chunk；保留是为了避免极端显存压力下的退化。

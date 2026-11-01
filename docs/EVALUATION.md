@@ -38,9 +38,9 @@ docker exec paiton-qwen38 python3 -c \
 
 ## 图像／视频性能
 
-`./lab bench image|video|video-audio --engine stock|paiton` 调用 Paiton 官方 benchmark。FLUX 的标题成绩计时到 PIL 图像，不包括 PNG 编码与文件保存；视频包含提示处理、去噪、解码、编码和写 MP4。按相同 prompt/seed/分辨率/帧数/步数分别运行 stock 和 paiton；原始结果保存在 `workspace/outputs/{image,video}/*/benchmarks/`。
+`./lab bench video-audio --engine stock|paiton` 调用 Paiton 官方 H3 benchmark，计时包含提示处理、去噪、解码、编码和写 MP4。按相同 prompt/seed/分辨率/帧数/步数分别运行 stock 和 paiton；原始结果保存在 `workspace/outputs/video/*/benchmarks/`。
 
-FLUX 使用三提示词 suite；FastWan 使用 480 分辨率级别、2 秒短片；H3 使用 turbo8、124 帧短片。下载／模型准备发生在计时外。正式比较前检查原始结果是否确实具有同样的设置与成功输出，不能拿不同步数或不同分辨率的耗时直接比。
+H3 使用 turbo8、124 帧短片。下载／模型准备发生在计时外。正式比较前检查原始结果是否确实具有同样的设置与成功输出，不能拿不同步数或不同分辨率的耗时直接比。
 
 ## 图像能力：GenEval
 

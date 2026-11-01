@@ -5,7 +5,8 @@ import json
 from urllib.request import urlopen
 from urllib.error import URLError
 ROOT=Path(__file__).resolve().parents[2];HERE=Path(__file__).resolve().parent
-UNITS=['ai-workbench-gateway.service','ai-workbench-comfyui.service','ai-workbench-monitoring.service']
+# GPU runtimes (ComfyUI included) are not units: the gateway starts them on demand.
+UNITS=['ai-workbench-gateway.service','ai-workbench-monitoring.service']
 p=argparse.ArgumentParser();p.add_argument('action',choices=['install','start','stop','restart','status','logs','deploy']);a=p.parse_args()
 def run(*cmd,**kw):return subprocess.run(list(cmd),check=True,**kw)
 def served_dist():

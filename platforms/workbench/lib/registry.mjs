@@ -32,6 +32,8 @@ export function validatePackage(pkg){
   if(!Number.isInteger(p.runtime.port))fail(where,'platform.runtime.port must be an integer');
   if(!Array.isArray(p.runtime.launch)||!p.runtime.launch.length)fail(where,'platform.runtime.launch must be a non-empty array');
   for(const key of ['name','description','symbol','accent','panel'])if(p.ui[key]===undefined)fail(where,'platform.ui.'+key+' is required');
+  // A native runtime (ComfyUI) is shown through its engines' cards, never as a card of its own.
+  if(!['media','llm'].includes(p.ui.panel))fail(where,'platform.ui.panel must be media or llm');
   if(!CATEGORY_TYPE[pkg.manifest.category])fail(where,'category must be one of '+Object.keys(CATEGORY_TYPE).join(', '));
   for(const model of p.models){
     if(!/^[a-z0-9.-]+$/.test(model.id??''))fail(where,'model id is invalid');
@@ -128,7 +130,7 @@ export class Registry{
     return ordered.map(pkg=>{
       const p=pkg.manifest.platform;
       return {id:p.engine,package:pkg.id,...p.ui,type:CATEGORY_TYPE[pkg.manifest.category],category:pkg.manifest.category,status:pkg.manifest.status??null,
-        models:p.models.map(m=>({id:m.id,capabilities:m.capabilities})),runtime:p.runtime.id,port:p.runtime.port};
+        models:p.models.map(m=>({id:m.id,capabilities:m.capabilities})),runtime:p.runtime.id,port:p.runtime.port,native_ui:p.runtime.native_ui??null};
     });
   }
 }

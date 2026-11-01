@@ -7,7 +7,7 @@
 | 目录 | 内容 |
 |---|---|
 | `engines/` | 各部署的注册、模型配置与运行入口；`shared/` 存放公共实现 |
-| `platforms/` | 网关与页面、ComfyUI、调度、监控和 systemd 服务 |
+| `platforms/` | 网关与页面、MCP、调度、监控和 systemd 服务 |
 | `.workbench/scripts/` | 安装、检查、同步、评测与诊断工具 |
 | `.workbench/runtime/` | ROCm 与 CPU 视觉运行时实现、镜像定义和版本锁 |
 | `.workbench/tests/` | 部署路由、运行时与工具的回归测试 |
@@ -50,21 +50,23 @@ ComfyUI 的图片、视频以及工作流关联目录整体保存；GenEval 的�
 在根目录执行：
 
 ```bash
-./lab check                        # 四组 Python 测试与工作台 Node.js 测试
+./lab check                        # Python 四组 + 工作台、引擎包、MCP 的 Node.js 测试
 ./lab check --suite python         # 仅 Python
-./lab check --suite node           # 仅工作台
+./lab check --suite node           # 仅 Node.js
 ./lab check --python /path/to/python
 ```
 
-Python 默认使用已有 `.workbench/envs/tools/bin/python`，不存在时使用当前解释器；ComfyUI 中继测试需要 `aiohttp`。工作台需要 Node.js 22.19+ 与已安装的 `platforms/workbench/node_modules/`，可用 `WORKBENCH_NODE=/absolute/path/to/node` 指定解释器。检查不会安装依赖；缺少依赖时修复环境后重新执行。
+Python 默认使用已有 `.workbench/envs/tools/bin/python`，不存在时使用当前解释器。工作台需要 Node.js 22.19+ 与已安装的 `platforms/workbench/node_modules/`，可用 `WORKBENCH_NODE=/absolute/path/to/node` 指定解释器。检查不会安装依赖；缺少依赖时修复环境后重新执行。
 
 入口运行以下测试，任一组失败都会返回非零状态，并继续汇总其他组：
 
 - `.workbench/tests/`：部署路由、配置、模型校验、运行时与监控工具。
-- `platforms/comfyui/tests/`：原生中继与工作流模板同步。
+- `engines/shared/comfyui/tests/`：ComfyUI 模板与同步。
+- `engines/*/*/tests/*.test.mjs`：引擎包自己的 Node.js 测试（H3 图与金鱼、Anima adapter），由 `./lab check` 自动发现。
 - `platforms/scheduler/tests/`：驻留实验辅助工具。
 - `.workbench/runtime/cpu-vision/test_telemetry.py`：并发计数与计算延迟。
 - `platforms/workbench/tests/*.test.mjs`：网关、调度、API、访问密钥与页面状态。
+- `platforms/mcp/tests/*.test.mjs`：MCP stdio 与工具协议。
 
 HTTP 测试使用临时目录及本机临时端口；执行环境必须允许创建本机监听 socket。测试不需要模型推理或重启正式服务。GPU 验证与在线诊断仍使用 [运维文档](OPERATIONS.md) 中的独立命令。
 

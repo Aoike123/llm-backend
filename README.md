@@ -1,8 +1,8 @@
 # 本地 AI 工作台
 
-单卡 AMD AI 工作台，统一提供文本、图像和视频推理。API 与 MCP 共用执行服务和单卡 GPU 调度；ComfyUI 统一检测全部原生工作流，不调用其他服务 API。当前模式见 [运行与调度](docs/RUNTIME_TOPOLOGY.md)。
+单卡 AMD AI 工作台，统一提供文本、图像、视频和音频推理。API 与 MCP 共用执行服务和单卡 GPU 调度；所有 GPU 运行时（含 ComfyUI）按请求启动。当前模式见 [运行与调度](docs/RUNTIME_TOPOLOGY.md)。
 
-本机环境：Ubuntu 24.04、Radeon AI PRO R9700 32GB、约 94 GiB 系统内存、ROCm 10.1 运行时。当前保留五个模型服务（文本、两个图像、视频、语音）；能力与验收边界见 [项目现状](docs/PROJECT_STATUS.md)。
+本机环境：Ubuntu 24.04、Radeon AI PRO R9700 32GB、约 94 GiB 系统内存、ROCm 10.1 运行时。引擎按目录注册：文本 Qwen3.8 W3A4，图像 Qwen-Image 2.1 与 Anima，视频 MiniMax H3，音频 Drama 3 / BS-RoFormer / Qwen3-ASR；能力与验收边界见 [项目现状](docs/PROJECT_STATUS.md)。
 
 ## 快速开始
 
@@ -17,7 +17,7 @@
 | 入口 | 地址 | 用途 |
 |---|---|---|
 | 工作台 | [127.0.0.1:13000](http://127.0.0.1:13000/) | 总览、任务、模型服务、API、MCP、访问管理 |
-| ComfyUI | [127.0.0.1:8188](http://127.0.0.1:8188/) | H3 原生工作流与执行 |
+| ComfyUI | [127.0.0.1:8188](http://127.0.0.1:8188/) | H3 / Anima 原生画布，`./lab comfyui start` 后可用 |
 | 推理 API | `http://127.0.0.1:18982/v1` | 聊天与媒体生成 |
 
 服务监听本机回环地址。聊天模型名为 `qwen38-27b-w3a4`；本机同步调用保留 `local` 兼容；公网与持久媒体 API/MCP 使用有效密钥。
@@ -40,15 +40,15 @@ LLM 已启用前缀缓存与 Mamba align，重复长输入可复用驻留的前�
 - [API 参考](docs/CURRENT_API.md)：聊天、图像、视频、查询与配置接口。
 - [LLM 配置](docs/LLM_MODES.md)：上下文、并发、KV 预算与容量解释。
 - [服务说明](docs/SERVICES.md) / [实现架构](docs/ARCHITECTURE.md)：端口、进程与请求生命周期。
-- [ComfyUI 模板](platforms/comfyui/workflows/README.md)：图像、视频与组合流程。
+- [ComfyUI 运行时](docs/COMFYUI.md)：H3 与 Anima 共用的按需 ComfyUI、模板与挂载。
 
 ## 项目结构
 
 ```text
 llm-backend/
 ├── lab           统一命令入口
-├── engines/      llm / image / video / audio 部署及配置
-├── platforms/    工作台、ComfyUI、调度、监控与服务管理
+├── engines/      llm / image / video / audio 引擎包，shared/ 下为共用运行时（ComfyUI、audio.cpp、Paiton）
+├── platforms/    工作台、MCP、调度、监控与服务管理
 ├── docs/         使用、运维、架构、验证与研究文档
 ├── workspace/    模型、缓存、作品和报告
 └── .workbench/   内部工具、依赖源码、测试与版本锁
@@ -64,6 +64,6 @@ llm-backend/
 
 - 模型权重、运行缓存与生成物（`workspace/`），按 [模型资源](docs/MODELS.md) 自行准备；
 - 上游源码与依赖（`.workbench/vendor/`、`engines/*/*/upstream/`），按 `.workbench/sources.lock.json` 获取；
-- H3 工作流依赖的第三方 ComfyUI 节点包（KJNodes、VideoHelperSuite 等，多为 GPL-3.0），版本锁定在 `platforms/comfyui/worker_nodes/h3_packs/manifest.json`，执行 `.workbench/scripts/fetch-h3-packs.sh` 恢复；它们遵循各自的许可证。
+- H3 工作流依赖的第三方 ComfyUI 节点包（KJNodes、VideoHelperSuite 等，多为 GPL-3.0），版本锁定在 `engines/shared/comfyui/nodes/packs/manifest.json`，执行 `.workbench/scripts/fetch-h3-packs.sh` 恢复；它们遵循各自的许可证。
 
 项目面向单卡 AMD Radeon AI PRO R9700（ROCm 10.1）调优，文档中的 `/home/aoike/...` 等路径为作者本机约定，其他环境需按实际目录调整。公网接入的域名与服务器地址以占位符给出，见 [公网 API](docs/PUBLIC_API.md)。

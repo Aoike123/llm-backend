@@ -15,7 +15,7 @@ async function fixture(t,execute){
   const root=await mkdtemp(join(tmpdir(),'media-jobs-'));t.after(()=>rm(root,{recursive:true,force:true}));
   const store=await new MediaStore({root,maxBytes:2**30,minFreeBytes:0}).open(),keys=await AccessKeys.open(join(root,'keys.json'),{defaults:{maxConcurrent:8,requestsPerMinute:600}});
   const created=await keys.mutate({action:'create',name:'test',requestsPerMinute:600,maxConcurrent:2}),key=keys.authenticate('Bearer '+created.secret);
-  const backend={models:{flux:[],h3:[],'qwen-image':[]},idle:async()=>true,ensure:async()=>{}},coordinator=new Coordinator(backend);
+  const backend={models:{anima:[],h3:[],'qwen-image':[]},idle:async()=>true,ensure:async()=>{}},coordinator=new Coordinator(backend);
   keys.clock=coordinator.clock;keys.selectWaitingRequest=rows=>coordinator.selectWaitingRequest(rows);const metrics={start(){},finish(){}},lifecycle={draining:false};
   const jobs=await new MediaJobs(store,keys,coordinator,metrics,lifecycle,{execute:execute??(async()=>({data:[{b64_json:image.toString('base64')}]}))}).open();await jobs.recovery;
   t.after(()=>Promise.all([...jobs.workers]));return {root,store,keys,key,coordinator,metrics,lifecycle,jobs};
@@ -100,8 +100,8 @@ test('asset imports verify decoded media and owner; model constraints reject bef
   const f=await fixture(t),asset=await f.store.import(f.key.id,'image',Readable.from(image));assert.equal(asset.has_alpha,true);assert.equal(asset.file,undefined);assert.equal((await stat(f.store.getAsset(f.key.id,asset.asset_id).file)).mode&0o777,0o600);
   await assert.rejects(f.store.import(f.key.id,'image',Readable.from(Buffer.from('garbage'))));
   await assert.rejects(f.jobs.create('other','edit_image',{request_id:'a',prompt:'Blue',reference_asset_ids:[asset.asset_id]}),e=>e.status===404);
-  await assert.rejects(f.jobs.create(f.key.id,'generate_image',{...input,model:'flux2-klein',size:'1024x1024'}),/flux2-klein does not accept size/);
-  await assert.rejects(f.jobs.create(f.key.id,'generate_video',{request_id:'video-model',prompt:'cup',model:'flux2-klein'}),/model must be one of auto, minimax-h3/);
+  await assert.rejects(f.jobs.create(f.key.id,'generate_image',{...input,model:'anima',size:'1024x1024'}),/anima does not accept size/);
+  await assert.rejects(f.jobs.create(f.key.id,'generate_video',{request_id:'video-model',prompt:'cup',model:'anima'}),/model must be one of auto, minimax-h3/);
   await assert.rejects(f.jobs.create(f.key.id,'generate_video',{request_id:'video-long',prompt:'cup',duration_seconds:20}),/duration_seconds is invalid/);
   const accepted=await f.jobs.create(f.key.id,'edit_image',{request_id:'edit',prompt:'Blue',reference_asset_ids:[asset.asset_id]});const payload=await f.jobs.payload(f.jobs.get(f.key.id,accepted.job_id));assert.equal(payload.steps,40);assert.equal(payload.guidance,1);assert.equal(payload.num_inference_steps,undefined);await finished(f.jobs,accepted.job_id);
 });
@@ -152,7 +152,7 @@ test('job body accepts 32000-character prompts end to end and overflow names the
   const f=await fixture(t),info=await new McpInfo(f.store).open(),routes=mcpRoutes(f.jobs,info,f.keys,f.lifecycle);
   const server=http.createServer((req,res)=>routes.media(req,res));await new Promise(r=>server.listen(0,'127.0.0.1',r));t.after(()=>new Promise(r=>server.close(r)));
   const base='http://127.0.0.1:'+server.address().port,created=await f.keys.mutate({action:'create',name:'long-prompt',requestsPerMinute:600}),headers={Authorization:'Bearer '+created.secret,'Content-Type':'application/json'};
-  const send=(prompt,request_id)=>fetch(base+'/v1/media/jobs',{method:'POST',headers,body:JSON.stringify({tool:'generate_image',arguments:{request_id,model:'flux2-klein',prompt}})});
+  const send=(prompt,request_id)=>fetch(base+'/v1/media/jobs',{method:'POST',headers,body:JSON.stringify({tool:'generate_image',arguments:{request_id,model:'anima',prompt}})});
   const accepted=await send('字'.repeat(32000),'long-accepted');assert.equal(accepted.status,202);
   const job=await accepted.json();await finished(f.jobs,job.job_id);
   assert.equal(JSON.parse(await readFile(join(f.store.jobs,job.job_id,'job.json'),'utf8')).request.prompt.length,32000);

@@ -17,7 +17,6 @@ DEFAULT_DEPLOYMENT = "pation-model-qwen38-27b-w3a4"
 ALIASES = {
     "paiton": DEFAULT_DEPLOYMENT,
     "qwen38-27b-r9700": DEFAULT_DEPLOYMENT,
-    "flux": "pation-model-flux2-klein",
     "qwen-image": "pation-model-qwen-image-21",
     "minimax-h3": "pation-model-minimax-h3",
 }
@@ -91,7 +90,7 @@ def main(argv=None):
         "services": [sys.executable, str(ROOT / "platforms/services/controller.py")],
         "scheduler": [node, str(ROOT / "platforms/workbench/cli.mjs")],
         "runtime": [sys.executable, str(ROOT / ".workbench/runtime/rocm101/controller.py")],
-        "comfyui": [sys.executable, str(ROOT / "platforms/comfyui/controller.py")],
+        "comfyui": [sys.executable, str(ROOT / "engines/shared/comfyui/controller.py")],
         "monitor": [sys.executable, str(ROOT / "platforms/monitoring/controller.py")],
         "smoke": [sys.executable, str(ROOT / ".workbench/scripts/smoke-llm.py")],
         "check": [sys.executable, str(ROOT / ".workbench/scripts/check-project.py")],
@@ -109,7 +108,7 @@ def main(argv=None):
         print("常驻服务：./lab services install | start | stop | restart | deploy | status | logs")
         print("媒体 MCP：./lab mcp setup | stdio | check")
         print("调度：./lab scheduler status | switch llm | switch h3")
-        print("ComfyUI：./lab comfyui build | start | status | check")
+        print("ComfyUI：./lab comfyui start | stop | status | check | sync（按需启动，不常驻）")
         print("ROCm 10.1 镜像：./lab runtime build | status | check --engine ENGINE")
         print("监控平台：./lab monitor start | status | check | export")
         print("引擎包：./lab engine list | enable PACKAGE | disable PACKAGE")
@@ -164,7 +163,7 @@ def main(argv=None):
         elif args and args[0] in ("stop", "status"):
             args += ["--profile", profile]
         elif args and args[0] == "bench":
-            kind = {"image": "image", "image-hq": None, "video-audio": "video-audio"}[profile]
+            kind = {"image-hq": None, "video-audio": "video-audio"}[profile]
             if kind is None:
                 raise RuntimeError("此配置尚未提供对应的独立测速入口，见 docs/EVALUATION.md。")
             args.insert(1, kind)

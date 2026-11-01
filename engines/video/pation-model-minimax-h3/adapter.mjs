@@ -2,20 +2,19 @@
 // the synchronous /v1/videos/generations API keeps the original H3 graph presets.
 import {readFile} from 'node:fs/promises';
 import {join} from 'node:path';
-import {call,seed,list,fail,audioClip} from '../../../platforms/workbench/lib/engine-sdk.mjs';
-import {video,validateVideoRequest,saveVideoOutput,comfyFailure,interruptPrompt,H3_REFERENCE_LIMITS} from '../../../platforms/workbench/lib/media.mjs';
-import {prepareH3Videos} from '../../../platforms/workbench/lib/h3-references.mjs';
-import {GOLDFISH_CONTROLS,validateGoldfishControls,goldfishReferenceSlots} from '../../../platforms/workbench/lib/goldfish-controls.mjs';
-import {GOLDFISH_ID,GOLDFISH_SEED,goldfishFrames,runGoldfish} from '../../../platforms/workbench/lib/goldfish-workflow.mjs';
-import {pause} from '../../../platforms/workbench/lib/engine-sdk.mjs';
+import {seed,list,fail,audioClip} from '../../../platforms/workbench/lib/engine-sdk.mjs';
+import {idle,ready,interrupt,recoverPrompt,saveVideoOutput} from '../../shared/comfyui/client.mjs';
+import {video,validateVideoRequest} from './lib/graph.mjs';
+import {prepareH3Videos,H3_REFERENCE_LIMITS} from './lib/references.mjs';
+import {GOLDFISH_CONTROLS,validateGoldfishControls,goldfishReferenceSlots} from './lib/goldfish-controls.mjs';
+import {GOLDFISH_ID,GOLDFISH_SEED,goldfishFrames,runGoldfish} from './lib/goldfish-workflow.mjs';
 const groups=[['images','reference_asset_ids','image'],['videos','reference_video_asset_ids','video'],['audios','reference_audio_asset_ids','audio']];
 // H3 hears at most 15 seconds of each reference audio; longer assets are cut, never refused.
 const AUDIO_SECONDS=15,heard=a=>a.kind==='audio'?Math.min(a.seconds,AUDIO_SECONDS):a.seconds;
 export default {
-  async idle(ctx){const q=await call(ctx.base,'/queue');return q.queue_running.length===0&&q.queue_pending.length===0;},
-  async ready(ctx){await call(ctx.base,'/system_stats');return true;},
+  idle,ready,
   // A ComfyUI prompt can be interrupted by prompt_id; canvas work is never touched.
-  interrupt:backend=>interruptPrompt(backend.base,backend.prompt_id),
+  interrupt,
   workflows:[{id:GOLDFISH_ID,name:'H3 视频生成（原版工作流）',tool:'generate_video',execution_runtime:'comfy',reference_images:9,reference_videos:3,reference_audios:3,controls:['参考组与槽位','六层 LoRA 开关与强度','SelfLift 采样','画幅与分辨率','显存优化与预览','音视频输出']}],
   describe:()=>({reference_limits:H3_REFERENCE_LIMITS,reference_presets:['reference','reference-turbo4']}),
   params:{'video.generate':()=>({reference_asset_ids:list(9),reference_video_asset_ids:list(3),reference_audio_asset_ids:list(3),seed:{...seed,default:GOLDFISH_SEED},duration_seconds:{type:'integer',minimum:4,maximum:15,default:10},...GOLDFISH_CONTROLS})},
@@ -50,9 +49,9 @@ export default {
     return prepareH3Videos(d);
   },
   syncValidate(capability,body){validateVideoRequest('h3',body);},
-  execute(capability,d,{preparedVideos,onSubmitted,outputDirectory}){
-    if(d.workflow===GOLDFISH_ID)return runGoldfish(d,{onSubmitted,outputDirectory,preparedVideos});
-    return video('h3',d,{preparedVideos,onSubmitted,outputDirectory});
+  execute(capability,d,{base,preparedVideos,onSubmitted,outputDirectory}){
+    if(d.workflow===GOLDFISH_ID)return runGoldfish(d,{base,onSubmitted,outputDirectory,preparedVideos});
+    return video(base,d,{preparedVideos,onSubmitted,outputDirectory});
   },
   effective(capability,input,media,job){
     // Jobs recorded before the Goldfish workflow used the original H3 graph presets.
@@ -63,20 +62,5 @@ export default {
     return {workflow:GOLDFISH_ID,seed:input.seed??GOLDFISH_SEED,reference_mapping:job.reference_mapping,controls:{loras:input.loras??{},sampling:input.sampling??{},optimizations:input.optimizations??{},resolution:input.resolution??{},output:input.output??{}},duration_seconds:input.duration_seconds??10,frames:goldfishFrames(input.duration_seconds??10)};
   },
   // After a gateway restart: the prompt_id recorded at submission says what ComfyUI did.
-  async recover(job,{finish,change,backendIdle,outputDirectory}){
-    if(!job.backend?.prompt_id)return false;
-    let entry;
-    for(let i=0;i<1800;i++){
-      try{entry=(await call(job.backend.base,'/history/'+job.backend.prompt_id))[job.backend.prompt_id];}catch{}
-      if(entry||await backendIdle(job.engine))break;await pause(1000);
-    }
-    if(entry?.status?.status_str==='success'){
-      try{const saved=await saveVideoOutput(job.backend.base,entry,outputDirectory);await finish(job,{data:[saved],metrics:{prompt_id:job.backend.prompt_id,recovered:true}});return true;}catch{return false;}
-    }
-    if(!entry)return false;
-    const failure=entry.status?.status_str==='error'?comfyFailure(entry):null;
-    if(failure?.code==='BACKEND_CANCELLED')await change(job,'cancelled',{error:{code:'CANCELLED',message:failure.message}});
-    else await change(job,'failed',{error:{code:'BACKEND_FAILED',message:failure?.message??'Backend reported a failed recovered job'}});
-    return true;
-  },
+  recover:(job,ctx)=>recoverPrompt(job,ctx,async(base,entry)=>({data:[await saveVideoOutput(base,entry,ctx.outputDirectory)]})),
 };

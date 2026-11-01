@@ -21,21 +21,21 @@
       "port": 8188,
       "container": "paiton-h3-comfyui-1",
       "launch": [
-        "pation-model-minimax-h3",
-        "start"
+        "comfyui",
+        "launch"
       ],
       "native_ui": "http://127.0.0.1:8188"
     },
     "ui": {
-      "name": "ComfyUI",
+      "name": "MiniMax H3",
       "version": "",
-      "full_name": "ComfyUI",
-      "description": "视频生成 · H3 原生工作流",
-      "kind": "原生工作流",
+      "full_name": "MiniMax H3",
+      "description": "视频生成 · ComfyUI 原生工作流",
+      "kind": "视频生成",
       "accent": "#8cbede",
-      "symbol": "C",
-      "panel": "comfy",
-      "log_name": "ComfyUI",
+      "symbol": "H",
+      "panel": "media",
+      "log_name": "ComfyUI · H3",
       "summary": "文本 / 首尾帧 / 多图与视频参考 · 最多9图 + 3视频"
     },
     "models": [

@@ -2,7 +2,7 @@ import { randomBytes } from 'node:crypto';
 import {llmProfile, servingPolicy, policyBudget,enginePolicyKey} from './llm.mjs';
 import {ApiError} from './api-errors.mjs';
 import {EngineScheduling} from './engine-scheduling.mjs';
-import {sharedEngines as topologySharedEngines} from './runtime-topology.mjs';
+import {sharedEngines as topologySharedEngines,runtimeFor} from './runtime-topology.mjs';
 export const pause = ms => new Promise(r => setTimeout(r, ms));
 const LOCAL='local';
 // One queue for every GPU request. Each engine declares how many requests one
@@ -12,7 +12,7 @@ const LOCAL='local';
 // expired leases.
 export class Coordinator {
   constructor(backend, {clock = () => performance.now()/1000, leaseSeconds = 120, sharedLimit = 8, engineScheduling = {}, sharedEngines = null, keys = null} = {}) {
-    this.scheduling=new EngineScheduling(engineScheduling);
+    this.scheduling=new EngineScheduling(engineScheduling,{groupOf:runtimeFor});
     Object.assign(this, {backend, clock, leaseSeconds, sharedLimit, sharedEngines, keys, selectedLlmMode:'long',policy:servingPolicy('long'), pendingLlmMode:null, modeSwitch:null, engineSwitch:null, queue: [], owner: null, switching: false, target: null, current: null, error: null, waiters:[], pumping:null, again:false, tick:null});
   }
   capacity(model) {
@@ -211,7 +211,8 @@ export class Coordinator {
     try {
       if(request.switchRequest){this.modeSwitch.phase='loading';this.switchLog(`Preparing backend ${model}; requested policy ${request.profile?.mode??model}`);}
       await this.backend.ensure(model, request.deadline, this.clock,model==='llm'?this.policy:undefined,track?(...args)=>this.engineProgress(...args):undefined);
-      if(track){this.engineProgress('ready',`${model} 引擎已就绪`);this.scheduling.turn=null;}
+      // Only a new runtime starts a fresh batch; a sibling engine on the loaded runtime continues it.
+      if(track){this.engineProgress('ready',`${model} 引擎已就绪`);if(this.scheduling.group(this.current)!==this.scheduling.group(model))this.scheduling.turn=null;}
       this.current = model; this.error = null;
       // A request that timed out or disconnected while loading leaves the engine loaded and unowned.
       if(this.queue.includes(request)){

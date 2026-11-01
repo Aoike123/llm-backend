@@ -22,12 +22,10 @@ ENV.update({
     "PAITON_DRAFT_DIR": str(ROOT / "workspace/data/llm/paiton/models/qwen38-dflash2"),
     "PAITON_W3ROT_DIR": str(ROOT / "workspace/data/llm/paiton/models/qwen38-w3rot"),
     "PAITON_CACHE_DIR": str(ROOT / "workspace/data/llm/paiton/runtime/qwen38"),
-    "PAITON_OUTPUTS": str(ROOT / "workspace/outputs/image/flux2"),
-    "PAITON_H3_REFERENCE_NODES": str(ROOT / "platforms/comfyui/worker_nodes/h3_references"),
-    "PAITON_H3_NODES": str(ROOT / "platforms/comfyui/worker_nodes/h3_packs"),
+    "PAITON_H3_REFERENCE_NODES": str(ROOT / "engines/shared/comfyui/nodes/h3_references"),
+    "PAITON_H3_NODES": str(ROOT / "engines/shared/comfyui/nodes/packs"),
     "PAITON_H3_DATA": str(ROOT / "workspace/data/video/minimax-h3"),
     "PAITON_H3_OUTPUTS": str(ROOT / "workspace/outputs/video/minimax-h3"),
-    "PAITON_COMFY_NODES": str(ROOT / "platforms/comfyui/custom_nodes"),
     "HF_HUB_DISABLE_TELEMETRY": "1",
 })
 LOCAL_MODELS_PATH = ROOT / "engines/llm/pation-model-qwen38-27b-w3a4/config/local-models.json"
@@ -81,17 +79,10 @@ def model_env(profile):
         if 'llm' in RUNTIMES:
             ENV['PAITON_FEATURE_IMAGE']=RUNTIMES['llm']['target']
             ENV['PAITON_FEATURE_BASE_IMAGE']='ghcr.io/eliovp/paiton-vllm-plugin:qwen38-rocm10-vllm029-20261005-r1@sha256:245c71d54f046f89b74dbfbd4c894003754561e55c9d215a8d3ce65364fb0f80'
-    if profile=='image' and all(name in RUNTIMES for name in ['flux2','flux2-tools','flux2-comfyui']):
-        for key,name in [('PAITON_IMAGE','flux2'),('PAITON_TOOLS_IMAGE','flux2-tools'),('PAITON_COMFYUI_IMAGE','flux2-comfyui')]:
-            ENV[key]=RUNTIMES[name]['target']
-        ENV['PAITON_SKIP_PULL']='1'
     if profile=='video-audio' and 'minimax-h3' in RUNTIMES:
         ENV['PAITON_H3_BASE_IMAGE']=RUNTIMES['minimax-h3']['target']
         ENV['PAITON_H3_IMAGE']='local-ai/pation-minimax-h3-comfyui-rocm101:20261011'
-    if profile == "image":
-        ENV["PAITON_CACHE"] = str(ROOT / "workspace/data/image/flux2")
-        ENV["PAITON_UI_PORT"] = "8189"
-    elif profile == "image-hq":
+    if profile == "image-hq":
         ENV["PAITON_CACHE"] = str(ROOT / "workspace/data/image/qwen-image")
         ENV["PAITON_OUTPUTS"] = str(ROOT / "workspace/outputs/image/qwen-image")
     for key, value in ENV.items():
@@ -168,7 +159,7 @@ def main():
     status = sub.add_parser("status")
     status.add_argument("--profile", choices=PROFILES)
     bench = sub.add_parser("bench")
-    bench.add_argument("kind", choices=["llm", "image", "video-audio"])
+    bench.add_argument("kind", choices=["llm", "video-audio"])
     bench.add_argument("--engine", choices=["stock", "paiton"], default="paiton")
     bench.add_argument("--num-prompts", type=int, default=32)
     quality = sub.add_parser("eval-llm")
@@ -259,20 +250,6 @@ def main():
                         check_local_model(variable)
             p = PROFILES[args.profile]
             model_env(args.profile)
-            if args.profile == 'image':
-                # Only API workers; the public ComfyUI is the sole user workspace.
-                cache = Path(ENV['PAITON_CACHE'])
-                ENV['PAITON_CACHE_BIND'] = str(cache)
-                ENV['PAITON_CACHE_VOLUME'] = 'paiton-flux2-cache'
-                ENV['PAITON_RUNTIME_CACHE_BIND'] = str(cache/'cache')
-                ENV['PAITON_RUNTIME_CACHE_VOLUME'] = 'paiton-flux2-cache-runtime'
-                ENV['PAITON_RENDER_GID'] = str(Path('/dev/kfd').stat().st_gid)
-                (cache/'cache').mkdir(parents=True,exist_ok=True)
-                package = PAITON/'models'/p['directory']
-                run(['bash',package/'run.sh','download'])
-                run(['docker','compose','-f',package/'compose.yaml','up','-d','--no-build','paiton','stock'])
-                print('FLUX API: 7861/7862; public ComfyUI: 8188')
-                return 0
             print("服务地址：", p["url"], flush=True)
             extra = args.extra[1:] if args.extra[:1] == ["--"] else args.extra
             launch_args=list(p['args'])
@@ -312,8 +289,8 @@ def main():
             if args.num_prompts <= 0:
                 raise RuntimeError("--num-prompts 必须大于零")
             stamp = datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
-            category = "llm" if args.kind == "llm" else ("image" if args.kind == "image" else "video")
-            engine_name = {"llm": "paiton", "image": "flux", "video-audio": "minimax-h3"}[args.kind]
+            category = "llm" if args.kind == "llm" else "video"
+            engine_name = {"llm": "paiton", "video-audio": "minimax-h3"}[args.kind]
             folder = ROOT / "workspace/reports" / category / engine_name / stamp
             snapshot(folder)
             if args.kind == "llm":
@@ -332,17 +309,11 @@ def main():
                 shutil.copytree(ROOT / "workspace/data/llm/paiton/runtime/qwen38/benchmarks" / stamp, folder / "results")
             else:
                 require_idle()
-                model_env({"image": "image", "video-audio": "video-audio"}[args.kind])
+                model_env("video-audio")
                 output = f"/outputs/benchmarks/{stamp}-{args.engine}"
-                package = {"image": "FLUX.2-klein", "video-audio": "MiniMax-H3"}[args.kind]
-                run(["bash", PAITON / "models" / package / "run.sh", "download", "--profile", "turbo8"])
-                cmd = ["bash", PAITON / "models" / package / "run.sh", "benchmark"]
-                cmd += ["--backend" if args.kind == "image" else "--engine", args.engine, "--output", output]
-                if args.kind == "image":
-                    cmd += ["--suite"]
-                else:
-                    cmd += ["--preset", "turbo8", "--frames", "124"]
-                run(cmd)
+                package = PAITON / "models/MiniMax-H3"
+                run(["bash", package / "run.sh", "download", "--profile", "turbo8"])
+                run(["bash", package / "run.sh", "benchmark", "--engine", args.engine, "--output", output, "--preset", "turbo8", "--frames", "124"])
             print("评测元数据：", folder)
     elif args.command == "eval-llm":
         tools_python()

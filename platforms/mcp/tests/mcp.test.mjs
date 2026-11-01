@@ -21,7 +21,7 @@ test('strict tool schemas reject unknown fields, bad IDs and unsafe seeds',()=>{
   assert.throws(()=>validateInput('get_job',{job_id:'../../etc/passwd'}));assert.throws(()=>validateInput('list_media_models',{token:'x'}));
 });
 test('prompt accepts 32000-character briefs and overflow reports its length',()=>{
-  const long='字'.repeat(32000),base={request_id:'long-prompt',model:'flux2-klein',prompt:long};
+  const long='字'.repeat(32000),base={request_id:'long-prompt',model:'anima',prompt:long};
   assert.ok(validateInput('generate_image',base));
   assert.ok(validateInput('run_goldfish_workflow',{request_id:'long-goldfish',prompt:long}));
   assert.throws(()=>validateInput('generate_image',{...base,prompt:long+'字'}),/arguments\.prompt exceeds 32000 characters \(got 32001\)/);
@@ -46,7 +46,7 @@ test('official SDK stdio initializes, discovers gateway tools and Goldfish workf
   await new Promise(r=>gateway.listen(0,'127.0.0.1',r));t.after(()=>new Promise(r=>gateway.close(r)));
   const transport=new StdioClientTransport({command:process.execPath,args:[new URL('../cli.mjs',import.meta.url).pathname,'stdio'],env:{...process.env,MEDIA_GATEWAY_URL:'http://127.0.0.1:'+gateway.address().port,MEDIA_API_KEY:'test-key',MEDIA_TELEMETRY_TOKEN:'test-token'},stderr:'pipe'});
   let errors='';transport.stderr?.on('data',x=>errors+=x);const client=new Client({name:'integration-test',version:'1.0'});t.after(()=>client.close());await client.connect(transport);
-  const tools=await client.listTools();assert.equal(tools.tools.length,7);assert.equal(tools.tools.find(t=>t.name==='get_artifact').annotations.readOnlyHint,false);const models=await client.callTool({name:'list_media_models',arguments:{}});assert.deepEqual(models.structuredContent.models.map(model=>model.id),['qwen-image21','flux2-klein','minimax-h3']);assert.equal(models.structuredContent.capabilities.find(c=>c.capability==='image.generate').primary,'qwen-image21');assert.equal(models.structuredContent.runtime_topology,undefined);assert.equal(models.structuredContent.workflows[0].tool,'generate_video');
+  const tools=await client.listTools();assert.equal(tools.tools.length,7);assert.equal(tools.tools.find(t=>t.name==='get_artifact').annotations.readOnlyHint,false);const models=await client.callTool({name:'list_media_models',arguments:{}});assert.deepEqual(models.structuredContent.models.map(model=>model.id),['qwen-image21','anima','minimax-h3']);assert.equal(models.structuredContent.capabilities.find(c=>c.capability==='image.generate').primary,'qwen-image21');assert.equal(models.structuredContent.runtime_topology,undefined);assert.equal(models.structuredContent.workflows[0].tool,'generate_video');
   const accepted=await client.callTool({name:'generate_image',arguments:{request_id:'one',model:'qwen-image21',prompt:'cup'}});assert.equal(accepted.structuredContent.job_id,job.job_id);
   const goldfish=await client.callTool({name:'run_goldfish_workflow',arguments:{request_id:'goldfish-one',prompt:'A continuous shot',reference_asset_ids:['asset_a','asset_b','asset_c']}});assert.equal(goldfish.structuredContent.job_id,job.job_id);
   const longPrompt=await client.callTool({name:'run_goldfish_workflow',arguments:{request_id:'goldfish-long',prompt:'字'.repeat(32000)}});assert.notEqual(longPrompt.isError,true);assert.equal(forwardedPrompt,32000);

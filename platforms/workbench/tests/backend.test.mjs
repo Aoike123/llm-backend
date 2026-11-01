@@ -19,12 +19,12 @@ test('startup logs survive gateway restart, exclude runtime noise and follow con
  }finally{await rm(dir,{recursive:true,force:true});}
 });
 test('cold switch verifies idle twice before stop and start',async()=>{
- const b=new Backend(),events=[];b.running=async()=>['flux'];b.idle=async()=>{events.push('idle');return true;};b.ready=async()=>true;b.stop=async m=>events.push('stop:'+m);b.run=async(_,args)=>{events.push('start:'+args[0]);return '';};
- await b.ensure('qwen-image',performance.now()/1000+10,()=>performance.now()/1000);assert.deepEqual(events,['idle','idle','stop:flux','start:pation-model-qwen-image-21']);
+ const b=new Backend(),events=[];b.running=async()=>['anima'];b.idle=async()=>{events.push('idle');return true;};b.ready=async()=>true;b.stop=async m=>events.push('stop:'+m);b.run=async(_,args)=>{events.push('start:'+args[0]);return '';};
+ await b.ensure('qwen-image',performance.now()/1000+10,()=>performance.now()/1000);assert.deepEqual(events,['idle','idle','stop:anima','start:pation-model-qwen-image-21']);
 });
 test('failed LLM sleep falls back to stop before media starts',async()=>{
  const b=new Backend(),events=[];b.running=async()=>['llm'];b.idle=async()=>true;b.ready=async()=>true;b.sleep=async()=>{throw new Error('offload failed');};b.stop=async m=>events.push('stop:'+m);b.run=async()=>{events.push('start');return '';};
- await b.ensure('flux',performance.now()/1000+10,()=>performance.now()/1000);assert.deepEqual(events,['stop:llm','start']);
+ await b.ensure('anima',performance.now()/1000+10,()=>performance.now()/1000);assert.deepEqual(events,['stop:llm','start']);
 });
 test('missing GPU activity metrics retain busy status',async()=>{
  const b=new Backend();b.rows=async()=>['paiton-qwen38'];const old=globalThis.fetch;globalThis.fetch=async()=>({ok:true,text:async()=> 'vllm:num_requests_running 0\n'});
@@ -64,13 +64,13 @@ test('engine log output retains native messages and is not scoped to policy chan
   const logs=await b.engineLogs('llm');assert.equal(logs.available,true);assert.equal(logs.output,'native progress\n\nINFO GET /health\nWARNING diagnostic\nTraceback');assert.equal(logs.model,'llm');assert.equal(logs.engine,'vLLM');assert.deepEqual(logs.containers,['paiton-qwen38']);
 });
 
-test('engine output follows each media model and the active FLUX implementation',async()=>{
- const b=new Backend(),seen=[];b.run=async(_,args)=>args.at(-1)+'-id';b.rows=async()=>['paiton-flux2-stock-1'];b.capture=async(_,args)=>{seen.push(args.at(-1));return {stdout:'model output',stderr:''};};
- for(const model of ['qwen-image','h3','flux']){const logs=await b.engineLogs(model);assert.equal(logs.model,model);assert.equal(logs.available,true);assert.equal(logs.output,'model output');}
- assert.deepEqual(seen,['paiton-qwen-image21','paiton-h3-comfyui-1','paiton-flux2-stock-1']);
- assert.equal((await b.engineLogs('flux')).engine,'FLUX / Diffusers');
+test('engine output follows each media model; engines sharing a runtime read its container',async()=>{
+ const b=new Backend(),seen=[];b.run=async(_,args)=>args.at(-1)+'-id';b.rows=async()=>['paiton-h3-comfyui-1'];b.capture=async(_,args)=>{seen.push(args.at(-1));return {stdout:'model output',stderr:''};};
+ for(const model of ['qwen-image','h3','anima']){const logs=await b.engineLogs(model);assert.equal(logs.model,model);assert.equal(logs.available,true);assert.equal(logs.output,'model output');}
+ // The shared container's log reader serves both of its engines.
+ assert.deepEqual(seen,['paiton-qwen-image21','paiton-h3-comfyui-1']);
+ assert.equal((await b.engineLogs('anima')).engine,'ComfyUI · Anima');
  const before=seen.length;assert.equal((await b.engineLogs(null)).available,false);assert.equal(seen.length,before);
- b.rows=async()=>['paiton-flux2-paiton-1','paiton-flux2-stock-1'];const both=await b.engineLogs('flux');assert.equal(both.containers.length,2);assert.match(both.output,/paiton-flux2-paiton-1/);assert.match(both.output,/paiton-flux2-stock-1/);
 });
 
 test('offline preview survives missing engine without inspecting or starting a container',async()=>{

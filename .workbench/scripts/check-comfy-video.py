@@ -3,7 +3,7 @@ import json,sys,time
 from pathlib import Path
 from urllib.request import Request,urlopen
 ROOT=Path(__file__).resolve().parents[2];name=sys.argv[1];base='http://127.0.0.1:8188';start=time.monotonic()
-graph=json.loads((ROOT/f'platforms/comfyui/workflows/{name}.api.json').read_text())
+graph=json.loads((ROOT/f'engines/shared/comfyui/workflows/{name}.api.json').read_text())
 with urlopen(Request(base+'/prompt',data=json.dumps({'prompt':graph}).encode(),headers={'Content-Type':'application/json'}),timeout=30) as r:sub=json.load(r)
 print(json.dumps(sub),flush=True)
 if 'prompt_id' not in sub:raise RuntimeError(str(sub))

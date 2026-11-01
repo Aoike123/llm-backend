@@ -33,11 +33,11 @@ test('requested service metrics remain separate from the actual and switching en
  globalThis.fetch=async url=>{const u=new URL(url);queries.push(u.searchParams.get('query'));return {json:async()=>({status:'success',data:{result:u.pathname.endsWith('query_range')?[]:[{value:[0,'42']}]}})};};
  try{
   const coordinator={status:()=>({current:'llm',switching:true,switching_target:'wan'}),backend:{residency:async()=>({})}};
-  const metrics={active:{flux:2},state:{recent:[]}};
-  const flux=await monitoring(coordinator,metrics,15,30,'flux');
-  assert.equal(flux.model,'flux');assert.equal(flux.current_model,'llm');assert.equal(flux.switching_target,'wan');assert.equal(flux.active,2);
-  assert.ok(queries.some(q=>q==='lab_gateway_last_request_seconds{model="flux"}'));
-  assert.equal(flux.trends.main,undefined);assert.equal(flux.values.kv,undefined);
+  const metrics={active:{anima:2},state:{recent:[]}};
+  const anima=await monitoring(coordinator,metrics,15,30,'anima');
+  assert.equal(anima.model,'anima');assert.equal(anima.current_model,'llm');assert.equal(anima.switching_target,'wan');assert.equal(anima.active,2);
+  assert.ok(queries.some(q=>q==='lab_gateway_last_request_seconds{model="anima"}'));
+  assert.equal(anima.trends.main,undefined);assert.equal(anima.values.kv,undefined);
   queries.length=0;
   const llm=await monitoring(coordinator,metrics,15,30,'llm');
   assert.equal(llm.values.output,null);assert.equal(llm.values.kv,null);assert.equal(llm.values.running,null);

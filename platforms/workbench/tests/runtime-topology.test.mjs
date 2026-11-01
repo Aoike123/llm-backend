@@ -5,10 +5,11 @@ import {runtimeFor,runtimeTopology,sameRuntime} from '../lib/runtime-topology.mj
 import {mediaModels} from '../lib/capabilities.mjs';
 const MODELS=await mediaModels();
 
-test('H3 is the only Comfy runtime and Wan is unavailable',async()=>{
+test('H3 and Anima share the one Comfy runtime and Wan is unavailable',async()=>{
  const backend=new Backend();backend.rows=async()=>['paiton-h3-comfyui-1'];
- assert.deepEqual(await backend.running(),['h3']);assert.equal(runtimeFor('wan'),null);
- assert.equal(sameRuntime('h3','flux'),false);assert.equal(backend.models.h3[1],8188);
+ // One running container reports one engine; switching between engines on it needs no restart.
+ const running=await backend.running();assert.equal(running.length,1);assert.equal(runtimeFor(running[0]),'comfy');assert.equal(runtimeFor('wan'),null);
+ assert.equal(sameRuntime('h3','anima'),true);assert.equal(sameRuntime('h3','qwen-image'),false);assert.equal(backend.models.h3[1],8188);assert.equal(backend.models.anima[1],8188);
  assert.equal(backend.models.wan,undefined);assert.equal(MODELS.some(m=>m.id==='wan22'),false);
 });
 

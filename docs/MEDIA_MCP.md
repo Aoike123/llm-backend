@@ -1,6 +1,6 @@
-# 本机图像 MCP
+# 本机媒体 MCP
 
-`local-media` 0.4.1 提供 FLUX、Qwen-Image 两个独立图像服务，以及视频生成（H3 原版工作流）。完整接口结构见 [接口与控制台结构](INTERFACES.md)。其他 ComfyUI 工作流直接调用原生 API，不自动加入 MCP。
+`local-media` 提供图像（Qwen-Image 主推、Anima 降级）、视频（H3 原版工作流）和音频（合成、分离、识别）工具。工具按已启用的引擎生成，完整接口结构见 [接口与控制台结构](INTERFACES.md)。其他 ComfyUI 画布模板不自动加入 MCP。
 
 ## 接入
 
@@ -35,7 +35,7 @@
 
 | 工具 | 用途 |
 | --- | --- |
-| `generate_image` | 生图；带 `reference_asset_ids` 时为图片编辑（1–4 张参考图）。默认主推 Qwen-Image，FLUX 降级 |
+| `generate_image` | 生图；带 `reference_asset_ids` 时为图片编辑（1–4 张参考图）。默认主推 Qwen-Image，Anima 降级 |
 | `generate_video` | H3 视频生成（原版工作流），可选图像/视频/音频参考及原版开关，原生 ComfyUI 执行 |
 | `generate_audio` | `task=speech` 语音合成与声音克隆（Drama 3，最多 4 个参考音色，参考文本可自动识别）；`task=separate` 人声分离（BS-RoFormer，产出 vocals / instrumental）；`task=transcribe` 语音识别（Qwen3-ASR） |
 | `list_media_models` | 列出已启用的能力、每种能力的主推与降级，以及各模型参数；不启动模型 |
@@ -56,7 +56,7 @@
 - 先调用 `list_media_models` 查看当前运行引擎，能满足需求就复用，不要为单个任务切换；
 - 同一批任务尽量连续提交给同一引擎。切换会等待队列清空并冷启动后端，视频与 LLM 尤其明显；
 - 生成工具返回的是“已接受的任务”，用 `get_job` 轮询；不要重复提交同一 `request_id`；
-- 作品先用 `get_artifact` 看元数据，再用 `download_artifact` 落到工作区，避免把大文件塞进对话；
+- 作品先用 `get_artifact` 看元数据，需要文件时再用 `get_artifact` 的 `download=true` 落到工作区，避免把大文件塞进对话；
 - 参考素材先 `import_media` 并复用 `asset_id`；下载目录由 `MEDIA_DOWNLOAD_ROOTS` 限定，默认当前工作目录。
 
 ## 图像任务
@@ -64,11 +64,11 @@
 1. 用 `generate_image` 提交 `request_id`、`model`、`prompt`。
 2. 用 `get_job` 等待 `succeeded`；返回任务不等于完成生成。
 3. 用 `get_artifact` 获取本机作品路径。
-4. 编辑时先 `import_media` 导入图片，再用 `edit_image` 提交参考素材 ID。
+4. 编辑时先 `import_media` 导入图片，再用 `generate_image` 带 `reference_asset_ids` 提交。
 
 生成在客户端断开后继续。`request_id` 按身份去重；同一 ID 携带不同内容会拒绝。`unknown` 只表示结果真正不确定（响应丢失、超时、轮询中断），必须人工检查，不能自动重复提交。后端已明确报错（ComfyUI 历史为 error、`/prompt` 拒绝、图像后端返回 HTTP 错误）记为 `failed` / `BACKEND_FAILED` 并带出错节点与原因；未真正提交（图构建、素材上传失败）记为 `JOB_FAILED`；后端已返回但作品不可用记为 `ARTIFACT_INVALID`。运行中的 ComfyUI 任务可以取消：网关先从 ComfyUI 队列删除该 prompt，再按 prompt_id 定向中断（不影响画布上的其他任务），返回时任务仍是 `running` 并带 `cancel_requested_at`，ComfyUI 停止后变为 `cancelled`。在 ComfyUI 页面直接中断的任务同样记为 `cancelled`（`Interrupted in ComfyUI`）。管理面板任务中心提供同样的取消按钮（两步确认）。
 
-- FLUX：选择 Paiton / Stock 引擎，尺寸由后端原生决定。
+- Anima：`quality`（turbo / aesthetic）、`aspect_ratio`、`negative_prompt`；编辑只接受 1 张参考，按 `strength` 做风格化重绘，不按指令编辑。
 - Qwen：生图 1024 / 2048，编辑输出 1024；最多 4 张参考，合计不超过 4194304 像素。
 - 图片导入仅接受合法 PNG/JPEG/WebP，归一化 PNG 并保留透明度；最多 16 MiB、16777216 像素。只读取允许目录中的普通文件，不抓取 URL。
 - 所有任务、素材与作品按 API 身份隔离；不会向 MCP 客户端返回密钥或大段作品 base64。
@@ -76,7 +76,7 @@
 
 ## 视频生成（H3 原版工作流）
 
-工具：`generate_video`。旧名 `run_goldfish_workflow` 作为兼容别名保留。使用 [原版 API 图](../platforms/comfyui/workflows/api/02-video/yz-h3-ultimate-original.api.json)，不是三视图测试图；`generate_video` 只是这个工作流的对外名称。
+工具：`generate_video`。旧名 `run_goldfish_workflow` 作为兼容别名保留。使用 [原版 API 图](../engines/shared/comfyui/workflows/api/02-video/yz-h3-ultimate-original.api.json)，不是三视图测试图；`generate_video` 只是这个工作流的对外名称。
 
 ```json
 {

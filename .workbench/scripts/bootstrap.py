@@ -69,18 +69,6 @@ def patch_local_runtime():
     original='docker build -t "$PAITON_WAN_BASE_IMAGE"'
     replacement='docker build --build-arg "PAITON_RUNTIME_BASE_IMAGE=${PAITON_RUNTIME_BASE_IMAGE:-ghcr.io/eliovp/paiton-vllm-plugin@sha256:c56baf54aca1ad229829c1de26e8792806608e65ee9d06ee210b79cd49f70bc9}" -t "$PAITON_WAN_BASE_IMAGE"'
     if original in source:path.write_text(source.replace(original,replacement))
-    path = models / "FLUX.2-klein/compose.yaml"
-    source=path.read_text()
-    if '    HSA_ENABLE_SDMA:' not in source:
-        path.write_text(source.replace('    HF_HUB_OFFLINE: "1"','    HF_HUB_OFFLINE: "1"\n    HSA_ENABLE_SDMA: "0"\n    TORCH_BLAS_PREFER_HIPBLASLT: "0"'))
-    path = models / "FLUX.2-klein/launch.sh"
-    source = path.read_text()
-    original = '  "${compose[@]}" pull "${services[@]}"'
-    replacement = '  if [[ "${PAITON_SKIP_PULL:-0}" != 1 ]]; then "${compose[@]}" pull "${services[@]}"; fi'
-    if original in source:
-        path.write_text(source.replace(original, replacement))
-    elif replacement not in source:
-        raise RuntimeError(f"上游镜像拉取格式已变化：{path}")
     path = models / 'Qwen3.8-MXFP4-DFlash2/launch-rocm10.py'
     source = path.read_text()
     original = "    name, _, digest = image.partition('@')"

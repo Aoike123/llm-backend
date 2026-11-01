@@ -26,10 +26,10 @@
 |---|---|---|
 | `qwen38-27b-w3a4` | 文本与图像输入的聊天、推理、SSE | `llm` |
 | `qwen-image21` | 文生图、透明图、图像编辑 | `qwen-image` |
-| `flux2-klein` | 文生图 | `flux` |
+| `anima` | 动漫/插画文生图、单图重绘（ComfyUI） | `anima` |
 | `minimax-h3` | 文生视频、首尾帧、多图/视频/混合参考 | `h3` |
 
-当前四个模型服务的关系见 [运行模式](RUNTIME_TOPOLOGY.md)。Wan 已下线。
+引擎与运行时的关系见 [运行模式](RUNTIME_TOPOLOGY.md)；语音、分离与识别只走 `/v1/media/jobs`。省略 `model`（或 `auto`）时按能力的主推与降级路由。
 `GET /v1/models` 返回当前保存的 Qwen 上下文与并发上限，并不代表 Qwen 已加载；实际状态查看 `/status`。
 历史上下文模型别名仍可被聊天请求识别，但全部使用当前统一引擎配置；以目录中的固定名称为准。
 
@@ -42,8 +42,8 @@
 | GET | `/v1/models` | 当前 Qwen 模型目录、上下文、并发、视觉与推理能力 |
 | GET | `/v1/media/models` | 图像/视频/语音模型目录；自定义媒体发现接口 |
 | POST | `/v1/chat/completions` | 聊天，支持 SSE |
-| POST | `/v1/images/generations` | Qwen-Image 或 FLUX 文生图 |
-| POST | `/v1/images/edits` | Qwen-Image 图像编辑；JSON + PNG base64 |
+| POST | `/v1/images/generations` | 文生图（Qwen-Image 主推，Anima 降级） |
+| POST | `/v1/images/edits` | 图像编辑（Qwen-Image）或单图重绘（Anima）；JSON + PNG base64 |
 | POST | `/v1/videos/generations` | H3 视频；同步等待结果 |
 | GET | `/artifacts/{32位小写十六进制ID}.mp4` | 下载视频产物，Content-Type 为 video/mp4 |
 | GET | `/data` | 面板指标、趋势、任务、KV 布局与预览 |
@@ -121,16 +121,15 @@ curl http://127.0.0.1:18982/v1/images/generations \
 
 编辑参考图合计像素不超过 4,194,304；每张参考图也受相同上限限制。上述编辑 JSON POST 到 `/v1/images/edits`。响应图像在 `data[0].b64_json`，指标在 `metrics`。
 
-### FLUX
+### Anima
 
-仅支持 `/v1/images/generations`；网关实际转发 `prompt` 和 `seed`，默认 seed 为 42。
-`engine` 精确取值：`Paiton`（默认）或 `Stock (Diffusers)`。不要套用 Qwen-Image 的尺寸和编辑参数。
+在共享 ComfyUI 上运行，动漫与插画风格。`/v1/images/generations` 接受 `prompt`、`seed`（默认 42）、`quality`（`turbo` 默认 / `aesthetic`）、`aspect_ratio`（`1:1` 默认、`3:4`、`4:3`、`9:16`、`16:9`，约 1MP）、`negative_prompt`。提示词前会自动加质量与分级标签。
 
 ```json
-{"model":"flux2-klein","engine":"Paiton","prompt":"一只坐在窗边的猫","seed":42}
+{"model":"anima","prompt":"1girl, silver hair, starry night","quality":"turbo","aspect_ratio":"3:4","seed":42}
 ```
 
-返回 `data[0].b64_json` 与 `metrics`。
+`/v1/images/edits` 用 `images_b64`（恰好一张）做图生图重绘，`strength` 为重绘强度（0.05–1，默认 0.6）；这是风格化重绘，不按指令编辑。返回 `data[0].b64_json` 与 `metrics`。
 
 ## 6. 视频 API
 
@@ -180,7 +179,7 @@ result.raise_for_status()
 print(result.json())
 ```
 
-仅参考图时省略 `reference_videos_b64`；仅参考视频时省略 `reference_images_b64`。以上为调用参数示例，最高配置的本机验证边界见 [H3参考接入](H3_REFERENCE_FEASIBILITY.md)。
+仅参考图时省略 `reference_videos_b64`；仅参考视频时省略 `reference_images_b64`。以上为调用参数示例，最高配置的本机验证边界见 [ComfyUI 运行时 · H3](COMFYUI.md#h3)。
 
 视频响应的 `model` 为内部名称 `h3`。`generation_seconds` 为后端流程耗时，`gateway_total_seconds` 包含排队与切换。同步调用等待结果；持久任务接口见下一节。
 
@@ -214,7 +213,7 @@ print(result.json())
 
 ### `/data`
 
-- `model`：`llm` / `qwen-image` / `flux` / `h3`；省略时跟随切换目标或运行引擎。
+- `model`：任一已启用引擎的调度键，如 `llm` / `qwen-image` / `h3` / `anima`；省略时跟随切换目标或运行引擎。
 - `minutes`：15、30、60；默认 30。
 - `window`：5、15、30、60 秒；默认 30，用于吞吐统计窗口。
 - 返回 runtime_topology、values、trends、recent、sampling、current_model、switching_target、engine_switch、llm_policy、llm_engine、kv_forecast、kv_preview_plan、kv_budget 等。
