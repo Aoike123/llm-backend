@@ -30,7 +30,7 @@ MCP 不是第二个调度器，也不直接启动 GPU。持久任务服务、同
 
 ## 二、运行后端与端口
 
-后端映射统一维护于 `platforms/runtime-topology.json`，供调度、API/MCP 能力信息、管理页面及 ComfyUI 控制器读取。
+运行时、端口和容器由各引擎包的 `engine.json`（`platform.runtime`）声明，网关按启用状态实时推导，供调度、API/MCP 能力信息、管理页面及 ComfyUI 控制器读取；平台级端口见 `platforms/platform.json`。接入规范见 [引擎目录](ENGINES.md#接入新引擎)。
 
 | 模型 / 调度键 | 运行容器 | 端口 | 用途 |
 | --- | --- | --- | --- |

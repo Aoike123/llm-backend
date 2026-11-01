@@ -100,8 +100,8 @@ test('asset imports verify decoded media and owner; model constraints reject bef
   const f=await fixture(t),asset=await f.store.import(f.key.id,'image',Readable.from(image));assert.equal(asset.has_alpha,true);assert.equal(asset.file,undefined);assert.equal((await stat(f.store.getAsset(f.key.id,asset.asset_id).file)).mode&0o777,0o600);
   await assert.rejects(f.store.import(f.key.id,'image',Readable.from(Buffer.from('garbage'))));
   await assert.rejects(f.jobs.create('other','edit_image',{request_id:'a',prompt:'Blue',reference_asset_ids:[asset.asset_id]}),e=>e.status===404);
-  await assert.rejects(f.jobs.create(f.key.id,'generate_image',{...input,model:'flux2-klein',size:'1024x1024'}),/FLUX/);
-  await assert.rejects(f.jobs.create(f.key.id,'generate_video',{request_id:'video-model',prompt:'cup',model:'minimax-h3'}),/Unsupported parameter: model/);
+  await assert.rejects(f.jobs.create(f.key.id,'generate_image',{...input,model:'flux2-klein',size:'1024x1024'}),/flux2-klein does not accept size/);
+  await assert.rejects(f.jobs.create(f.key.id,'generate_video',{request_id:'video-model',prompt:'cup',model:'flux2-klein'}),/model must be one of auto, minimax-h3/);
   await assert.rejects(f.jobs.create(f.key.id,'generate_video',{request_id:'video-long',prompt:'cup',duration_seconds:20}),/duration_seconds is invalid/);
   const accepted=await f.jobs.create(f.key.id,'edit_image',{request_id:'edit',prompt:'Blue',reference_asset_ids:[asset.asset_id]});const payload=await f.jobs.payload(f.jobs.get(f.key.id,accepted.job_id));assert.equal(payload.steps,40);assert.equal(payload.guidance,1);assert.equal(payload.num_inference_steps,undefined);await finished(f.jobs,accepted.job_id);
 });
@@ -112,7 +112,7 @@ test('job quota and revoked owner prevent backend execution',async t=>{
 test('telemetry deduplicates ordered events and strips sensitive input; same-origin guard',async t=>{
   const f=await fixture(t),info=await new McpInfo(f.store).open(),event={instance_id:'instance_'+'c'.repeat(32),sequence:1,type:'call',tool:'generate_image',status:'success',duration_ms:12,prompt:'SECRET',api_key:'SECRET'};
   await info.event(f.key.id,event);await info.event(f.key.id,event);await info.event(f.key.id,{...event,sequence:0});assert.equal(info.state.calls.length,1);assert.equal(JSON.stringify(info.state).includes('SECRET'),false);
-  assert.equal(info.overview(f.jobs,f.lifecycle).instances[0].initialized_at,undefined);assert.equal(info.authorized(info.secret),true);assert.equal(info.authorized('wrong'),false);
+  assert.equal((await info.overview(f.jobs,f.lifecycle)).instances[0].initialized_at,undefined);assert.equal(info.authorized(info.secret),true);assert.equal(info.authorized('wrong'),false);
   assert.equal(localManagement({headers:{host:'127.0.0.1:13000',origin:'http://127.0.0.1:13000'}}),true);assert.equal(localManagement({headers:{host:'attacker.test'}}),false);assert.equal(localManagement({headers:{host:'localhost:13000',origin:'https://attacker.test'}}),false);
 });
 
@@ -183,7 +183,7 @@ test('Goldfish creates a durable workflow job with owned references and validate
  const f=await fixture(t);f.jobs.launch=()=>{};
  const asset=await f.store.import(f.key.id,'image',Readable.from(image));
  const args={request_id:'goldfish',prompt:'A scene',reference_asset_ids:[asset.asset_id,asset.asset_id,asset.asset_id]};
- const created=await f.jobs.create(f.key.id,'run_goldfish_workflow',args);assert.equal(created.model,'yz-h3-ultimate-original');assert.equal(created.engine,'h3');assert.equal(created.kind,'video');
+ const created=await f.jobs.create(f.key.id,'run_goldfish_workflow',args);assert.equal(created.model,'minimax-h3');assert.equal(created.capability,'video.generate');assert.equal(created.engine,'h3');assert.equal(created.kind,'video');
  const payload=await f.jobs.payload(f.jobs.get(f.key.id,created.job_id));assert.equal(payload.workflow,'yz-h3-ultimate-original');assert.equal(payload.reference_images_b64.length,3);assert.equal(payload.seed,undefined);assert.equal(payload.prompt,args.prompt);
  const controlled=await f.jobs.create(f.key.id,'run_goldfish_workflow',{...args,request_id:'controls',loras:{combat:{enabled:true}},output:{include_audio:false}});const controls=await f.jobs.payload(f.jobs.get(f.key.id,controlled.job_id));assert.equal(controls.loras.combat.enabled,true);assert.equal(controls.output.include_audio,false);
  const again=await f.jobs.create(f.key.id,'run_goldfish_workflow',args);assert.equal(again.job_id,created.job_id);

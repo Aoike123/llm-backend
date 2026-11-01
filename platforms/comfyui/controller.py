@@ -15,7 +15,9 @@ ROOT=Path(__file__).resolve().parents[2]
 HERE=Path(__file__).resolve().parent
 DATA=ROOT/'workspace/data/comfyui'
 OUTPUT=ROOT/'workspace/outputs/comfyui'
-RUNTIME=json.loads((ROOT/'platforms/runtime-topology.json').read_text())['runtimes']['comfy']
+sys.path.insert(0,str(ROOT/'.workbench'))
+import registry  # noqa: E402
+RUNTIME=registry.native_runtime()
 NAME=RUNTIME['container']
 WORKFLOWS=ROOT/'workspace/data/video/minimax-h3/user/default/workflows'
 

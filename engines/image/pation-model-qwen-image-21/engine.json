@@ -8,5 +8,57 @@
   "outputs": "workspace/outputs/image/qwen-image",
   "reports": "workspace/reports/image/qwen-image21",
   "deployment_id": "pation-model-qwen-image-21",
-  "backend": "Paiton / Diffusers"
+  "backend": "Paiton / Diffusers",
+  "platform": {
+    "engine": "qwen-image",
+    "default_enabled": true,
+    "adapter": "adapter.mjs",
+    "runtime": {
+      "id": "qwen-image",
+      "name": "Qwen-Image",
+      "port": 8191,
+      "container": "paiton-qwen-image21",
+      "launch": [
+        "pation-model-qwen-image-21",
+        "start"
+      ]
+    },
+    "ui": {
+      "name": "Qwen-Image",
+      "version": "2.1",
+      "full_name": "Qwen-Image · 2.1",
+      "description": "图像生成与编辑",
+      "kind": "图像生成",
+      "accent": "#9fd4c1",
+      "symbol": "I",
+      "panel": "media",
+      "log_name": "Qwen-Image",
+      "summary": "文本生成图像 · 图像编辑"
+    },
+    "models": [
+      {
+        "id": "qwen-image21",
+        "priority": 10,
+        "capabilities": [
+          "image.generate",
+          "image.edit"
+        ],
+        "info": {
+          "tasks": [
+            "text-to-image",
+            "rgba",
+            "edit"
+          ],
+          "sizes": [
+            "1024x1024",
+            "2048x2048"
+          ],
+          "edit_size": "1024x1024",
+          "max_reference_images": 4,
+          "steps": 40,
+          "guidance_scale": 1
+        }
+      }
+    ]
+  }
 }

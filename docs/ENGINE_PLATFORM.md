@@ -2,7 +2,7 @@
 
 [文档目录](README.md)
 
-更新：2026-11-02。状态：**已确认，实施中**。
+更新：2026-11-02。状态：**P0–P2 已上线，P3（音频引擎）进行中**。接入规范见 [引擎目录 · 接入新引擎](ENGINES.md#接入新引擎)。
 
 ## 为什么要改
 
@@ -49,7 +49,7 @@
 | `audio.separate` | 多轨 WAV | `/v1/media/jobs` | `separate_audio` |
 | `audio.transcribe` | 文本与时间戳 | `/v1/media/jobs` | `transcribe_audio` |
 
-工具按能力而不是按引擎定义，所以换引擎时工具数不变。各引擎特有的参数放在统一的 `options` 字段里，用引擎自己声明的 Schema 校验，并通过 `list_capabilities` 公开。
+工具按能力而不是按引擎定义，所以换引擎时工具名不变。引擎特有的参数由 adapter 按模型声明（`params`）：工具的参数表取所有已启用模型的并集，请求只会派给接受它所带参数的模型。原方案的 `options` 子对象没有采用，因为现有调用方的顶层参数（如 `size`、`engine`）可以原样保留。
 
 ### 引擎包（engine package）：一个目录，自描述
 
@@ -81,7 +81,7 @@ engines/audio/fish-drama3/
     "shares_runtime_with": ["audiocpp-asr", "audiocpp-separate"]
   },
   "capabilities": {
-    "speech.synthesize": {"options": {"$ref": "./options.speech.json"}, "limits": {"max_text_characters": 5000}}
+    "speech.synthesize": {}
   },
   "artifacts": {"outputs": "workspace/outputs/audio/fish-drama3"}
 }
@@ -115,7 +115,7 @@ ComfyUI、vLLM、audiocpp_server 这类第三方服务器只需要一个很薄�
 }
 ```
 
-- 保存在 `workspace/config/routing.json`，由控制台写入，不进代码；
+- 与启用状态一起保存在 `workspace/config/platform-state.json`，由控制台或 `./lab engine` 写入，不进代码；
 - 请求不带 `model`（或 `model: "auto"`）时走主推；
 - 请求点名某个引擎时只用它，不降级；
 - 降级只在**确定没有生成**时发生：引擎停用、未安装、启动失败、就绪超时、派发前被拒绝。
@@ -126,11 +126,11 @@ ComfyUI、vLLM、audiocpp_server 这类第三方服务器只需要一个很薄�
 
 ## 注册表如何驱动三端
 
-网关启动时扫描 `engines/*/engine.json`，结合 `workspace/config/engines-state.json`（启用/停用）和 `routing.json`，生成一份注册表。下面这些都从它推导：
+网关启动时扫描 `engines/*/engine.json`，结合 `workspace/config/platform-state.json`（启用状态与路由），生成一份注册表。下面这些都从它推导：
 
 - **拓扑与调度**：运行时、端口、容器、并发、共享运行时，替代 `runtime-topology.json` 的手写内容和 `backend.mjs` 的 `if` 分支；
 - **API**：`/v1/models`、`/v1/media/models`、新增的 `/v1/capabilities`，以及各能力的路由；
-- **MCP**：按已启用的能力生成工具；`list_capabilities` 返回各能力的主推、降级和各引擎的 `options`；
+- **MCP**：按已启用的能力生成工具；`list_media_models` 返回各能力的主推、降级和各模型的参数；MCP 进程从网关 `/v1/media/catalog` 读取，不再自带工具清单；
 - **控制台**：服务标签页、眉题（按 category）、耗时卡片、接口列表、日志，全部来自清单，不再写死 id。
 
 控制台新增两页：
@@ -154,10 +154,10 @@ ComfyUI、vLLM、audiocpp_server 这类第三方服务器只需要一个很薄�
 
 | 阶段 | 内容 | 验收 |
 | --- | --- | --- |
-| P0 | 清单 Schema 与注册表加载器；从现有清单生成拓扑、模型表、服务卡片 | 生成结果与当前硬编码完全一致（对拍测试），行为不变 |
-| P1 | flux、qwen-image、h3（ComfyUI）、llm 迁到 adapter；删除 `backend`/`media-executor`/`media-jobs`/`panel`/`page.jsx` 里按 id 的分支 | 现有 148 + 6 个测试全过；控制台各页显示不变（语音标签修正除外） |
-| P2 | 能力驱动的 API/MCP、`routing.json`、主推与降级、控制台引擎页与能力页 | 在控制台把 `image.generate` 主推切到 FLUX，不改代码，API/MCP 立即生效 |
-| P3 | audio.cpp 引擎包：Drama 3（语音合成）、人声分离、ASR；S2-Pro 作为语音降级 | **验收即目标**：新增 = 一个目录 + 控制台启用；卸载 = 停用，零代码改动 |
+| P0 ✅ | 清单 Schema 与注册表加载器；从现有清单生成拓扑、模型表、服务卡片 | 生成结果与当前硬编码完全一致（对拍测试），行为不变 |
+| P1 ✅ | flux、qwen-image、h3（ComfyUI）、llm 迁到 adapter；删除 `backend`/`media-executor`/`media-jobs`/`panel`/`page.jsx` 里按 id 的分支 | 现有 148 + 6 个测试全过；控制台各页显示不变（语音标签修正除外） |
+| P2 ✅ | 能力驱动的 API/MCP、`platform-state.json`、主推与降级、控制台「引擎」页，以及每个引擎的「作品与历史」面板 | 在控制台把 `image.generate` 主推切到 FLUX，不改代码，API/MCP 立即生效 |
+| P3 ⏳ | audio.cpp 引擎包：Drama 3（语音合成）、人声分离、ASR；S2-Pro 作为语音降级 | **验收即目标**：新增 = 一个目录 + 控制台启用；卸载 = 停用，零代码改动 |
 
 LLM 的模式切换、KV 预算等是它特有的功能，作为 adapter 的扩展面板保留，不强行套进通用表单。
 

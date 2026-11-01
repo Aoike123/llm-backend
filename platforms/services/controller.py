@@ -6,8 +6,14 @@ from urllib.request import urlopen
 from urllib.error import URLError
 ROOT=Path(__file__).resolve().parents[2];HERE=Path(__file__).resolve().parent
 UNITS=['ai-workbench-gateway.service','ai-workbench-comfyui.service','ai-workbench-monitoring.service']
-p=argparse.ArgumentParser();p.add_argument('action',choices=['install','start','stop','restart','status','logs']);a=p.parse_args()
-def run(*cmd):return subprocess.run(list(cmd),check=True)
+p=argparse.ArgumentParser();p.add_argument('action',choices=['install','start','stop','restart','status','logs','deploy']);a=p.parse_args()
+def run(*cmd,**kw):return subprocess.run(list(cmd),check=True,**kw)
+def served_dist():
+ """The Next.js build directory the gateway unit actually reads, including drop-in overrides."""
+ env=subprocess.run(['systemctl','--user','show','-p','Environment','--value',UNITS[0]],capture_output=True,text=True).stdout.split()
+ for item in env:
+  if item.startswith('WORKBENCH_NEXT_DIST='):return item.split('=',1)[1]
+ return json.loads((ROOT/'platforms/platform.json').read_text())['next_dist']
 if a.action=='install':
  target=Path.home()/'.config/systemd/user';target.mkdir(parents=True,exist_ok=True)
  for source in [*(HERE/u for u in UNITS),HERE/'ai-workbench.target']:
@@ -24,7 +30,11 @@ elif a.action=='status':
  subprocess.run(['systemctl','--user','status',*UNITS,'--no-pager'])
  subprocess.run(['loginctl','show-user',str(os.getuid()),'-p','Linger'])
 else:
- if a.action in ('stop','restart'):
+ if a.action=='deploy':
+  # Build where the service reads, then restart only the gateway once it is idle.
+  dist=served_dist();print('构建控制台到 '+dist)
+  run('npm','run','build',cwd=ROOT/'platforms/workbench',env={**os.environ,'WORKBENCH_NEXT_DIST':dist})
+ if a.action in ('stop','restart','deploy'):
   for url in ('http://127.0.0.1:18982/status','http://127.0.0.1:8188/queue'):
    try:
     with urlopen(url,timeout=3) as response:state=json.load(response)
@@ -40,6 +50,8 @@ else:
  elif a.action=='restart':
   run('systemctl','--user','daemon-reload')
   run('systemctl','--user','restart',*UNITS)
+ elif a.action=='deploy':
+  run('systemctl','--user','restart',UNITS[0]);print('网关已重启：控制台使用 '+served_dist())
  else:
   run('systemctl','--user','daemon-reload')
   run('systemctl','--user','start','ai-workbench.target',*UNITS)

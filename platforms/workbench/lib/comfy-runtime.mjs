@@ -1,8 +1,9 @@
 import {call} from './backend.mjs';
-import {TOPOLOGY} from './runtime-topology.mjs';
+import {comfyBase} from './runtime-topology.mjs';
 // Read the whole native service; never inspect node types or load a workflow/model.
 export async function comfyRuntime(request=call){
- const base='http://127.0.0.1:'+TOPOLOGY.runtimes.comfy.port;
+ const base=comfyBase();
+ if(!base)return {available:false,queue_available:false,history_available:false,running:[],pending:[],history:[],history_limit:100,observed_at:new Date().toISOString()};
  const [health,queue,history]=await Promise.allSettled(['/system_stats','/queue','/history?max_items=100'].map(path=>request(base,path,undefined,3000)));
  const queueAvailable=queue.status==='fulfilled',historyAvailable=history.status==='fulfilled';
  const rows=key=>queueAvailable?(queue.value[key]??[]).map(row=>({number:row[0],prompt_id:row[1]})):[];

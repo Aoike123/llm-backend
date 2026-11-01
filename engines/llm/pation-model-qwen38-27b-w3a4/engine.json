@@ -15,5 +15,33 @@
   },
   "deployment_id": "pation-model-qwen38-27b-w3a4",
   "default_profile": "llm-fast",
-  "hardware": "Radeon AI PRO R9700 32GB"
+  "hardware": "Radeon AI PRO R9700 32GB",
+  "platform": {
+    "engine": "llm",
+    "default_enabled": true,
+    "adapter": "adapter.mjs",
+    "runtime": {
+      "id": "llm",
+      "name": "Qwen · vLLM",
+      "port": 18983,
+      "container": "paiton-qwen38",
+      "launch": [
+        "pation-model-qwen38-27b-w3a4",
+        "start",
+        "w3a4"
+      ]
+    },
+    "ui": {
+      "name": "Qwen",
+      "version": "3.8 · 27B",
+      "full_name": "Qwen3.8 · 27B W3A4",
+      "description": "W3A4 · 文本与视觉推理",
+      "kind": "语言与视觉",
+      "accent": "#b8a3ff",
+      "symbol": "Q",
+      "panel": "llm",
+      "log_name": "vLLM"
+    },
+    "models": []
+  }
 }

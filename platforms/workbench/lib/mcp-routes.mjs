@@ -2,7 +2,9 @@ import {readFile} from 'node:fs/promises';
 import {createReadStream} from 'node:fs';
 import {createHmac,randomBytes,timingSafeEqual} from 'node:crypto';
 import {join} from 'node:path';
-import {ID,TOOLS,MODELS,WORKFLOWS,validateInput} from '../../mcp/manifest.mjs';
+import {ID,CAPABILITIES,COMMON_TOOLS,capabilityForTool,catalog,validateToolInput} from './capabilities.mjs';
+const KNOWN_TOOLS=new Set([...COMMON_TOOLS.map(t=>t.name),...Object.values(CAPABILITIES).flatMap(c=>[c.tool,...(c.aliases??[])])]);
+const validateCommon=(name,input)=>validateToolInput(COMMON_TOOLS,name,input);
 import {ROOT} from './backend.mjs';
 import {runtimeTopology} from './runtime-topology.mjs';
 import {comfyRuntime} from './comfy-runtime.mjs';
@@ -53,14 +55,14 @@ export class McpInfo{
       if(input.type==='initialized')Object.assign(instance,{initialized_at:now,client_name:typeof input.client_name==='string'?input.client_name.replace(/[\x00-\x1f]/g,'').slice(0,80):null,protocol_version:typeof input.protocol_version==='string'?input.protocol_version.slice(0,30):null});
       if(input.type==='closed')instance.closed_at=now;
       if(input.type==='call'){
-        if(!TOOLS.some(t=>t.name===input.tool)||!['success','error'].includes(input.status)||!Number.isFinite(input.duration_ms)||input.duration_ms<0)throw fail('Invalid call event');
+        if(!KNOWN_TOOLS.has(input.tool)||!['success','error'].includes(input.status)||!Number.isFinite(input.duration_ms)||input.duration_ms<0)throw fail('Invalid call event');
         // Only allowlisted fields are retained: no prompt, argument, token, path or backend error text.
         this.state.calls.push({call_id:owner+':'+instance.instance_id+':'+input.sequence,instance_id:instance.instance_id,owner_id:owner,at:now,tool:input.tool,status:input.status,duration_ms:Math.round(input.duration_ms),job_id:/^job_[a-f0-9]{32}$/.test(input.job_id??'')?input.job_id:null,error_code:input.status==='error'?'TOOL_ERROR':null});
       }
       this.trim();await atomic(join(this.store.telemetry,'events.json'),this.state);
     });this.pending=work.catch(()=>{});return work;
   }
-  overview(jobs,lifecycle){return {...ID,deployed:true,observed_at:new Date().toISOString(),gateway:{status:lifecycle.draining?'draining':'ready',recovery_pending:jobs.recoveryPending},tools_count:TOOLS.length,models:MODELS,workflows:WORKFLOWS,instances:[...this.state.instances].sort((a,b)=>Date.parse(b.last_reported_at)-Date.parse(a.last_reported_at)).map(i=>({...i,stale:Date.now()-Date.parse(i.last_reported_at)>45000})),last_reported_at:this.state.instances.reduce((last,i)=>!last||i.last_reported_at>last?i.last_reported_at:last,null),pending_jobs:[...jobs.jobs.values()].filter(j=>!['succeeded','failed','cancelled','unknown'].includes(j.state)).length,storage:{used_bytes:this.store.usedBytes,quota_bytes:this.store.maxBytes},note:'实例上报与协议初始化是历史观察；心跳不代表宿主当前仍保持协议连接。'};}
+  async overview(jobs,lifecycle){const media=await catalog();return {...ID,deployed:true,observed_at:new Date().toISOString(),gateway:{status:lifecycle.draining?'draining':'ready',recovery_pending:jobs.recoveryPending},tools_count:media.tools.length,models:media.models,workflows:media.workflows,capabilities:media.capabilities,instances:[...this.state.instances].sort((a,b)=>Date.parse(b.last_reported_at)-Date.parse(a.last_reported_at)).map(i=>({...i,stale:Date.now()-Date.parse(i.last_reported_at)>45000})),last_reported_at:this.state.instances.reduce((last,i)=>!last||i.last_reported_at>last?i.last_reported_at:last,null),pending_jobs:[...jobs.jobs.values()].filter(j=>!['succeeded','failed','cancelled','unknown'].includes(j.state)).length,storage:{used_bytes:this.store.usedBytes,quota_bytes:this.store.maxBytes},note:'实例上报与协议初始化是历史观察；心跳不代表宿主当前仍保持协议连接。'};}
   config(){return {transport:'stdio',command:ROOT+'lab',args:['mcp','stdio'],cwd:ROOT,config_file:'~/.config/llm-backend/media-mcp.json',setup_command:ROOT+'lab mcp setup',client_config:{mcpServers:{'local-media':{command:ROOT+'lab',args:['mcp','stdio']}}},credential_note:'先运行 setup，密钥仅保存在权限为 0600 的本机配置文件；此模板不含密钥。',remote_http:{deployed:false}};}
 }
 export function mcpRoutes(jobs,info,keys,lifecycle){
@@ -72,9 +74,9 @@ export function mcpRoutes(jobs,info,keys,lifecycle){
     try{
       // The only console write: JSON content type keeps it out of simple cross-site forms.
       if(cancel){await jsonBody(req);return send(res,200,await jobs.cancelAny(cancel[1]));}
-      if(path==='/api/mcp/overview')return send(res,200,{...info.overview(jobs,lifecycle),runtime_topology:runtimeTopology(jobs.coordinator?.status?.()??{})});
+      if(path==='/api/mcp/overview')return send(res,200,{...await info.overview(jobs,lifecycle),runtime_topology:runtimeTopology(jobs.coordinator?.status?.()??{})});
       if(path==='/api/mcp/config')return send(res,200,info.config());
-      if(path==='/api/mcp/tools')return send(res,200,{...ID,tools:TOOLS});
+      if(path==='/api/mcp/tools'){const media=await catalog();return send(res,200,{...ID,tools:media.tools});}
       if(path==='/api/mcp/runtime'){
         const native=await comfyRuntime();
         return send(res,200,{runtime_topology:runtimeTopology(jobs.coordinator?.status?.()??{}),native_queue:{...native,available:native.queue_available}});
@@ -82,7 +84,9 @@ export function mcpRoutes(jobs,info,keys,lifecycle){
       if(path==='/api/mcp/jobs'){
         const offset=Number(url.searchParams.get('offset')??0),limit=Number(url.searchParams.get('limit')??30);
         if(!Number.isInteger(offset)||offset<0||!Number.isInteger(limit)||limit<1||limit>100)throw fail('Invalid pagination');
-        const rows=[...jobs.jobs.values()].sort((a,b)=>(b.created_at??b.updated_at??'').localeCompare(a.created_at??a.updated_at??''));
+        // Engine panels list the work one engine served; jobs that fell back count for the engine that ran them.
+        const engine=url.searchParams.get('engine'),capability=url.searchParams.get('capability');
+        const rows=[...jobs.jobs.values()].filter(job=>(!engine||job.engine===engine)&&(!capability||(job.capability??capabilityForTool(job.tool))===capability)).sort((a,b)=>(b.created_at??b.updated_at??'').localeCompare(a.created_at??a.updated_at??''));
         return send(res,200,{jobs:rows.slice(offset,offset+limit).map(job=>jobs.public(job)),total:rows.length,offset,has_more:offset+limit<rows.length});
       }
       if(path==='/api/mcp/calls'){
@@ -126,19 +130,21 @@ export function mcpRoutes(jobs,info,keys,lifecycle){
       }
       const artifactMatch=/^\/v1\/media\/artifacts\/(artifact_[a-f0-9]{32})(\/content)?$/.exec(path);
       if(artifactMatch&&req.method==='GET'){const artifact=jobs.artifact(key.id,artifactMatch[1]);return artifactMatch[2]?streamArtifact(res,artifact):send(res,200,{...artifact,content_url:signedContentUrl(key.id,artifactMatch[1])});}
+      // The MCP server reads its tool list from here, so enabling an engine reaches clients at once.
+      if(path==='/v1/media/catalog'&&req.method==='GET')return send(res,200,await catalog());
       if(path==='/v1/media/jobs'&&req.method==='GET'){
-        const input={offset:Number(url.searchParams.get('offset')??0),limit:Number(url.searchParams.get('limit')??20)};validateInput('list_jobs',input);return send(res,200,jobs.list(key.id,input));
+        const input={offset:Number(url.searchParams.get('offset')??0),limit:Number(url.searchParams.get('limit')??20)};validateCommon('list_jobs',input);return send(res,200,jobs.list(key.id,input));
       }
       if(path==='/v1/media/jobs'&&req.method==='POST'){
         // 32000-character prompts are up to 96 KiB as UTF-8, so the job body needs 128 KiB.
-        const body=await jsonBody(req,131072);if(!['generate_image','edit_image','generate_video','run_goldfish_workflow'].includes(body.tool))throw fail('Invalid generation tool');
+        const body=await jsonBody(req,131072);if(!capabilityForTool(body.tool))throw fail('Invalid generation tool');
         return send(res,202,await jobs.create(key.id,body.tool,body.arguments));
       }
       const match=/^\/v1\/media\/jobs\/(job_[a-f0-9]{32})(\/cancel)?$/.exec(path);
       if(match){
         if(match[2]&&req.method==='POST')return send(res,200,await jobs.cancel(key.id,match[1]));
         if(!match[2]&&req.method==='GET'){
-          const seconds=Number(url.searchParams.get('wait_seconds')??0);validateInput('get_job',{job_id:match[1],wait_seconds:seconds});
+          const seconds=Number(url.searchParams.get('wait_seconds')??0);validateCommon('get_job',{job_id:match[1],wait_seconds:seconds});
           const start=Date.now();let job=jobs.get(key.id,match[1]);
           while(Date.now()-start<seconds*1000&&!['succeeded','failed','unknown','cancelled'].includes(job.state)&&!res.destroyed){await pause(200);job=jobs.get(key.id,match[1]);}
           return send(res,200,jobs.public(job));

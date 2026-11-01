@@ -13,6 +13,7 @@ import {AccessKeys,keyManagement,secureApi} from './lib/access-keys.mjs';
 import {MediaStore} from './lib/media-store.mjs';
 import {MediaJobs} from './lib/media-jobs.mjs';
 import {McpInfo,mcpRoutes} from './lib/mcp-routes.mjs';
+import {platformRoutes} from './lib/platform-routes.mjs';
 import {acquireProcessLock} from './lib/process-lock.mjs';
 const directory=fileURLToPath(new URL('.',import.meta.url)),data=(process.env.WORKBENCH_DATA??ROOT+'workspace/data/scheduler').replace(/\/?$/,'/');
 await mkdir(data,{recursive:true});
@@ -28,10 +29,10 @@ await app.prepare();const handle=app.getRequestHandler(),{api:rawApi,control}=ha
 const accessKeys=await AccessKeys.open(data+'access-keys.json',{legacyFile:ROOT+'workspace/data/public-api/api.keys'});
 const api=secureApi(rawApi,accessKeys,{coordinator}),manageKeys=keyManagement(accessKeys);
 const mediaStore=await new MediaStore().open(),mediaJobs=await new MediaJobs(mediaStore,accessKeys,coordinator,metrics,lifecycle).open(),mcpInfo=await new McpInfo(mediaStore).open();
-const mcp=mcpRoutes(mediaJobs,mcpInfo,accessKeys,lifecycle);
-const inferenceApi=(req,res)=>{const path=new URL(req.url,'http://localhost').pathname;return path==='/internal/mcp/events'||path.startsWith('/v1/media/jobs')||path.startsWith('/v1/media/assets')||path.startsWith('/v1/media/artifacts')?mcp.media(req,res):api(req,res);};
+const mcp=mcpRoutes(mediaJobs,mcpInfo,accessKeys,lifecycle),platform=platformRoutes(coordinator,lifecycle);
+const inferenceApi=(req,res)=>{const path=new URL(req.url,'http://localhost').pathname;return path==='/internal/mcp/events'||path==='/v1/media/catalog'||path.startsWith('/v1/media/jobs')||path.startsWith('/v1/media/assets')||path.startsWith('/v1/media/artifacts')?mcp.media(req,res):api(req,res);};
 const safe=fn=>(req,res)=>Promise.resolve(fn(req,res)).catch(e=>{console.error(e.message);if(!res.headersSent)send(res,503,{error:'Service temporarily unavailable'});else res.destroy();});
-const ui=http.createServer(safe((req,res)=>{const path=new URL(req.url,'http://localhost').pathname;if(path.startsWith('/api/mcp/'))return mcp.admin(req,res);if(path==='/api/access-keys')return manageKeys(req,res);return path==='/data'||path==='/status'||path==='/metrics'||path==='/health'||path.startsWith('/api/llm-mode')||path==='/api/engine-logs'||path.startsWith('/v1/')||path.startsWith('/artifacts/')?inferenceApi(req,res):handle(req,res);}));
+const ui=http.createServer(safe((req,res)=>{const path=new URL(req.url,'http://localhost').pathname;if(path.startsWith('/api/mcp/'))return mcp.admin(req,res);if(path==='/api/platform'||path.startsWith('/api/platform/'))return platform(req,res);if(path==='/api/access-keys')return manageKeys(req,res);return path==='/data'||path==='/status'||path==='/metrics'||path==='/health'||path.startsWith('/api/llm-mode')||path==='/api/engine-logs'||path.startsWith('/v1/')||path.startsWith('/artifacts/')?inferenceApi(req,res):handle(req,res);}));
 const inference=http.createServer(safe(inferenceApi)),controls=http.createServer(safe(control));
 const servers=[ui,inference,controls];for(const server of servers){server.requestTimeout=0;server.headersTimeout=60000;}
 await Promise.all(servers.map((s,i)=>new Promise((resolve,reject)=>{s.once('error',reject);s.listen([Number(process.env.WORKBENCH_PORT??13000),Number(process.env.INFERENCE_PORT??18982),Number(process.env.CONTROL_PORT??18990)][i],'127.0.0.1',resolve);} )));

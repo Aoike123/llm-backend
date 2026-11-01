@@ -716,3 +716,44 @@ main.studio-main{max-width:1600px;width:100%;margin:0 auto;padding:26px 40px 36p
 @media(max-width:600px){.service-catalog{grid-template-columns:1fr}.service-catalog button{padding:20px}.model-selector{gap:4px 16px}.model-selector button:last-child{margin-left:0}.control-center .stage-kpi .overview-value{font-size:24px}.connection-grid{gap:14px}}
 
 @media(max-width:800px){.control-center .stage-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.control-center .stage-kpi,.control-center .stage-kpi:first-child{grid-column:auto;grid-template-rows:36px 60px auto}.control-center .stage-kpi .overview-value{padding-top:10px;font-size:24px}}
+/* Engine work: per-engine artifacts and history */
+.engine-work{display:grid;gap:24px;margin-top:32px}
+.engine-gallery{display:grid;gap:14px;margin-top:18px}
+.gallery-image{grid-template-columns:repeat(auto-fill,minmax(150px,1fr))}
+.gallery-video{grid-template-columns:repeat(auto-fill,minmax(320px,1fr))}
+.gallery-audio,.gallery-text{grid-template-columns:minmax(0,1fr)}
+.gallery-item{all:unset;cursor:pointer;display:block;border:1px solid var(--studio-edge);border-radius:12px;overflow:hidden;background:var(--studio-panel);transition:border-color .2s}
+.gallery-item:hover,.gallery-item:focus-visible{border-color:var(--service-accent)}
+.gallery-item:focus-visible{outline:2px solid var(--service-accent);outline-offset:2px}
+.artifact-view{margin:0;display:grid;gap:8px}
+.artifact-view figcaption{font-size:12px;color:var(--studio-muted)}
+.artifact-view img,.artifact-view video{display:block;width:100%;height:auto;max-height:520px;object-fit:contain;background:#0d1016;border-radius:8px}
+.gallery-image .artifact-view img{aspect-ratio:1;object-fit:cover;max-height:none;border-radius:0}
+.gallery-item .artifact-view{padding:0}
+.gallery-audio .gallery-item,.gallery-text .gallery-item{padding:14px 16px}
+.artifact-view audio{width:100%}
+.artifact-transcript p{margin:0;line-height:1.7;white-space:pre-wrap}
+.artifact-transcript ol{margin:10px 0 0;padding-left:18px;font-size:12px;color:var(--studio-muted);max-height:220px;overflow:auto}
+.artifact-transcript time{margin-right:8px;font-variant-numeric:tabular-nums}
+.engine-artifacts{display:grid;gap:18px;margin:18px 0}
+.engine-params{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px 20px;margin:18px 0;font-size:12px}
+.engine-params dt{color:var(--studio-muted)}.engine-params dd{margin:2px 0 0;overflow-wrap:anywhere}
+.engine-param-summary{max-width:340px;overflow:hidden;text-overflow:ellipsis;color:var(--studio-muted)}
+.clickable-row{cursor:pointer}.clickable-row:hover td{background:color-mix(in srgb,var(--service-accent) 5%,transparent)}
+/* Engine packages and capability routing */
+.engines-panel{display:grid;gap:24px}
+.engine-package{display:grid;grid-template-columns:36px minmax(0,1fr) auto;gap:16px;align-items:start;padding:18px 0;border-bottom:1px solid var(--studio-edge)}
+.engine-package:last-child{border-bottom:0}.engine-package.disabled{opacity:.62}
+.engine-package strong small{margin-left:8px;font-weight:400;color:var(--studio-muted)}
+.engine-package p{margin:4px 0}
+.engine-models{display:flex;flex-wrap:wrap;gap:8px 16px;font-size:12px;color:var(--studio-muted)}
+.engine-models code{margin-right:6px;color:var(--text)}
+.engine-toggle{display:grid;justify-items:end;gap:8px;font-size:12px}
+.route-editor{padding:18px 0;border-bottom:1px solid var(--studio-edge)}.route-editor:last-child{border-bottom:0}
+.route-editor h3{margin:0;font-size:15px}.route-editor h3 small{font-weight:400;color:var(--studio-muted);font-size:12px}
+.route-editor ol{list-style:none;margin:14px 0;padding:0;display:grid;gap:8px}
+.route-editor li{display:grid;grid-template-columns:64px minmax(0,1fr) auto;gap:12px;align-items:center;font-size:13px}
+.route-actions{display:flex;gap:6px}
+.route-backend{display:flex;gap:8px;align-items:center;font-size:12px;color:var(--studio-muted);margin:10px 0}
+.route-save{display:flex;gap:8px}
+@media(max-width:560px){.gallery-video{grid-template-columns:minmax(0,1fr)}.engine-package{grid-template-columns:28px minmax(0,1fr)}.engine-toggle{grid-column:1/-1;justify-items:start}.route-editor li{grid-template-columns:52px minmax(0,1fr)}.route-actions{grid-column:1/-1}}

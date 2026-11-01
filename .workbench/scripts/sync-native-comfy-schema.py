@@ -12,7 +12,9 @@ parser.add_argument('--model',choices=['h3','all'],default='all')
 args=parser.parse_args()
 for model in (('h3',) if args.model=='all' else (args.model,)):
     with lease(model):
-        port=json.loads((ROOT/'platforms/runtime-topology.json').read_text())['runtimes']['comfy']['port']
+        sys.path.insert(0,str(ROOT/'.workbench'))
+        import registry
+        port=registry.native_runtime()['port']
         with urlopen(f'http://127.0.0.1:{port}/object_info',timeout=20) as response:
             schema=json.load(response)
         assert isinstance(schema,dict) and 'SaveVideo' in schema

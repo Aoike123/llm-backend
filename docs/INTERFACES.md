@@ -157,7 +157,7 @@ MCP 页 ─ 作品 ───────────→ /api/mcp/artifacts/{id}�
 
 - 视频工具由 `run_goldfish_workflow` 统一为 `generate_video`（旧名兼容）；
 - 新增 `download_artifact` 与下载根限制；
-- MCP 工具从 9 个增加到 10 个，生成类固定为 3 个；2026-10 新增 `generate_audio`，共 11 个、生成类 4 个；2026-11 随 CosyVoice 下线移除，回到 10 个、生成类 3 个；
+- MCP 工具从 9 个增加到 10 个，生成类固定为 3 个；2026-10 新增 `generate_audio`，共 11 个、生成类 4 个；2026-11 随 CosyVoice 下线移除，回到 10 个、生成类 3 个；之后生成工具按能力从已启用的引擎生成，数量随启用状态变化；
 - 控制台 MCP 页加入调用规范与工具分组，API 页按“生成 4 / 素材 / 任务 / 作品”重排；
 - 文档同步更新 [媒体 MCP](MEDIA_MCP.md)、[API 参考](CURRENT_API.md)、[运行模式](RUNTIME_TOPOLOGY.md)、[项目现状](PROJECT_STATUS.md)。
 
@@ -167,9 +167,12 @@ MCP 页 ─ 作品 ───────────→ /api/mcp/artifacts/{id}�
 platforms/workbench/server.mjs           # 三端口与路由分发
 platforms/workbench/lib/http.mjs         # API 与控制面路由
 platforms/workbench/lib/mcp-routes.mjs   # /api/mcp/* 与 /v1/media/*
-platforms/workbench/lib/media-manifest.mjs  # 工具 Schema 唯一来源
+platforms/workbench/lib/media-tools.mjs  # 能力定义与公共工具（不含引擎知识）
+platforms/workbench/lib/capabilities.mjs # 按已启用引擎生成工具、模型目录与候选顺序
+platforms/workbench/lib/registry.mjs     # 引擎包注册表：清单、启用状态、路由
+platforms/workbench/lib/platform-routes.mjs # 控制台「引擎」页接口 /api/platform
 platforms/comfyui/...                    # ComfyUI 原生执行
 platforms/mcp/server.mjs                 # stdio 服务与工具分发
 platforms/mcp/client.mjs                 # HTTP 客户端、导入与下载
-platforms/mcp/manifest.mjs               # MCP 工具清单
+platforms/mcp/manifest.mjs               # MCP 只保留公共工具；生成工具取自网关 /v1/media/catalog
 ```

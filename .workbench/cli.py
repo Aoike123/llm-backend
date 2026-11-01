@@ -6,6 +6,11 @@ from pathlib import Path
 import shutil
 import subprocess
 import sys
+from urllib.error import URLError
+from urllib.request import Request, urlopen
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import registry as engine_registry  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_DEPLOYMENT = "pation-model-qwen38-27b-w3a4"
@@ -18,12 +23,47 @@ ALIASES = {
 }
 
 
-def locations():
-    return json.loads((ROOT / ".workbench/config/engines.json").read_text())
-
-
 def registry():
-    return {name: json.loads((ROOT / location / "engine.json").read_text()) for name, location in locations().items()}
+    return engine_registry.manifests()
+
+
+def engine_command(args):
+    """List engine packages or switch one on/off: through the gateway when it runs, so it can
+    check the engine is idle and stop its container; otherwise in the state file."""
+    console = "http://127.0.0.1:%d/api/platform" % engine_registry.PLATFORM["management_port"]
+    action = args[0] if args else "list"
+    if action == "list":
+        for name, info in registry().items():
+            platform = info.get("platform")
+            if not platform:
+                print(f"  {name:32} 仅命令行（未接入网关）")
+                continue
+            mark = "启用" if engine_registry.enabled(name, info) else "停用"
+            models = ", ".join(m["id"] + "[" + "/".join(m["capabilities"]) + "]" for m in platform["models"]) or platform["engine"]
+            print(f"  {name:32} {mark}  {models}")
+        return 0
+    if action not in ("enable", "disable") or len(args) != 2:
+        raise RuntimeError("用法：./lab engine list | enable PACKAGE | disable PACKAGE")
+    name, wanted = args[1], action == "enable"
+    if not registry().get(name, {}).get("platform"):
+        raise RuntimeError(f"未知或未接入网关的引擎包：{name}")
+    body = json.dumps({"enabled": wanted}).encode()
+    request = Request(f"{console}/engines/{name}", data=body, method="POST", headers={"Content-Type": "application/json", "Host": "127.0.0.1"})
+    try:
+        with urlopen(request, timeout=900) as response:
+            json.load(response)
+        print(("已启用 " if wanted else "已停用 ") + name + "（网关已生效）")
+        return 0
+    except URLError as error:
+        if not isinstance(getattr(error, "reason", None), ConnectionRefusedError):
+            raise RuntimeError(f"网关拒绝了请求：{error}")
+    state = engine_registry.state()
+    state.setdefault("engines", {}).setdefault(name, {})["enabled"] = wanted
+    state.setdefault("routing", {})
+    engine_registry.STATE.parent.mkdir(parents=True, exist_ok=True)
+    engine_registry.STATE.write_text(json.dumps(state, indent=2, ensure_ascii=False) + "\n")
+    print(("已启用 " if wanted else "已停用 ") + name + "（网关未运行，下次启动生效）")
+    return 0
 
 
 def node():
@@ -66,16 +106,19 @@ def main(argv=None):
         print("用法：./lab engines | models [ENGINE] | ENGINE COMMAND [ARGS]")
         print("示例：./lab pation-model-qwen38-27b-w3a4 start w3a4")
         print("运行状态：./lab status    推理检查：./lab smoke    项目检查：./lab check")
-        print("常驻服务：./lab services install | start | stop | restart | status | logs")
+        print("常驻服务：./lab services install | start | stop | restart | deploy | status | logs")
         print("媒体 MCP：./lab mcp setup | stdio | check")
         print("调度：./lab scheduler status | switch llm | switch h3")
         print("ComfyUI：./lab comfyui build | start | status | check")
         print("ROCm 10.1 镜像：./lab runtime build | status | check --engine ENGINE")
         print("监控平台：./lab monitor start | status | check | export")
+        print("引擎包：./lab engine list | enable PACKAGE | disable PACKAGE")
         print("模型／缓存／输出／报告：workspace/    使用说明：docs/")
         print("引擎：" + ", ".join(engines))
         print("默认部署为 Qwen3.8 27B W3A4；MXFP4 使用独立部署入口。")
         return 0
+    if args[0] == "engine":
+        return engine_command(args[1:])
     if args[0] == "engines":
         for category in ("llm", "image", "video", "audio"):
             print(f"[{category}]")
@@ -88,7 +131,7 @@ def main(argv=None):
         for name in selected:
             if name not in engines:
                 raise RuntimeError(f"未知引擎：{name}")
-            path = ROOT / locations()[name] / "config/models.json"
+            path = engines[name]["_dir"] / "config/models.json"
             print(f"[{name}]")
             models = json.loads(path.read_text())
             if not models:
@@ -102,7 +145,7 @@ def main(argv=None):
     name = args.pop(0) if explicit_engine else DEFAULT_DEPLOYMENT
     engine = engines[name]
     if not engine.get("entrypoint"):
-        raise RuntimeError(f"{engine['name']} 已分类，运行入口待配置。见 {locations()[name]}/README.md。")
+        raise RuntimeError(f"{engine['name']} 已分类，运行入口待配置。见 {engine['_dir'].relative_to(ROOT)}/README.md。")
     if engine.get("profiles") and args and args[0] in ("start", "stop", "status"):
         if len(args) == 1 and engine.get("default_profile") and (args[0] == "start" or explicit_engine):
             args += ([engine["default_profile"]] if args[0] == "start" else ["--profile", engine["default_profile"]])

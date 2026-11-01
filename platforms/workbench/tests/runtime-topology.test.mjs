@@ -2,7 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {Backend} from '../lib/backend.mjs';
 import {runtimeFor,runtimeTopology,sameRuntime} from '../lib/runtime-topology.mjs';
-import {MODELS} from '../../mcp/manifest.mjs';
+import {mediaModels} from '../lib/capabilities.mjs';
+const MODELS=await mediaModels();
 
 test('H3 is the only Comfy runtime and Wan is unavailable',async()=>{
  const backend=new Backend();backend.rows=async()=>['paiton-h3-comfyui-1'];

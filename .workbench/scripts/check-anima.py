@@ -14,7 +14,9 @@ ROOT=Path(__file__).resolve().parents[2]
 sys.path.insert(0,str(ROOT/'platforms/comfyui/custom_nodes'))
 from pation_scheduler.client import lease
 WORKFLOWS=ROOT/'platforms/comfyui/workflows'
-BASE='http://127.0.0.1:'+str(json.loads((ROOT/'platforms/runtime-topology.json').read_text())['runtimes']['comfy']['port'])
+sys.path.insert(0,str(ROOT/'.workbench'))
+import registry  # noqa: E402
+BASE='http://127.0.0.1:'+str(registry.native_runtime()['port'])
 REPORTS=ROOT/'workspace/reports/image/anima'
 OUTPUTS=ROOT/'workspace/outputs/image/anima'
 

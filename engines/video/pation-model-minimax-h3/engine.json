@@ -9,5 +9,60 @@
   "outputs": "workspace/outputs/video/minimax-h3",
   "reports": "workspace/reports/video/minimax-h3",
   "deployment_id": "pation-model-minimax-h3",
-  "backend": "Paiton / ComfyUI"
+  "backend": "Paiton / ComfyUI",
+  "platform": {
+    "engine": "h3",
+    "default_enabled": true,
+    "adapter": "adapter.mjs",
+    "interruptible": true,
+    "runtime": {
+      "id": "comfy",
+      "name": "ComfyUI",
+      "port": 8188,
+      "container": "paiton-h3-comfyui-1",
+      "launch": [
+        "pation-model-minimax-h3",
+        "start"
+      ],
+      "native_ui": "http://127.0.0.1:8188"
+    },
+    "ui": {
+      "name": "ComfyUI",
+      "version": "",
+      "full_name": "ComfyUI",
+      "description": "视频生成 · H3 原生工作流",
+      "kind": "原生工作流",
+      "accent": "#8cbede",
+      "symbol": "C",
+      "panel": "comfy",
+      "log_name": "ComfyUI",
+      "summary": "文本 / 首尾帧 / 多图与视频参考 · 最多9图 + 3视频"
+    },
+    "models": [
+      {
+        "id": "minimax-h3",
+        "priority": 10,
+        "capabilities": [
+          "video.generate"
+        ],
+        "info": {
+          "tasks": [
+            "text-to-video",
+            "first-frame",
+            "first-last-frame",
+            "multimodal-reference"
+          ],
+          "max_reference_images": 9,
+          "max_reference_videos": 3,
+          "total_reference_video_seconds": 15,
+          "presets": [
+            "turbo8",
+            "turbo4",
+            "reference",
+            "reference-turbo4"
+          ]
+        }
+      }
+    ]
+  }
 }

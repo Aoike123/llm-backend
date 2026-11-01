@@ -1,5 +1,5 @@
 import {readFile} from 'node:fs/promises';
-import {TOPOLOGY} from './runtime-topology.mjs';
+import {comfyBase} from './runtime-topology.mjs';
 import {call} from './backend.mjs';
 import {upload,uploadFile,saveVideoOutput,comfyFailure,beforeSubmission,submitPrompt} from './media.mjs';
 import {GOLDFISH_LORAS,validateGoldfishControls,goldfishReferenceSlots} from './goldfish-controls.mjs';
@@ -60,7 +60,8 @@ export async function buildGoldfishGraph(input,{uploadImage,uploadVideo,uploadAu
 }
 // The workflow is submitted unchanged to native /prompt; no API bridge nodes.
 export async function runGoldfish(input,{onSubmitted,outputDirectory,request=call,uploadImage,uploadVideo,uploadAudio,preparedVideos,saveOutput=saveVideoOutput,wait=pause}={}){
- const base='http://127.0.0.1:'+TOPOLOGY.runtimes.comfy.port,started=performance.now();
+ const base=comfyBase(),started=performance.now();
+ if(!base)throw Object.assign(new Error('ComfyUI runtime is not enabled'),{code:'NOT_SUBMITTED'});
  const graph=await beforeSubmission(()=>buildGoldfishGraph(input,{uploadImage:uploadImage??(bytes=>upload(base,bytes)),uploadVideo:uploadVideo??(bytes=>uploadFile(base,bytes,'mp4','video/mp4')),uploadAudio:uploadAudio??(bytes=>uploadFile(base,bytes,'wav','audio/wav')),preparedVideos}));
  const pid=await submitPrompt(request,base,graph);
  await onSubmitted?.({base,prompt_id:pid});

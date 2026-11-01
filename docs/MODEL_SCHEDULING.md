@@ -46,7 +46,7 @@
 
 | 层 | 含义 | 来源 |
 | --- | --- | --- |
-| 引擎容量 | 一个已加载实例能同时处理的请求数 | LLM：面板并发（上限 8）；其他：`runtime-topology.json` 的 `concurrency`（TTS 3，未设为 1） |
+| 引擎容量 | 一个已加载实例能同时处理的请求数 | LLM：面板并发（上限 8）；其他：引擎清单 `platform.runtime.concurrency`（未设为 1） |
 | 密钥并发 | 该密钥同时持有的租约数，排队不占用 | 密钥 `maxConcurrent`；全局 `maxConcurrent` 限制所有密钥合计 |
 | 密钥等待 | 执行中 + 等待中 ≤ 并发 + 等待名额，超出立即 429 | 密钥与全局 `maxQueued` |
 

@@ -2,27 +2,35 @@ import {Server} from '@modelcontextprotocol/sdk/server/index.js';
 import {StdioServerTransport} from '@modelcontextprotocol/sdk/server/stdio.js';
 import {ListToolsRequestSchema,CallToolRequestSchema,ListResourcesRequestSchema,ReadResourceRequestSchema} from '@modelcontextprotocol/sdk/types.js';
 import {randomUUID} from 'node:crypto';
-import {ID,TOOLS,MODELS,WORKFLOWS,validateInput} from './manifest.mjs';
+import {ID,COMMON_TOOLS,capabilityForTool,validateToolInput} from './manifest.mjs';
 import {configuration,request,openImport,importRoots,downloadArtifact} from './client.mjs';
 export async function start(){
   const config=await configuration(),instance_id='instance_'+randomUUID().replaceAll('-','');let sequence=0,protocol_version,reporting=Promise.resolve(),closing=false;
+  // A short cache keeps one tool call from fetching the catalog twice; console changes still
+  // reach the client within seconds.
+  let cached={at:0,value:null};
+  async function catalog(){
+    if(cached.value&&Date.now()-cached.at<5000)return cached.value;
+    cached={at:Date.now(),value:await request(config,'/v1/media/catalog',{timeout:10000})};return cached.value;
+  }
+  const toolList=async()=>{try{return (await catalog()).tools;}catch{return COMMON_TOOLS;}};
   // Event ordering is per process; a failed report cannot block media tools.
   function report(event){
     if(!config.telemetry_token)return Promise.resolve();
     const input={...event,instance_id,sequence:sequence++};
     reporting=reporting.then(()=>request(config,'/internal/mcp/events',{method:'POST',headers:{'x-media-telemetry-token':config.telemetry_token},body:JSON.stringify(input),timeout:2000})).catch(()=>{});return reporting;
   }
-  const server=new Server(ID,{capabilities:{tools:{},resources:{}},instructions:'Local image generation, image editing and H3 video generation. Generation tools return durable jobs, not completed media: poll get_job and inspect unknown outcomes before retrying; download_artifact writes results into the workspace. Prefer the engine that is already running: check list_media_models first, batch work on the same engine, and avoid switching engines between jobs because a switch drains the queue and cold-starts the backend.'});
-  server.setRequestHandler(ListToolsRequestSchema,async()=>({tools:TOOLS.map(({example,...tool})=>({...tool,annotations:{readOnlyHint:['list_media_models','get_job','list_jobs','get_artifact'].includes(tool.name),destructiveHint:false,openWorldHint:false}}))}));
+  const server=new Server(ID,{capabilities:{tools:{},resources:{}},instructions:'Local media generation through the workbench gateway: the available tools follow the engines enabled there. Generation tools return durable jobs, not completed media: poll get_job and inspect unknown outcomes before retrying; download_artifact writes results into the workspace. Prefer the engine that is already running: check list_media_models first (it names the primary and fallback model of every capability), batch work on the same engine, and avoid switching engines between jobs because a switch drains the queue and cold-starts the backend.'});
+  server.setRequestHandler(ListToolsRequestSchema,async()=>({tools:(await toolList()).map(({example,...tool})=>({name:tool.name,description:tool.description,inputSchema:tool.inputSchema,annotations:{readOnlyHint:['list_media_models','get_job','list_jobs','get_artifact'].includes(tool.name),destructiveHint:false,openWorldHint:false}}))}));
   async function invoke(name,input){
-    validateInput(name,input);
-    if(name==='list_media_models')return {models:MODELS,workflows:WORKFLOWS};
+    validateToolInput(await toolList(),name,input);
+    if(name==='list_media_models'){const media=await catalog();return {models:media.models,capabilities:media.capabilities,workflows:media.workflows};}
     if(name==='import_media'){
       const fd=await openImport(input.path,importRoots(config));
       try{return await request(config,'/v1/media/assets?kind='+input.kind,{method:'POST',headers:{'Content-Type':'application/octet-stream'},body:fd.createReadStream({autoClose:false}),timeout:120000});}finally{await fd.close();}
     }
     if(name==='download_artifact')return downloadArtifact(config,input.artifact_id,input.path);
-    if(['generate_image','edit_image','generate_video','run_goldfish_workflow'].includes(name))return request(config,'/v1/media/jobs',{method:'POST',body:JSON.stringify({tool:name==='run_goldfish_workflow'?'generate_video':name,arguments:input})});
+    if(capabilityForTool(name))return request(config,'/v1/media/jobs',{method:'POST',body:JSON.stringify({tool:name,arguments:input})});
     if(name==='get_job')return request(config,'/v1/media/jobs/'+input.job_id+'?wait_seconds='+(input.wait_seconds??0));
     if(name==='list_jobs')return request(config,'/v1/media/jobs?'+new URLSearchParams(input));
     if(name==='cancel_job')return request(config,'/v1/media/jobs/'+input.job_id+'/cancel',{method:'POST'});

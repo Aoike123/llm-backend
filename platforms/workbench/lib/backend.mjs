@@ -5,7 +5,8 @@ import {fileURLToPath} from 'node:url';
 import {dirname} from 'node:path';
 import {pause} from './core.mjs';
 import {EngineLogBuffer} from './engine-logs.mjs';
-import {modelBackends,sameRuntime,runtimeFor} from './runtime-topology.mjs';
+import {sameRuntime} from './runtime-topology.mjs';
+import {registry} from './registry.mjs';
 import {servingPolicy,enginePolicyKey,kvBudgetBytes,allocatedPoolBytes} from './llm.mjs';
 export const ROOT = fileURLToPath(new URL('../../../', import.meta.url));
 const exec = promisify(execFile);
@@ -27,7 +28,11 @@ export async function call(base,path,data,timeout=30000) {
 export class Backend {
   run = command;
   capture = exec;
-  models=modelBackends();
+  // Scheduler engines come from the enabled packages: [launch, port, container] per engine.
+  get models(){return Object.fromEntries(Object.entries(registry.engines()).map(([engine,pkg])=>{const r=pkg.manifest.platform.runtime;return [engine,[[...r.launch],r.port,r.container]];}));}
+  context(engine){const pkg=registry.enginePackage(engine);if(!pkg)throw Object.assign(new Error('Unknown or disabled engine: '+engine),{code:'ENGINE_UNAVAILABLE'});const runtime=pkg.manifest.platform.runtime;return {backend:this,engine,runtime,base:'http://127.0.0.1:'+runtime.port,package:pkg};}
+  async adapter(engine){const adapter=await registry.adapter(engine);if(!adapter)throw Object.assign(new Error('Unknown or disabled engine: '+engine),{code:'ENGINE_UNAVAILABLE'});return adapter;}
+  containersOf(engine){const r=registry.enginePackage(engine)?.manifest.platform.runtime;return r?[r.container,...(r.extra_containers??[])]:[];}
   sameRuntime=sameRuntime;
   async config() {return JSON.parse(await readFile(ROOT+'platforms/scheduler/residency.json','utf8'));}
   async labelled() {try {return await this.run('docker',['inspect','--format','{{index .Config.Labels "ai.workbench.resident"}}','paiton-qwen38'])==='true';}catch{return false;}}
@@ -53,33 +58,28 @@ export class Backend {
   async rows() {return (await this.run('docker',['ps','--format','{{.Names}}'])).split('\n');}
   async running() {
     const rows=await this.rows();if(rows.includes('ai-vbench'))throw new Error('VBench holds GPU; finish evaluation before switching');
-    const active=[],seen=new Set(); for (const [key,[,,name]] of Object.entries(this.models)) if(rows.includes(name) && !seen.has(name) && !(key==='llm' && await this.sleeping())){active.push(key);seen.add(name);}
-    if(rows.includes('paiton-flux2-stock-1')&&!active.includes('flux'))active.push('flux');return active;
+    const active=[],seen=new Set();
+    for(const engine of Object.keys(this.models)){
+      const containers=this.containersOf(engine).filter(name=>rows.includes(name));
+      if(!containers.length||containers.some(name=>seen.has(name)))continue;
+      if(await (await this.adapter(engine)).parked?.(this.context(engine)))continue;
+      active.push(engine);containers.forEach(name=>seen.add(name));
+    }
+    return active;
   }
   async idle(model) {
     try {
-      const [,port,name]=this.models[model], rows=await this.rows();
-      if(!rows.includes(name) && !(model==='flux' && rows.includes('paiton-flux2-stock-1')))return true;
-      const base='http://127.0.0.1:'+port;
-      if(model==='llm') {
-        const r=await fetch(base+'/metrics',{signal:AbortSignal.timeout(5000)});if(!r.ok)return false;const text=await r.text();
-        return ['num_requests_running','num_requests_waiting'].every(metric=>{const values=[...text.matchAll(new RegExp('^vllm:'+metric+'(?:\\{[^\\n]*\\})?\\s+([\\d.eE+-]+)','gm'))];return values.length>0 && values.every(v=>Number(v[1])===0);});
-      }
-      if(runtimeFor(model)==='comfy'){const q=await call(base,'/queue');return q.queue_running.length===0&&q.queue_pending.length===0;}
-      if(model==='qwen-image')return (await call(base,'/health')).busy===false;
-      return (await Promise.all([7861,7862].map(p=>call('http://127.0.0.1:'+p,'/health')))).every(r=>r.ready===true);
+      const rows=await this.rows();if(!this.containersOf(model).some(name=>rows.includes(name)))return true;
+      return await (await this.adapter(model)).idle(this.context(model));
     }catch{return false;}
   }
   async ready(model) {
-    try {
-      const base='http://127.0.0.1:'+this.models[model][1];
-      if(model==='llm'){if(await this.sleeping())return false;return (await fetch(base+'/health',{signal:AbortSignal.timeout(5000)})).ok;}
-      if(runtimeFor(model)==='comfy'){await call(base,'/system_stats');return true;}
-      if(model==='qwen-image')return (await call(base,'/health')).status==='ready';
-      return (await Promise.all([7861,7862].map(p=>call('http://127.0.0.1:'+p,'/health')))).every(r=>r.ready===true);
-    }catch{return false;}
+    try {return await (await this.adapter(model)).ready(this.context(model));}catch{return false;}
   }
-  async stop(model) {const args=[...this.models[model][0]];args[1]='stop';await this.run(ROOT+'lab',args);if(model==='llm'){this.loadedLlmMode=null;this.capacityTokens=null;this.capacityContainer=null;this.llmConfiguration=null;this.kvForecast=null;}}
+  async stop(model) {
+    const args=[...this.models[model][0]];args[1]='stop';await this.run(ROOT+'lab',args);
+    (await this.adapter(model)).onStop?.(this.context(model));
+  }
   // Offline configuration previews use the persisted layout, never live capacity.
   async previewPlan() {
     try {
@@ -167,15 +167,13 @@ export class Backend {
     return {container,id:reader.id,output:reader.buffer.output(options),available:reader.available,suppressed:reader.buffer.suppressed,error:reader.error};
   }
   async engineLogs(model='llm',{since,includeProbes=false}={}) {
-    const entry=this.models[model];
-    if(!entry)return {model:null,engine:null,containers:[],output:'当前没有运行中的模型，等待任务。',available:false};
-    let engine={llm:'vLLM','qwen-image':'Qwen-Image',h3:'ComfyUI',flux:'FLUX / Paiton'}[model];
-    let containers=[entry[2]];
-    if(model==='flux'){
-      try{const rows=await this.rows();const active=['paiton-flux2-paiton-1','paiton-flux2-stock-1'].filter(name=>rows.includes(name));if(active.length)containers=active;engine=containers.includes('paiton-flux2-stock-1')?(containers.length>1?'FLUX / Paiton + Diffusers':'FLUX / Diffusers'):'FLUX / Paiton';}catch{}
-    }
+    const pkg=registry.enginePackage(model);
+    if(!pkg)return {model:null,engine:null,containers:[],output:'当前没有运行中的模型，等待任务。',available:false};
+    const ctx=this.context(model),adapter=await this.adapter(model);
+    let engine=pkg.manifest.platform.ui.log_name??pkg.manifest.platform.ui.name,containers=[ctx.runtime.container];
+    if(adapter.logContainers){try{const picked=adapter.logContainers(ctx,await this.rows());containers=picked.containers;engine=picked.label;}catch{}}
     const results=await Promise.all(containers.map(container=>this.containerLogs(container,{since,includeProbes})));
-    const startup=model==='llm'?await this.startupLogs():null;
+    const startup=adapter.startupLogs?await adapter.startupLogs(ctx):null;
     return {model,engine,containers,output:results.map(r=>(containers.length>1?'── '+r.container+' ──\n':'')+r.output).join('\n'),available:results.some(r=>r.available),
       startup_output:startup?.output??null,startup_complete:startup?.complete??false,container_id:results.map(r=>r.id).filter(Boolean).join(',')||null,
       suppressed_probe_lines:results.reduce((n,r)=>n+r.suppressed,0),include_probes:includeProbes,log_error:results.find(r=>r.error)?.error??null};
@@ -194,32 +192,32 @@ export class Backend {
       return record;
     }catch{return null;}
   }
+  // Load one engine for exclusive GPU use: drain and release whatever runs, then start the target.
+  // Engine-specific steps (CPU residency, launch arguments, policy checks) are adapter hooks.
   async ensure(model,deadline,clock,policy=servingPolicy('long'),report=()=>{}) {
-    const mode=model==='llm'?enginePolicyKey(policy):null;
+    const adapter=await this.adapter(model),ctx=this.context(model);
     let active=await this.running();if(active.length===1&&this.sameRuntime(active[0],model)&&await this.ready(model)&&
-      (model!=='llm'||await this.llmMode()===mode))return;
+      (await adapter.matches?.(ctx,policy)??true))return;
     if(active.length)report('draining','等待当前引擎任务结束');
     while(active.length){
       if(clock()>=deadline)throw new Error('Timed out waiting for active GPU requests');
       if((await Promise.all(active.map(k=>this.idle(k)))).every(Boolean)){await pause(1000);if((await Promise.all(active.map(k=>this.idle(k)))).every(Boolean))break;}
       await pause(1000);active=await this.running();
     }
-    for(const old of active){report('unloading',`释放 ${old} 引擎`);let preserved=false;if(old==='llm'&&model!=='llm'){try{report('unloading','将 Qwen 权重迁移到 CPU');preserved=await this.sleep();if(preserved)report('unloading','Qwen 权重已保留在 CPU');}catch(e){report('unloading',`CPU 保留失败，改为释放容器：${e.message}`);}}if(!preserved){await this.stop(old);if(old==='llm')this.loadedLlmMode=null;}}
-    if(model==='llm'&&await this.sleeping()&&await this.llmMode()===mode){
-      report('loading','从 CPU 唤醒 Qwen 权重');
-      try {await call('http://127.0.0.1:18983','/wake_up',{},(await this.config()).transition_timeout_seconds*1000);if(!await this.sleeping()&&await this.ready(model))return;}catch(e){report('loading',`唤醒失败，改为冷启动：${e.message}`);}await this.stop(model);
+    for(const old of active){
+      report('unloading',`释放 ${old} 引擎`);
+      const previous=await this.adapter(old),preserved=old!==model&&previous.park?await previous.park(this.context(old),report):false;
+      if(!preserved)await this.stop(old);
     }
-    if(model==='llm'&&(await this.labelled()||(await this.rows()).includes('paiton-qwen38')))await this.stop(model);
+    if(adapter.resume&&await adapter.resume(ctx,policy,report))return;
     const start=async cold=>{
       report('loading',`启动 ${model} 引擎${cold?' · 冷启动重试':''}`);
-      const args=[...this.models[model][0]];
-      if(model==='llm')args.push('--context',String(policy.context_tokens),'--max-num-seqs',String(policy.concurrency),
-        '--kv-cache-memory-bytes',String(policy.kv_budget_bytes),'--lm-head','bf16','--eager-mode',policy.eager?'on':'off');
-      await this.run(ROOT+'lab',args,{timeout:180000,env:{...process.env,...(cold?{LAB_LLM_RESIDENCY_DISABLE:'1'}:{})},onOutput:output=>report('loading',output,'launcher')});
+      const args=[...this.models[model][0],...(adapter.launchArgs?.(ctx,policy)??[])];
+      await this.run(ROOT+'lab',args,{timeout:180000,env:{...process.env,...(adapter.launchEnv?.(ctx,{cold})??{})},onOutput:output=>report('loading',output,'launcher')});
       report('health-check','等待目标引擎健康检查通过');
-      while(!await this.ready(model)){if(clock()>=deadline)throw new Error('Model startup timeout; inspect worker logs');if(model==='llm'&&await this.labelled()&&!['running','created'].includes(await this.run('docker',['inspect','--format','{{.State.Status}}','paiton-qwen38'])))throw new Error('Resident LLM exited during startup');await pause(2000);}
-      if(model==='llm'){if(await this.llmMode()!==mode)throw new Error('LLM started with an unexpected context or concurrency configuration');}
+      while(!await this.ready(model)){if(clock()>=deadline)throw new Error('Model startup timeout; inspect worker logs');await adapter.startupCheck?.(ctx);await pause(2000);}
+      await adapter.verify?.(ctx,policy);
     };
-    try {await start(false);}catch(e){if(model!=='llm'||!(await this.config()).enabled)throw e;report('loading',`启动失败，重新冷启动：${e.message}`);await this.stop(model);await start(true);}
+    try {await start(false);}catch(e){if(!await adapter.retryCold?.(ctx))throw e;report('loading',`启动失败，重新冷启动：${e.message}`);await this.stop(model);await start(true);}
   }
 }

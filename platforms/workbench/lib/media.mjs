@@ -1,7 +1,7 @@
 import {randomUUID,createHash} from 'node:crypto';
 import {readFile,mkdir,writeFile} from 'node:fs/promises';
 import {ROOT,call} from './backend.mjs';
-import {TOPOLOGY} from './runtime-topology.mjs';
+import {comfyBase} from './runtime-topology.mjs';
 import {pause} from './core.mjs';
 import {decodeReference,h3ReferenceOptions,prepareH3Videos,H3_REFERENCE_LIMITS} from './h3-references.mjs';
 export {H3_REFERENCE_LIMITS};
@@ -89,7 +89,7 @@ export function videoOutputFiles(entry) {
 }
 export async function video(model,body,{preparedVideos,onSubmitted,outputDirectory}={}) {
   validateVideoRequest(model,body);
-  const started=performance.now(),base='http://127.0.0.1:'+TOPOLOGY.runtimes.comfy.port;
+  const started=performance.now(),base=comfyBase();if(!base)throw Object.assign(new Error('ComfyUI runtime is not enabled'),{code:'NOT_SUBMITTED'});
   const h3=await beforeSubmission(()=>buildH3Graph(body,{preparedVideos,uploadImage:encoded=>upload(base,encoded),uploadVideo:bytes=>uploadFile(base,bytes,'mp4','video/mp4')})),graph=h3.graph;
   const pid=await submitPrompt(call,base,graph);
   await onSubmitted?.({prompt_id:pid,base});

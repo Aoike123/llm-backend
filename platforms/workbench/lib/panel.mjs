@@ -1,16 +1,17 @@
-export const SERVICES=[
-  {id:'llm',name:'Qwen',version:'3.8 · 27B',description:'W3A4 · 文本与视觉推理',kind:'语言与视觉',type:'language',accent:'#b8a3ff',symbol:'Q'},
-  {id:'flux',name:'FLUX',version:'2 · klein',description:'图像生成 · Paiton / Diffusers',kind:'图像生成',type:'image',accent:'#d8be8f',symbol:'F'},
-  {id:'qwen-image',name:'Qwen-Image',version:'2.1',description:'图像生成与编辑',kind:'图像生成',type:'image',accent:'#9fd4c1',symbol:'I'},
-  {id:'h3',name:'ComfyUI',version:'',description:'视频生成 · H3 原生工作流',kind:'原生工作流',type:'video',accent:'#8cbede',symbol:'C'},
-];
+// Console services come from the gateway's engine registry (/data → services); the page calls
+// setServices with each snapshot, and every importer sees the live binding.
+export let SERVICES=[];
+export function setServices(list){if(Array.isArray(list))SERVICES=list;return SERVICES;}
+export const serviceOf=id=>SERVICES.find(s=>s.id===id)??null;
+// Section labels by engine category, for headings and empty states.
+export const TYPE_LABEL={language:{eyebrow:'LANGUAGE',noun:'对话'},image:{eyebrow:'IMAGE',noun:'图像'},video:{eyebrow:'VIDEO',noun:'视频'},audio:{eyebrow:'AUDIO',noun:'音频'}};
 export const serviceName=id=>SERVICES.find(s=>s.id===id)?.name??'待机';
 export const cleanLogOutput=text=>(text??'').replace(/\x1b\[[0-?]*[ -/]*[@-~]/g,'').replace(/\r\n?/g,'\n');
 export const fmt=(v,d=1)=>v==null||!Number.isFinite(v)?'—':v.toLocaleString('zh-CN',{maximumFractionDigits:d});
 export const clock=t=>Number.isFinite(t)?new Date(t*1000).toLocaleTimeString('zh-CN',{hour12:false,hour:'2-digit',minute:'2-digit',second:'2-digit',timeZone:'Asia/Shanghai'}):'—';
 export function serviceState(data,model){
   if(!data)return 'loading';
-  if(model==='h3'&&data.comfyui?.available&&!data.switching)return data.comfyui.running.length?'busy':'ready';
+  if(serviceOf(model)?.panel==='comfy'&&data.comfyui?.available&&!data.switching)return data.comfyui.running.length?'busy':'ready';
   if(data.switching_target===model||(model==='llm'&&data.pending_llm_mode))return 'switching';
   if(data.current_model===model&&!data.switching)return data.active>0?'busy':'ready';
   return 'inactive';

@@ -11,12 +11,12 @@ const LOCAL='local';
 // release, cancel, load finished, key change); a 1 s tick only reclaims
 // expired leases.
 export class Coordinator {
-  constructor(backend, {clock = () => performance.now()/1000, leaseSeconds = 120, sharedLimit = 8, engineScheduling = {}, sharedEngines = topologySharedEngines(), keys = null} = {}) {
+  constructor(backend, {clock = () => performance.now()/1000, leaseSeconds = 120, sharedLimit = 8, engineScheduling = {}, sharedEngines = null, keys = null} = {}) {
     this.scheduling=new EngineScheduling(engineScheduling);
     Object.assign(this, {backend, clock, leaseSeconds, sharedLimit, sharedEngines, keys, selectedLlmMode:'long',policy:servingPolicy('long'), pendingLlmMode:null, modeSwitch:null, engineSwitch:null, queue: [], owner: null, switching: false, target: null, current: null, error: null, waiters:[], pumping:null, again:false, tick:null});
   }
   capacity(model) {
-    return model==='llm'?Math.min(this.sharedLimit,this.policy.concurrency):(this.sharedEngines[model]??1);
+    return model==='llm'?Math.min(this.sharedLimit,this.policy.concurrency):((this.sharedEngines??topologySharedEngines())[model]??1);
   }
   selectWaitingRequest(requests) {
     return this.scheduling.choose(requests,this.target??this.current,this.clock()).request;
@@ -146,7 +146,7 @@ export class Coordinator {
   }
   async acquire(model, {timeout = 900, profileId = 'qwen38-27b-w3a4-192k', key = LOCAL, exclusive = false, switchRequest = false, signal, enqueuedAt = this.clock()} = {}) {
     this.assertAcceptingRequests();
-    if (!Object.hasOwn(this.backend.models, model)) return Promise.reject(new Error('Unknown model'));
+    if (!Object.hasOwn(this.backend.models, model)) return Promise.reject(Object.assign(new Error('Unknown or disabled engine: '+model),{code:'ENGINE_UNAVAILABLE'}));
     const profile=model==='llm'?this.requestProfile(profileId):null;
     if(model==='llm'&&!profile)return Promise.reject(new Error('Unknown LLM profile'));
     if(signal?.aborted)return Promise.reject(new ApiError('CLIENT_REQUEST_CANCELLED'));
@@ -218,7 +218,7 @@ export class Coordinator {
         this.owner = {model, exclusive:request.exclusive, mode:request.profile?.mode, tokens: new Map(), slots:new Map(),reservations:new Map(),keys:new Map()};
         this.settle(request,null,this.ticket(request));
       }
-    } catch (e) { if(track)this.engineProgress('error',e.message);this.error = e.message; this.current = null; this.settle(request,e); }
+    } catch (e) { if(track)this.engineProgress('error',e.message);this.error = e.message; this.current = null; e.code??='ENGINE_UNAVAILABLE'; this.settle(request,e); }
     finally { this.switching = false; this.target = null; }
   }
   startTick() {

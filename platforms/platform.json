@@ -1,0 +1,8 @@
+{
+  "mode": "single-gpu-demand-switching",
+  "gateway_port": 18982,
+  "management_port": 13000,
+  "control_port": 18990,
+  "state_file": "workspace/config/platform-state.json",
+  "next_dist": ".next-workbench"
+}

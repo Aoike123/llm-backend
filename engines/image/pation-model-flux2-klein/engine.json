@@ -9,5 +9,54 @@
   "outputs": "workspace/outputs/image/flux2",
   "reports": "workspace/reports/image/flux2",
   "deployment_id": "pation-model-flux2-klein",
-  "backend": "Paiton / Diffusers"
+  "backend": "Paiton / Diffusers",
+  "platform": {
+    "engine": "flux",
+    "default_enabled": true,
+    "adapter": "adapter.mjs",
+    "runtime": {
+      "id": "flux",
+      "name": "FLUX · Paiton / Diffusers",
+      "port": 7861,
+      "container": "paiton-flux2-paiton-1",
+      "launch": [
+        "pation-model-flux2-klein",
+        "start"
+      ],
+      "extra_containers": [
+        "paiton-flux2-stock-1"
+      ]
+    },
+    "ui": {
+      "name": "FLUX",
+      "version": "2 · klein",
+      "full_name": "FLUX.2 · klein",
+      "description": "图像生成 · Paiton / Diffusers",
+      "kind": "图像生成",
+      "accent": "#d8be8f",
+      "symbol": "F",
+      "panel": "media",
+      "log_name": "FLUX / Paiton",
+      "summary": "文本生成图像 · Paiton / Diffusers 引擎"
+    },
+    "models": [
+      {
+        "id": "flux2-klein",
+        "priority": 20,
+        "capabilities": [
+          "image.generate"
+        ],
+        "info": {
+          "tasks": [
+            "text-to-image"
+          ],
+          "engines": [
+            "paiton",
+            "stock"
+          ],
+          "size": "backend native"
+        }
+      }
+    ]
+  }
 }
