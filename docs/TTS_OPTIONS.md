@@ -1,6 +1,6 @@
 # 语音合成（TTS）在 ROCm 上的选型调研
 
-更新：2026-10-23。状态：**已结案**。2026-10 已接入 CosyVoice 3（RL checkpoint），见 [引擎目录](ENGINES.md) 与 [媒体 MCP](MEDIA_MCP.md) 的 `generate_audio`；以下为当时的选型记录，文中 CosyVoice 2 的结论由 3 代替。目标硬件：Radeon AI PRO R9700（gfx1201，32 GB），宿主 ROCm 10.1，容器内 PyTorch `2.12.0+rocm10.0.0`、torchaudio `2.11.0+rocm10.0.0`。
+更新：2026-11-02。状态：**已结案**。2026-10 曾接入 CosyVoice 3（RL checkpoint），2026-11 下线并移除网关 `generate_audio` 与控制台入口，改评估 Fish Audio Drama 3（audio.cpp GGUF）与 S2-Pro；以下为当时的选型记录。目标硬件：Radeon AI PRO R9700（gfx1201，32 GB），宿主 ROCm 10.1，容器内 PyTorch `2.12.0+rocm10.0.0`、torchaudio `2.11.0+rocm10.0.0`。
 
 ## 结论
 

@@ -22,7 +22,6 @@ MCP 客户端 ──stdio──> platforms/mcp/server.mjs ──HTTP 18982 + Bea
 | 18990 | 控制面 | 仅本机 JSON 客户端；拒绝浏览器 Origin；只接受 POST 的租约接口 |
 | 8188 | 独立容器 | ComfyUI 原生队列与执行（不在 Node 进程内） |
 | 18984 | 独立容器 | CPU 视觉编码（LLM 图片输入） |
-| 18986 | 独立容器（按需） | CosyVoice 3 语音合成，仅网关媒体任务调用 |
 | 19090 / 19100 / 19101 | 监控容器 | Prometheus / node-exporter / GPU 采集器 |
 
 ## 二、API 层
@@ -50,7 +49,7 @@ MCP 客户端 ──stdio──> platforms/mcp/server.mjs ──HTTP 18982 + Bea
 | --- | --- | --- |
 | GET | `/v1/media/jobs` | 当前身份的持久任务，分页上限 100 |
 | GET | `/v1/media/jobs/{job_id}?wait_seconds=` | 查询，短等待 0–20 秒 |
-| POST | `/v1/media/jobs/{job_id}/cancel` | 排队中立即取消；ComfyUI 视频任务运行中按 prompt_id 中断，ComfyUI 停止后变为 `cancelled`；图像/语音请求开始后不可中断。以 `cancellable` 为准 |
+| POST | `/v1/media/jobs/{job_id}/cancel` | 排队中立即取消；ComfyUI 视频任务运行中按 prompt_id 中断，ComfyUI 停止后变为 `cancelled`；图像请求开始后不可中断。以 `cancellable` 为准 |
 | GET | `/v1/media/artifacts/{artifact_id}` | 作品元数据与本机路径 |
 | GET | `/v1/media/artifacts/{artifact_id}/content` | 二进制下载 |
 
@@ -68,15 +67,14 @@ MCP 客户端 ──stdio──> platforms/mcp/server.mjs ──HTTP 18982 + Bea
 
 - 传输：stdio。客户端按 `~/.config/llm-backend/media-mcp.json` 启动 `lab mcp stdio`；
 - 配置项：`base`（默认 `http://127.0.0.1:18982`）、`api_key`、`telemetry_token`、`import_roots`、`download_roots`；可用 `MEDIA_GATEWAY_URL`、`MEDIA_API_KEY`、`MEDIA_MCP_CONFIG`、`MEDIA_IMPORT_ROOTS`、`MEDIA_DOWNLOAD_ROOTS` 覆盖；
-- 工具面 **11 个**，其中生成类 **4 个**（图/编辑/视频/语音）。
+- 工具面 **10 个**，其中生成类 **3 个**（图/编辑/视频）。
 
 | 工具 | 类型 | 对应 HTTP |
 | --- | --- | --- |
 | `generate_image` | 生成 | `POST /v1/media/jobs`（tool=generate_image） |
 | `edit_image` | 生成 | `POST /v1/media/jobs`（tool=edit_image） |
 | `generate_video` | 生成 | `POST /v1/media/jobs`（tool=generate_video，H3 原版工作流） |
-| `generate_audio` | 生成 | `POST /v1/media/jobs`（tool=generate_audio，CosyVoice 3 RL，支持 `[shan4]` 拼音；`speed` 必填，无 `reference_text` 时走 cross-lingual） |
-| `list_media_models` | 目录 | 本地返回图像/语音模型与视频工作流清单，不加载模型 |
+| `list_media_models` | 目录 | 本地返回图像模型与视频工作流清单，不加载模型 |
 | `import_media` | 素材 | `POST /v1/media/assets`；可读资源盘 `Assets`、`Project`、工作区与追加的 `import_roots` |
 | `get_job` | 任务 | `GET /v1/media/jobs/{id}?wait_seconds=` |
 | `list_jobs` | 任务 | `GET /v1/media/jobs` |
@@ -159,7 +157,7 @@ MCP 页 ─ 作品 ───────────→ /api/mcp/artifacts/{id}�
 
 - 视频工具由 `run_goldfish_workflow` 统一为 `generate_video`（旧名兼容）；
 - 新增 `download_artifact` 与下载根限制；
-- MCP 工具从 9 个增加到 10 个，生成类固定为 3 个；2026-10 新增 `generate_audio`，共 11 个、生成类 4 个；
+- MCP 工具从 9 个增加到 10 个，生成类固定为 3 个；2026-10 新增 `generate_audio`，共 11 个、生成类 4 个；2026-11 随 CosyVoice 下线移除，回到 10 个、生成类 3 个；
 - 控制台 MCP 页加入调用规范与工具分组，API 页按“生成 4 / 素材 / 任务 / 作品”重排；
 - 文档同步更新 [媒体 MCP](MEDIA_MCP.md)、[API 参考](CURRENT_API.md)、[运行模式](RUNTIME_TOPOLOGY.md)、[项目现状](PROJECT_STATUS.md)。
 

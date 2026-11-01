@@ -12,7 +12,6 @@
 | 图像 | [Qwen-Image 2.1](../engines/image/pation-model-qwen-image-21/README.md) | 文生图、透明图与编辑通过，保真仍待验收 |
 | 图像 | [FLUX.2 klein](../engines/image/pation-model-flux2-klein/README.md) | Paiton / Stock 文生图通过 |
 | 视频 | [MiniMax H3](../engines/video/pation-model-minimax-h3/README.md) | 文生视频、首帧/首尾帧通过，含音频 |
-| 语音 | [CosyVoice 3 RL](../engines/audio/pation-model-cosyvoice3/engine.json) | 零样本克隆、Instruct、拼音标注通过；RL checkpoint 为默认 |
 | 文本 | [Qwen38 MXFP4](../engines/llm/pation-model-qwen38-27b-mxfp4/README.md) | 入口已登记，未完成验收 |
 | 文本 | [原生 vLLM](../engines/llm/vllm/README.md) / [llama.cpp](../engines/llm/llama-cpp/README.md) / [Strata](../engines/llm/strata/README.md) | 资源或配置已登记，运行环境待接入 |
 
@@ -26,7 +25,6 @@ llm-backend/
 │   ├── llm/                      # Qwen3.8 专用部署及通用引擎
 │   ├── image/                    # FLUX / Qwen-Image
 │   ├── video/                    # MiniMax H3
-│   ├── audio/                    # CosyVoice 3
 │   └── shared/paiton/            # 共用后端源码及控制器
 ├── docs/                         # 使用与评测说明
 ├── workspace/

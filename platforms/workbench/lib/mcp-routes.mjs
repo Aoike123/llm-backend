@@ -131,7 +131,7 @@ export function mcpRoutes(jobs,info,keys,lifecycle){
       }
       if(path==='/v1/media/jobs'&&req.method==='POST'){
         // 32000-character prompts are up to 96 KiB as UTF-8, so the job body needs 128 KiB.
-        const body=await jsonBody(req,131072);if(!['generate_image','edit_image','generate_video','generate_audio','run_goldfish_workflow'].includes(body.tool))throw fail('Invalid generation tool');
+        const body=await jsonBody(req,131072);if(!['generate_image','edit_image','generate_video','run_goldfish_workflow'].includes(body.tool))throw fail('Invalid generation tool');
         return send(res,202,await jobs.create(key.id,body.tool,body.arguments));
       }
       const match=/^\/v1\/media\/jobs\/(job_[a-f0-9]{32})(\/cancel)?$/.exec(path);

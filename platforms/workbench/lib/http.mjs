@@ -10,7 +10,7 @@ import {MODELS as MEDIA_MODELS,runtimeTopology} from './media-manifest.mjs';
 import {pause} from './core.mjs';
 import {monitoring,NAMES} from './monitoring.mjs';
 import {LLM_PROFILES, llmProfile, completionBudget, activeModelId, LLM_REASONING_EFFORTS, LLM_DEFAULT_REASONING_EFFORT, reasoningEffort} from './llm.mjs';
-export const MODELS={...Object.fromEntries(Object.keys(LLM_PROFILES).map(id=>[id,'llm'])),'qwen-image21':'qwen-image','flux2-klein':'flux','minimax-h3':'h3','cosyvoice3-rl':'tts'};
+export const MODELS={...Object.fromEntries(Object.keys(LLM_PROFILES).map(id=>[id,'llm'])),'qwen-image21':'qwen-image','flux2-klein':'flux','minimax-h3':'h3'};
 const localOrigin=origin=>/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin);
 export function send(res,status,data){if(res.destroyed)return;const raw=JSON.stringify(data);res.writeHead(status,{'Content-Type':'application/json; charset=utf-8','Content-Length':Buffer.byteLength(raw),'Cache-Control':'no-store'});res.end(raw);}
 async function body(req,limit){

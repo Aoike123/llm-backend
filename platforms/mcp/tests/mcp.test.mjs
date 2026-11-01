@@ -9,12 +9,8 @@ import {StdioClientTransport} from '@modelcontextprotocol/sdk/client/stdio.js';
 import {TOOLS,validateInput} from '../manifest.mjs';
 import {openImport,importRoots,defaultImportRoots} from '../client.mjs';
 test('strict tool schemas reject unknown fields, bad IDs and unsafe seeds',()=>{
-  assert.equal(TOOLS.length,11);assert.ok(TOOLS.some(t=>t.name==='generate_audio'));assert.ok(TOOLS.some(t=>t.name==='generate_video'));assert.ok(TOOLS.some(t=>t.name==='download_artifact'));assert.throws(()=>validateInput('generate_video_v2',{}),/Unknown media tool/);assert.throws(()=>validateInput('generate_video',{}),/request_id is required/);assert.ok(validateInput('import_media',{path:'/tmp/video.mp4',kind:'video'}));assert.ok(validateInput('import_media',{path:'/tmp/audio.wav',kind:'audio'}));
-  const speech={request_id:'audio-one',text:'你好',reference_asset_id:'asset_voice',reference_text:'参考',speed:1};assert.ok(validateInput('generate_audio',speech));
-  const {speed,...noSpeed}=speech,{reference_text,...zeroShot}=speech;
-  assert.throws(()=>validateInput('generate_audio',noSpeed),/speed is required/);
-  assert.ok(validateInput('generate_audio',zeroShot));
-  assert.ok(validateInput('generate_audio',{...zeroShot,instruct:'新闻播报'}));for(const t of TOOLS)assert.ok(!t.name.includes('workbench'));
+  assert.equal(TOOLS.length,10);assert.ok(!TOOLS.some(t=>t.name==='generate_audio'));assert.ok(TOOLS.some(t=>t.name==='generate_video'));assert.ok(TOOLS.some(t=>t.name==='download_artifact'));assert.throws(()=>validateInput('generate_video_v2',{}),/Unknown media tool/);assert.throws(()=>validateInput('generate_video',{}),/request_id is required/);assert.ok(validateInput('import_media',{path:'/tmp/video.mp4',kind:'video'}));assert.ok(validateInput('import_media',{path:'/tmp/audio.wav',kind:'audio'}));
+  for(const t of TOOLS)assert.ok(!t.name.includes('workbench'));
   assert.throws(()=>validateInput('run_goldfish_workflow',{request_id:'x',prompt:'x',reference_asset_ids:Array(10).fill('a')}),/count/);
   assert.throws(()=>validateInput('run_goldfish_workflow',{request_id:'x',prompt:'x',loras:{combat:{enabled:'yes'}}}),/boolean/);
   assert.throws(()=>validateInput('run_goldfish_workflow',{request_id:'x',prompt:'x',resolution:{megapixels:NaN}}),/invalid/);
@@ -56,9 +52,8 @@ test('official SDK stdio initializes, discovers image tools and Goldfish workflo
   await new Promise(r=>gateway.listen(0,'127.0.0.1',r));t.after(()=>new Promise(r=>gateway.close(r)));
   const transport=new StdioClientTransport({command:process.execPath,args:[new URL('../cli.mjs',import.meta.url).pathname,'stdio'],env:{...process.env,MEDIA_GATEWAY_URL:'http://127.0.0.1:'+gateway.address().port,MEDIA_API_KEY:'test-key',MEDIA_TELEMETRY_TOKEN:'test-token'},stderr:'pipe'});
   let errors='';transport.stderr?.on('data',x=>errors+=x);const client=new Client({name:'integration-test',version:'1.0'});t.after(()=>client.close());await client.connect(transport);
-  const tools=await client.listTools();assert.equal(tools.tools.length,11);const models=await client.callTool({name:'list_media_models',arguments:{}});assert.equal(models.structuredContent.models.length,3);assert.ok(models.structuredContent.models.every(model=>['image','audio'].includes(model.kind)));assert.equal(models.structuredContent.runtime_topology,undefined);assert.equal(models.structuredContent.workflows[0].tool,'generate_video');
+  const tools=await client.listTools();assert.equal(tools.tools.length,10);const models=await client.callTool({name:'list_media_models',arguments:{}});assert.equal(models.structuredContent.models.length,2);assert.ok(models.structuredContent.models.every(model=>model.kind==='image'));assert.equal(models.structuredContent.runtime_topology,undefined);assert.equal(models.structuredContent.workflows[0].tool,'generate_video');
   const accepted=await client.callTool({name:'generate_image',arguments:{request_id:'one',model:'qwen-image21',prompt:'cup'}});assert.equal(accepted.structuredContent.job_id,job.job_id);
-  const speech=await client.callTool({name:'generate_audio',arguments:{request_id:'audio-one',text:'你好[shan4]',reference_asset_id:'asset_voice',reference_text:'参考',speed:1}});assert.equal(speech.structuredContent.job_id,job.job_id);
   const goldfish=await client.callTool({name:'run_goldfish_workflow',arguments:{request_id:'goldfish-one',prompt:'A continuous shot',reference_asset_ids:['asset_a','asset_b','asset_c']}});assert.equal(goldfish.structuredContent.job_id,job.job_id);
   const longPrompt=await client.callTool({name:'run_goldfish_workflow',arguments:{request_id:'goldfish-long',prompt:'字'.repeat(32000)}});assert.notEqual(longPrompt.isError,true);assert.equal(forwardedPrompt,32000);
   const badLift=await client.callTool({name:'run_goldfish_workflow',arguments:{request_id:'goldfish-invalid',prompt:'A continuous shot',sampling:{upscaler_model:'none'}}});assert.equal(badLift.isError,true);assert.match(badLift.content[0].text,/requires sampling\.rho > 0/);

@@ -3,7 +3,6 @@ export const SERVICES=[
   {id:'flux',name:'FLUX',version:'2 · klein',description:'图像生成 · Paiton / Diffusers',kind:'图像生成',type:'image',accent:'#d8be8f',symbol:'F'},
   {id:'qwen-image',name:'Qwen-Image',version:'2.1',description:'图像生成与编辑',kind:'图像生成',type:'image',accent:'#9fd4c1',symbol:'I'},
   {id:'h3',name:'ComfyUI',version:'',description:'视频生成 · H3 原生工作流',kind:'原生工作流',type:'video',accent:'#8cbede',symbol:'C'},
-  {id:'tts',name:'CosyVoice',version:'3 · RL',description:'语音合成 · 零样本克隆 · 拼音标注',kind:'语音合成',type:'audio',accent:'#d9a7a0',symbol:'V'},
 ];
 export const serviceName=id=>SERVICES.find(s=>s.id===id)?.name??'待机';
 export const cleanLogOutput=text=>(text??'').replace(/\x1b\[[0-?]*[ -/]*[@-~]/g,'').replace(/\r\n?/g,'\n');

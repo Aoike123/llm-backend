@@ -101,13 +101,6 @@ export class MediaJobs{
       if(refs.reduce((s,a)=>s+a.width*a.height,0)>4194304)throw fail('Qwen combined reference pixels exceed 4194304');
       if(refs.reduce((s,a)=>s+a.bytes,0)>16*2**20)throw fail('Qwen combined reference files exceed 16 MiB');
     }
-    if(tool==='generate_audio'){
-      const asset=add(input.reference_asset_id,'audio');
-      if(!asset)throw fail('reference_asset_id is required');
-      if(asset.seconds<3||asset.seconds>30)throw fail('参考音频需要 3–30 秒');
-      if(input.text.length>5000)throw fail('音频文本上限 5000 字符');
-      if(input.instruct&&input.instruct.length>500)throw fail('instruct 上限 500 字符');
-    }
     if(tool==='generate_image'){
       if(input.model==='flux2-klein'&&(input.mode!==undefined||input.size!==undefined))throw fail('FLUX does not accept mode or size');
       if(input.model==='qwen-image21'&&input.engine!==undefined)throw fail('Qwen does not accept engine');
@@ -131,7 +124,7 @@ export class MediaJobs{
       if(active.length>=32||active.filter(j=>j.owner_id===owner).length>=8)throw fail('Pending media job quota reached',429);
       if(this.jobs.size>=10000)throw fail('Job history quota reached; archive old jobs',507);
       await this.store.quota(256*2**20*(active.length+1));
-      const model=tool===VIDEO_TOOL?'yz-h3-ultimate-original':tool==='edit_image'?'qwen-image21':tool==='generate_audio'?'cosyvoice3-rl':input.model,info=tool===VIDEO_TOOL?{engine:'h3',kind:'video'}:MODELS.find(m=>m.id===model);
+      const model=tool===VIDEO_TOOL?'yz-h3-ultimate-original':tool==='edit_image'?'qwen-image21':input.model,info=tool===VIDEO_TOOL?{engine:'h3',kind:'video'}:MODELS.find(m=>m.id===model);
       const job={job_id:uid('job'),request_id:input.request_id,owner_id:owner,tool,model,engine:info.engine,kind:info.kind,state:'queued',request:structuredClone(input),fingerprint,created_at:new Date().toISOString(),updated_at:new Date().toISOString(),artifacts:[]};
       if(tool===VIDEO_TOOL){
         let audioOrdinal=0;
@@ -163,11 +156,6 @@ export class MediaJobs{
   }
   async payload(job){
     const input=job.request,d={prompt:input.prompt,seed:input.seed??42};
-    if(job.kind==='audio'){
-      const asset=this.store.getAsset(job.owner_id,input.reference_asset_id,'audio');
-      return {text:input.text,reference_path:asset.file,reference_text:input.reference_text??'',
-              speed:input.speed,seed:input.seed??42,...(input.instruct?{instruct:input.instruct}:{})};
-    }
     const bytes=async(id,kind='image')=>id?readFile(this.store.getAsset(job.owner_id,id,kind).file):undefined;
     if(isVideoTool(job.tool)){
       const groups=[['images','reference_asset_ids','image'],['videos','reference_video_asset_ids','video'],['audios','reference_audio_asset_ids','audio']],payload={...input,workflow:'yz-h3-ultimate-original'};
@@ -210,7 +198,7 @@ export class MediaJobs{
       timer=setInterval(()=>{try{this.coordinator.renew(ticket.token);}catch{}},30000);check();
       await this.serial(async()=>{check();job.state='dispatching';job.recovery_required=true;job.updated_at=new Date().toISOString();await this.persist(job);dispatched=true;});
       // Persist dispatch BEFORE sending. Lost network responses must never trigger an automatic retry.
-      if(job.kind==='image'||job.kind==='audio')await this.change(job,'running');
+      if(job.kind==='image')await this.change(job,'running');
       this.metrics.start(job.engine);counted=true;queue=(performance.now()-started)/1000;
       const result=await this.execute(job.engine,d,{path:job.tool==='edit_image'?'/v1/images/edits':'/v1/images/generations',preparedVideos,outputDirectory:this.store.outputDirectory(job),onSubmitted:async backend=>{await this.change(job,'running',{backend});if(job.cancel_requested_at)await interruptPrompt(backend.base,backend.prompt_id);}});
       // The backend has returned; a bad artifact is a known failure, not an uncertain outcome.
@@ -233,22 +221,12 @@ export class MediaJobs{
   async finish(job,result,timing={}){
     await this.change(job,'saving');const directory=this.store.outputDirectory(job);await mkdir(directory,{recursive:true,mode:0o700});
     let file,mime;
-    if(job.kind==='audio'){
-      const encoded=result.audio_base64;
-      if(typeof encoded!=='string'||encoded.length>64*2**20)throw fail('Invalid generated audio');
-      file=join(directory,'output.wav');
-      const {writeFile,open,chmod}=await import('node:fs/promises');
-      const tmp=file+'.tmp';await writeFile(tmp,Buffer.from(encoded,'base64'));await chmod(tmp,0o600);
-      const fd=await open(tmp,'r');try{await fd.sync();}finally{await fd.close();}
-      await rename(tmp,file);mime='audio/wav';
-    }else if(job.kind==='image'){
+    if(job.kind==='image'){
       const encoded=result.data?.[0]?.b64_json;if(typeof encoded!=='string'||encoded.length>48*2**20)throw fail('Invalid generated image');
       file=join(directory,'output.png');const tmp=file+'.tmp';await sharp(Buffer.from(encoded,'base64'),{limitInputPixels:16777216}).png().toFile(tmp);const {open,chmod}=await import('node:fs/promises');await chmod(tmp,0o600);const fd=await open(tmp,'r');try{await fd.sync();}finally{await fd.close();}await rename(tmp,file);mime='image/png';
     }else{file=result.data?.[0]?.local_path;if(file!==join(directory,'output.mp4'))throw fail('Invalid video artifact path');mime='video/mp4';}
     let media;
-    if(job.kind==='audio'){
-      media={duration_seconds:result.duration_seconds??null,sample_rate:result.sample_rate??24000,rtf:result.rtf??null};
-    }else if(job.kind==='image'){const m=await sharp(file).metadata();media={width:m.width,height:m.height,has_alpha:!!m.hasAlpha};}
+    if(job.kind==='image'){const m=await sharp(file).metadata();media={width:m.width,height:m.height,has_alpha:!!m.hasAlpha};}
     else{
       const {execFile}=await import('node:child_process'),{promisify}=await import('node:util');
       const probe=JSON.parse((await promisify(execFile)('ffprobe',['-v','error','-protocol_whitelist','file,pipe','-show_streams','-show_format','-of','json',file],{timeout:30000,maxBuffer:2**20})).stdout);
@@ -262,7 +240,6 @@ export class MediaJobs{
     if(isVideoTool(job.tool))Object.assign(effective,{workflow:'yz-h3-ultimate-original',seed:input.seed??GOLDFISH_SEED,reference_mapping:job.reference_mapping,controls:{loras:input.loras??{},sampling:input.sampling??{},optimizations:input.optimizations??{},resolution:input.resolution??{},output:input.output??{}},duration_seconds:input.duration_seconds??10,frames:goldfishFrames(input.duration_seconds??10),width:media.width,height:media.height});
     else if(job.engine==='h3'){const frames=input.frames??124;Object.assign(effective,{width:input.width??864,height:input.height??480,frames,preset:input.preset??(reference?'reference':'turbo8'),effective_frames:reference?frames+((5-frames%17+17)%17):frames,fps:24});}
     if(job.engine==='qwen-image')Object.assign(effective,{size:input.size??'1024x1024',mode:job.tool==='edit_image'?'edit':input.mode??'text-to-image',steps:40,guidance_scale:1});
-    if(job.engine==='tts')Object.assign(effective,{speed:input.speed??1});
     if(job.kind==='video')Object.assign(effective,{width:media.width,height:media.height,fps:media.fps,effective_frames:media.frames??effective.effective_frames??effective.frames});
     await this.change(job,'succeeded',{artifacts:[artifact],effective_parameters:effective,metrics:{...result.metrics,...timing},finished_at:new Date().toISOString()});
   }

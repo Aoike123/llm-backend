@@ -6,7 +6,6 @@ import {video,beforeSubmission} from './media.mjs';
 const answered=async request=>{try{return await request();}catch(e){if(e.status)e.code='BACKEND_FAILED';throw e;}};
 export async function executeMedia(model,d,{path='/v1/images/generations',preparedVideos,onSubmitted,outputDirectory}={}){
   if(d.workflow==='yz-h3-ultimate-original')return runGoldfish(d,{onSubmitted,outputDirectory,preparedVideos});
-  if(model==='tts')return answered(()=>call('http://127.0.0.1:18986','/v1/audio/speech',d,1800000));
   if(model==='qwen-image'){
     const {model:_,...payload}=d;return answered(()=>call('http://127.0.0.1:8191',path,payload,1800000));
   }

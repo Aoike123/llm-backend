@@ -22,7 +22,7 @@ export async function start(){
       try{return await request(config,'/v1/media/assets?kind='+input.kind,{method:'POST',headers:{'Content-Type':'application/octet-stream'},body:fd.createReadStream({autoClose:false}),timeout:120000});}finally{await fd.close();}
     }
     if(name==='download_artifact')return downloadArtifact(config,input.artifact_id,input.path);
-    if(['generate_image','edit_image','generate_video','generate_audio','run_goldfish_workflow'].includes(name))return request(config,'/v1/media/jobs',{method:'POST',body:JSON.stringify({tool:name==='run_goldfish_workflow'?'generate_video':name,arguments:input})});
+    if(['generate_image','edit_image','generate_video','run_goldfish_workflow'].includes(name))return request(config,'/v1/media/jobs',{method:'POST',body:JSON.stringify({tool:name==='run_goldfish_workflow'?'generate_video':name,arguments:input})});
     if(name==='get_job')return request(config,'/v1/media/jobs/'+input.job_id+'?wait_seconds='+(input.wait_seconds??0));
     if(name==='list_jobs')return request(config,'/v1/media/jobs?'+new URLSearchParams(input));
     if(name==='cancel_job')return request(config,'/v1/media/jobs/'+input.job_id+'/cancel',{method:'POST'});

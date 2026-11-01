@@ -67,7 +67,6 @@ export class Backend {
       }
       if(runtimeFor(model)==='comfy'){const q=await call(base,'/queue');return q.queue_running.length===0&&q.queue_pending.length===0;}
       if(model==='qwen-image')return (await call(base,'/health')).busy===false;
-      if(model==='tts')return (await call(base,'/health')).busy!==true;
       return (await Promise.all([7861,7862].map(p=>call('http://127.0.0.1:'+p,'/health')))).every(r=>r.ready===true);
     }catch{return false;}
   }
@@ -77,7 +76,6 @@ export class Backend {
       if(model==='llm'){if(await this.sleeping())return false;return (await fetch(base+'/health',{signal:AbortSignal.timeout(5000)})).ok;}
       if(runtimeFor(model)==='comfy'){await call(base,'/system_stats');return true;}
       if(model==='qwen-image')return (await call(base,'/health')).status==='ready';
-      if(model==='tts')return (await call(base,'/health')).ok===true;
       return (await Promise.all([7861,7862].map(p=>call('http://127.0.0.1:'+p,'/health')))).every(r=>r.ready===true);
     }catch{return false;}
   }
@@ -171,7 +169,7 @@ export class Backend {
   async engineLogs(model='llm',{since,includeProbes=false}={}) {
     const entry=this.models[model];
     if(!entry)return {model:null,engine:null,containers:[],output:'当前没有运行中的模型，等待任务。',available:false};
-    let engine={llm:'vLLM','qwen-image':'Qwen-Image',h3:'ComfyUI',flux:'FLUX / Paiton',tts:'CosyVoice'}[model];
+    let engine={llm:'vLLM','qwen-image':'Qwen-Image',h3:'ComfyUI',flux:'FLUX / Paiton'}[model];
     let containers=[entry[2]];
     if(model==='flux'){
       try{const rows=await this.rows();const active=['paiton-flux2-paiton-1','paiton-flux2-stock-1'].filter(name=>rows.includes(name));if(active.length)containers=active;engine=containers.includes('paiton-flux2-stock-1')?(containers.length>1?'FLUX / Paiton + Diffusers':'FLUX / Diffusers'):'FLUX / Paiton';}catch{}

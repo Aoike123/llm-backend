@@ -61,13 +61,13 @@
 | 文档 | 状态 |
 |---|---|
 | [上下文分层存储](CONTEXT_TIERING_DESIGN.md) | 研究方案，未实施活动 KV 卸载 |
-| [本机媒体 MCP](MEDIA_MCP.md) | stdio 接入、11 个媒体与任务工具（含语音）、家目录存储、Workbench 信息页 |
+| [本机媒体 MCP](MEDIA_MCP.md) | stdio 接入、10 个媒体与任务工具、家目录存储、Workbench 信息页 |
 | [媒体 MCP 设计](MEDIA_MCP_PLAN.md) | 架构方案与后续远程阶段 |
 | [H3 混合参考可行性](H3_REFERENCE_FEASIBILITY.md) | Ref2VA调研与2026-10-19接入：公共API、原生模板、9图+3视频及动态卸载验证 |
 | [本机初始选型](DEVICE_PLAN.md) | 2026-10-11 的选型快照，部署状态已由项目现状更新 |
 | [虚拟主播与数字人](DIGITAL_HUMAN.md) | 2026-10-19 调研：AI 主播、写实数字人、全身跳舞三条路线的技术栈、AMD 可行性、推流链路与落地顺序；未接入本机服务 |
 | [ROCm 10.1 升级记录](rocm101-upgrade.md) | 宿主与容器迁移过程及当轮验证结果 |
-| [TTS 选型调研](TTS_OPTIONS.md) | ROCm 下的 TTS 选型记录；已接入 CosyVoice 3 RL |
+| [TTS 选型调研](TTS_OPTIONS.md) | ROCm 下的 TTS 选型记录；CosyVoice 3 已于 2026-11 下线 |
 
 ## 维护约定
 

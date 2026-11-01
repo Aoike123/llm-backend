@@ -52,19 +52,6 @@
       "engines": [
         "flux"
       ]
-    },
-    "tts": {
-      "name": "CosyVoice 3 · RL",
-      "port": 18986,
-      "container": "paiton-tts",
-      "concurrency": 3,
-      "launch": [
-        "pation-model-cosyvoice3",
-        "start"
-      ],
-      "engines": [
-        "tts"
-      ]
     }
   }
 }

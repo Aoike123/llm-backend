@@ -43,9 +43,8 @@ Next.js 与调度共用进程，异常自动重启；ComfyUI 与监控的 onesho
 | qwen-image / qwen-image21 | pation-model-qwen-image-21 | paiton-qwen-image21 | 8191 |
 | flux / flux2-klein | pation-model-flux2-klein | paiton-flux2-paiton-1、paiton-flux2-stock-1 | 7861 / 7862 |
 | h3 / minimax-h3 | pation-model-minimax-h3 | paiton-h3-comfyui-1 | 8188 |
-| tts / cosyvoice3-rl | pation-model-cosyvoice3 | paiton-tts | 18986 |
 
-这些服务按需运行，不全部开机加载。单卡调度选择一个部署；FLUX 部署内含两种实现，生成按请求选择。H3 的画布和视频 API 使用同一个原生 ComfyUI 进程；语音复用 CPU 视觉的 ROCm 镜像，仅通过 MCP 持久任务调用；Wan 已下线。FLUX 启动只带 API 工作服务，不启动供应商 8189 界面。
+这些服务按需运行，不全部开机加载。单卡调度选择一个部署；FLUX 部署内含两种实现，生成按请求选择。H3 的画布和视频 API 使用同一个原生 ComfyUI 进程；Wan 与 CosyVoice 语音已下线。FLUX 启动只带 API 工作服务，不启动供应商 8189 界面。
 
 CPU 权重驻留未通过完整模型验收，`platforms/scheduler/residency.json` 保持关闭。完整 LLM 睡眠启动尚有 ROCm 分配器兼容问题，日常服务继续冷切换；详见 [测试结果与限制](MODEL_SCHEDULING.md#内存驻留与重载)。
 
