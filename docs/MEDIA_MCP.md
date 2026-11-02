@@ -36,9 +36,9 @@
 | 工具 | 用途 |
 | --- | --- |
 | `generate_image` | 生图；带 `reference_asset_ids` 时为图片编辑（1–4 张参考图）。默认主推 Qwen-Image，Anima 降级 |
-| `generate_video` | H3 视频生成（原版工作流），可选图像/视频/音频参考及原版开关，原生 ComfyUI 执行 |
+| `generate_video` | H3 视频生成（原版工作流），可选图像/视频/音频参考，原生 ComfyUI 执行。首帧、首尾帧和图预设只在同步 API `/v1/videos/generations` 上提供 |
 | `generate_audio` | `task=speech` 语音合成与声音克隆（Drama 3，最多 4 个参考音色，参考文本可自动识别）；`task=separate` 人声分离（BS-RoFormer，产出 vocals / instrumental）；`task=transcribe` 语音识别（Qwen3-ASR） |
-| `list_media_models` | 列出已启用的能力、每种能力的主推与降级，以及各模型参数；不启动模型 |
+| `list_media_models` | 列出已启用的能力、每种能力的主推与降级，以及各模型参数名；带 `model` 时返回该模型每个参数的完整定义（含工具里折叠的高级参数）。不启动模型 |
 | `import_media` | 导入工作区或允许目录内的图像 / 视频 / 音频（音频最长 30 分钟，可直接给视频取音轨），返回 asset_id |
 | `get_job` | 查询自己的任务，可短等待最多 20 秒；不带 `job_id` 时按 `offset` / `limit` 列出任务 |
 | `cancel_job` | 排队中立即取消；可中断的后端（ComfyUI）运行中也能中断，其他后端开始后自行完成 |
@@ -51,6 +51,16 @@
 `prompt` 最长 **32000 字符**（Qwen 图片最长 4000 字符，2.1 管线不做截断），超长在创建任务前拒绝，并返回实际长度；金鱼提示词由原生节点完整编码（本地 tokenizer 未设截断），长度主要影响耗时与显存。任务请求体上限 128 KiB，MCP stdio 帧上限 256 KiB，均按 32000 字符的 UTF-8 体积留有余量。
 
 
+## 工具定义的体积
+
+客户端每次会话都要把工具定义读进上下文，所以平台尽量让它短：
+
+- **只有必填的才必须写**：生图和视频只要 `request_id`、`prompt`，音频只要 `request_id` 加对应输入；`model` 省略即走主推和降级链。
+- **高级参数折叠**：引擎可以在 adapter 里把专家参数标为 `advanced`。工具列表里它们只剩一行说明（省略即用默认值），完整字段用 `list_media_models {"model": "<id>"}` 查看。网关创建任务时仍按完整定义严格校验，写错照样在提交前被拒绝。目前 H3 的 `reference_slots`、`loras`、`resolution`、`sampling`、`optimizations`、`output` 是折叠的。
+- **只给 MCP 能用的信息**：只属于同步 API 的内容（H3 的首帧、首尾帧和图预设，各能力的同步路径）放在 `sync_api` 里，不进入 MCP 目录。
+
+2026-11-02 实测（`tools/list` 的 JSON 字符数）：合计 18,184 → 12,992（−29%），其中 `generate_video` 9,227 → 3,693（−60%）；`list_media_models` 概览约 3,900，查看 H3 完整参数约 8,000。
+
 ## 调用规范
 
 - 先调用 `list_media_models` 查看当前运行引擎，能满足需求就复用，不要为单个任务切换；
@@ -61,7 +71,7 @@
 
 ## 图像任务
 
-1. 用 `generate_image` 提交 `request_id`、`model`、`prompt`。
+1. 用 `generate_image` 提交 `request_id` 和 `prompt`。不写 `model` 就走主推，主推起不来时按降级顺序换引擎；点名模型则固定用它、不降级。
 2. 用 `get_job` 等待 `succeeded`；返回任务不等于完成生成。
 3. 用 `get_artifact` 获取本机作品路径。
 4. 编辑时先 `import_media` 导入图片，再用 `generate_image` 带 `reference_asset_ids` 提交。

@@ -10,14 +10,21 @@ export {runtimeTopology};
 async function adapterFor(model){return registry.adapter(model.engine);}
 // Parameters a model accepts beyond the capability's base ones.
 async function paramsOf(model,capability){return (await adapterFor(model))?.params?.[capability]?.(model)??{};}
+// Expert parameters an adapter keeps out of the tool list (the gateway still validates them).
+async function advancedOf(model,capability){return new Set((await adapterFor(model))?.advanced?.[capability]??[]);}
+// Collapsed form of an advanced object: no fields listed, so clients pay for one line, not the tree.
+function collapse(key,schema,models){
+  const text=schema.description?.replace(/[。.]$/,''),what=text?text+(/[\u4e00-\u9fff]$/.test(text)?'。':'. '):'';
+  return {type:'object',description:what+'Advanced, optional; omit for the defaults. Fields: list_media_models {"model":"'+models.join('" / "')+'"}.'};
+}
 
 // Media models (chat models are listed by /v1/models), each with its extra parameters.
 export async function mediaModels(){
   const rows=[];
   for(const model of registry.models().filter(m=>m.capabilities.some(c=>CAPABILITIES[c]))){
-    const capabilities=model.capabilities.filter(c=>CAPABILITIES[c]),parameters={};
-    for(const c of capabilities)parameters[CAPABILITIES[c].group+(CAPABILITIES[c].task?'#'+CAPABILITIES[c].task:'')]=Object.keys(await paramsOf(model,c));
-    rows.push({id:model.id,engine:model.engine,kind:model.kind,...model.info,capabilities,parameters,
+    const capabilities=model.capabilities.filter(c=>CAPABILITIES[c]),parameters={},parameter_schemas={};
+    for(const c of capabilities){const key=CAPABILITIES[c].group+(CAPABILITIES[c].task?'#'+CAPABILITIES[c].task:''),params=await paramsOf(model,c);parameters[key]=Object.keys(params);parameter_schemas[key]=params;}
+    rows.push({id:model.id,engine:model.engine,kind:model.kind,...model.info,capabilities,parameters,parameter_schemas,
       ...((await adapterFor(model))?.describe?.(model)??{}),execution_runtime:runtimeFor(model.engine)});
   }
   return rows;
@@ -27,22 +34,23 @@ export function routes(){
 }
 // The strict schema of one capability: its base fields, every enabled model's parameters and model.
 export async function capabilityTool(capability){
-  const c=CAPABILITIES[capability],route=registry.routing(capability),properties={...c.base},notes=[];
+  const c=CAPABILITIES[capability],route=registry.routing(capability),properties={...c.base},notes=[],advanced=new Map();
   for(const modelId of [route.primary,...route.fallbacks,...route.providers.filter(p=>p!==route.primary&&!route.fallbacks.includes(p))]){
     const model=registry.model(modelId),params=await paramsOf(model,capability);
     for(const [key,schema] of Object.entries(params))properties[key]??=schema;
+    for(const key of await advancedOf(model,capability))advanced.set(key,[...(advanced.get(key)??[]),modelId]);
     const note=(await adapterFor(model))?.notes?.[capability]?.(model);
     notes.push(modelId+(modelId===route.primary?' (primary)':'')+(Object.keys(params).length?': '+Object.keys(params).join(', '):'')+(note?' — '+note:''));
   }
   properties.model={...choice(['auto',...route.providers],'auto'),description:'auto uses the primary model and, if it cannot start, the fallbacks in order. Naming a model pins it and disables fallback.'};
-  return {name:c.tool,description:c.description+'. Models: '+notes.join('; ')+'.',inputSchema:object(properties,c.required),example:c.example,capability,notes};
+  return {name:c.tool,description:c.description+'. Models: '+notes.join('; ')+'.',inputSchema:object(properties,c.required),example:c.example,capability,notes,advanced};
 }
 // A group tool merges its enabled capabilities: the union of their fields, the fields all of them
 // require, and task to choose between them.
 async function groupTool(group,enabled){
   const members=[];for(const capability of enabled)members.push({capability,c:CAPABILITIES[capability],tool:await capabilityTool(capability)});
   const properties={},models=new Set();
-  for(const {tool} of members)for(const [key,schema] of Object.entries(tool.inputSchema.properties))if(key!=='model')properties[key]??=schema;
+  for(const {tool} of members)for(const [key,schema] of Object.entries(tool.inputSchema.properties))if(key!=='model')properties[key]??=tool.advanced.has(key)?collapse(key,schema,tool.advanced.get(key)):schema;
   for(const {tool} of members)for(const id of tool.inputSchema.properties.model.enum)models.add(id);
   if(members.length>1)properties.task={...choice(members.map(m=>m.c.task)),description:members.map(m=>m.c.task+': '+m.c.description).join('; ')+(members.some(m=>m.c.infer)?'. Omitted: inferred from the inputs.':'. Omitted: '+members[0].c.task+'.')};
   properties.model={...choice([...models],'auto'),description:'auto uses the primary model of the task and, if it cannot start, the fallbacks in order. Naming a model pins it and disables fallback.'};
@@ -56,7 +64,8 @@ export async function tools(){
   // Keep the catalog order stable: generation tools first, then directory, jobs and artifacts.
   return [...generated,...COMMON_TOOLS];
 }
-export async function catalog(){return {...ID,tools:await tools(),models:await mediaModels(),capabilities:routes(),workflows:await workflows()};}
+// The MCP view: sync-API-only facts stay out; full parameter schemas are given per model on request.
+export async function catalog(){return {...ID,tools:await tools(),models:(await mediaModels()).map(({sync_api,...model})=>model),capabilities:routes().map(({sync,...route})=>route),workflows:await workflows()};}
 export async function workflows(){
   const rows=[];for(const model of registry.models())rows.push(...((await adapterFor(model))?.workflows??[]));return rows;
 }

@@ -16,7 +16,11 @@ export default {
   // A ComfyUI prompt can be interrupted by prompt_id; canvas work is never touched.
   interrupt,
   workflows:[{id:GOLDFISH_ID,name:'H3 视频生成（原版工作流）',tool:'generate_video',execution_runtime:'comfy',reference_images:9,reference_videos:3,reference_audios:3,controls:['参考组与槽位','六层 LoRA 开关与强度','SelfLift 采样','画幅与分辨率','显存优化与预览','音视频输出']}],
-  describe:()=>({reference_limits:H3_REFERENCE_LIMITS,reference_presets:['reference','reference-turbo4']}),
+  // Durable jobs (and MCP) run the Goldfish workflow; first/last-frame and the graph presets exist
+  // only on the synchronous /v1/videos/generations API, so they are listed apart.
+  describe:()=>({reference_limits:H3_REFERENCE_LIMITS,sync_api:{path:'/v1/videos/generations',tasks:['text-to-video','first-frame','first-last-frame','multimodal-reference'],presets:['turbo8','turbo4','reference','reference-turbo4'],reference_presets:['reference','reference-turbo4']}}),
+  // Expert workflow controls stay out of the MCP tool list; list_media_models {model} shows them.
+  advanced:{'video.generate':['reference_slots','loras','resolution','sampling','optimizations','output']},
   params:{'video.generate':()=>({reference_asset_ids:list(9),reference_video_asset_ids:list(3),reference_audio_asset_ids:list(3),seed:{...seed,default:GOLDFISH_SEED},duration_seconds:{type:'integer',minimum:4,maximum:15,default:10},...GOLDFISH_CONTROLS})},
   notes:{'video.generate':()=>'MiniMax-H3 original ComfyUI workflow. Images 0–9, videos 0–3, audio 0–3, ≤12 reference files; array order maps to workflow slots and an omitted array is disabled. Reference them in the prompt as <Picture N>/<Video N>/<Audio N>. Controls cover reference groups, six LoRA layers, SelfLift sampling, aspect/resolution, VRAM optimizations and output'},
   validate(capability,input){validateGoldfishControls(input);},

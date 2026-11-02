@@ -24,7 +24,12 @@ export async function start(){
   server.setRequestHandler(ListToolsRequestSchema,async()=>({tools:(await toolList()).map(({example,...tool})=>({name:tool.name,description:tool.description,inputSchema:tool.inputSchema,annotations:{readOnlyHint:['list_media_models','get_job'].includes(tool.name),destructiveHint:false,openWorldHint:false}}))}));
   async function invoke(name,input){
     validateToolInput(await toolList(),name,input);
-    if(name==='list_media_models'){const media=await catalog();return {models:media.models,capabilities:media.capabilities,workflows:media.workflows};}
+    if(name==='list_media_models'){
+      const media=await catalog();
+      // The overview stays small; one model's full schemas (advanced fields included) on request.
+      if(input.model){const model=media.models.find(m=>m.id===input.model);if(!model)throw new Error('Unknown model '+input.model+'; omit model to list them');return {model,capabilities:media.capabilities.filter(c=>c.providers.includes(model.id))};}
+      return {models:media.models.map(({parameter_schemas,...model})=>model),capabilities:media.capabilities,workflows:media.workflows};
+    }
     if(name==='import_media'){
       const fd=await openImport(input.path,importRoots(config));
       try{return await request(config,'/v1/media/assets?kind='+input.kind,{method:'POST',headers:{'Content-Type':'application/octet-stream'},body:fd.createReadStream({autoClose:false}),timeout:120000});}finally{await fd.close();}

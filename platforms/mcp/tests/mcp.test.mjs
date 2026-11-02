@@ -7,16 +7,27 @@ import http from 'node:http';
 import {Client} from '@modelcontextprotocol/sdk/client/index.js';
 import {StdioClientTransport} from '@modelcontextprotocol/sdk/client/stdio.js';
 import {validateToolInput} from '../manifest.mjs';
-import {tools,catalog} from '../../workbench/lib/capabilities.mjs';
+import {tools,catalog,validateGeneration} from '../../workbench/lib/capabilities.mjs';
 // The gateway serves this catalog to the MCP server; validate against exactly what it sends.
 const TOOLS=await tools(),CATALOG=await catalog(),validateInput=(name,input)=>validateToolInput(TOOLS,name,input);
 import {openImport,importRoots,defaultImportRoots} from '../client.mjs';
+test('advanced H3 controls are collapsed in the tool list but still validated in full by the gateway',async()=>{
+  const video=TOOLS.find(t=>t.name==='generate_video').inputSchema.properties;
+  for(const key of ['loras','sampling','optimizations','resolution','output','reference_slots']){assert.equal(video[key].properties,undefined);assert.match(video[key].description,/list_media_models/);}
+  assert.ok(video.duration_seconds.maximum);assert.ok(video.reference_asset_ids.items);
+  assert.ok(JSON.stringify(TOOLS).length<14000,'tool list grew to '+JSON.stringify(TOOLS).length+' characters');
+  assert.ok(validateInput('generate_video',{request_id:'x',prompt:'x',loras:{combat:{enabled:true}}}));
+  await assert.rejects(validateGeneration('generate_video',{request_id:'x',prompt:'x',loras:{combat:{enabled:'yes'}}}),/boolean/);
+  await assert.rejects(validateGeneration('generate_video',{request_id:'x',prompt:'x',resolution:{megapixels:NaN}}),/invalid/);
+  const h3=CATALOG.models.find(m=>m.id==='minimax-h3');
+  assert.ok(h3.parameter_schemas['generate_video#generate'].sampling.properties.steps);
+  assert.equal(h3.sync_api,undefined);assert.deepEqual(h3.tasks,['text-to-video','multimodal-reference']);
+  assert.equal(CATALOG.capabilities[0].sync,undefined);
+});
 test('strict tool schemas reject unknown fields, bad IDs and unsafe seeds',()=>{
   assert.deepEqual(TOOLS.map(t=>t.name),['generate_image','generate_video','list_media_models','import_media','get_job','cancel_job','get_artifact']);assert.ok(validateInput('edit_image',{request_id:'e',prompt:'x',reference_asset_ids:['asset_a']}));assert.ok(validateInput('list_jobs',{limit:5}));assert.ok(validateInput('download_artifact',{artifact_id:'artifact_a',path:'x.png'}));assert.throws(()=>validateInput('generate_video_v2',{}),/Unknown media tool/);assert.throws(()=>validateInput('generate_video',{}),/request_id is required/);assert.ok(validateInput('import_media',{path:'/tmp/video.mp4',kind:'video'}));assert.ok(validateInput('import_media',{path:'/tmp/audio.wav',kind:'audio'}));
   for(const t of TOOLS)assert.ok(!t.name.includes('workbench'));
   assert.throws(()=>validateInput('run_goldfish_workflow',{request_id:'x',prompt:'x',reference_asset_ids:Array(10).fill('a')}),/count/);
-  assert.throws(()=>validateInput('run_goldfish_workflow',{request_id:'x',prompt:'x',loras:{combat:{enabled:'yes'}}}),/boolean/);
-  assert.throws(()=>validateInput('run_goldfish_workflow',{request_id:'x',prompt:'x',resolution:{megapixels:NaN}}),/invalid/);
   assert.throws(()=>validateInput('generate_image',{request_id:'x',prompt:'x',model:'qwen-image21',seed:2**53}),/seed/);
   assert.throws(()=>validateInput('get_job',{job_id:'../../etc/passwd'}));assert.throws(()=>validateInput('list_media_models',{token:'x'}));
 });
@@ -47,6 +58,9 @@ test('official SDK stdio initializes, discovers gateway tools and Goldfish workf
   const transport=new StdioClientTransport({command:process.execPath,args:[new URL('../cli.mjs',import.meta.url).pathname,'stdio'],env:{...process.env,MEDIA_GATEWAY_URL:'http://127.0.0.1:'+gateway.address().port,MEDIA_API_KEY:'test-key',MEDIA_TELEMETRY_TOKEN:'test-token'},stderr:'pipe'});
   let errors='';transport.stderr?.on('data',x=>errors+=x);const client=new Client({name:'integration-test',version:'1.0'});t.after(()=>client.close());await client.connect(transport);
   const tools=await client.listTools();assert.equal(tools.tools.length,7);assert.equal(tools.tools.find(t=>t.name==='get_artifact').annotations.readOnlyHint,false);const models=await client.callTool({name:'list_media_models',arguments:{}});assert.deepEqual(models.structuredContent.models.map(model=>model.id),['qwen-image21','anima','minimax-h3']);assert.equal(models.structuredContent.capabilities.find(c=>c.capability==='image.generate').primary,'qwen-image21');assert.equal(models.structuredContent.runtime_topology,undefined);assert.equal(models.structuredContent.workflows[0].tool,'generate_video');
+  assert.equal(models.structuredContent.models[0].parameter_schemas,undefined);
+  const h3=await client.callTool({name:'list_media_models',arguments:{model:'minimax-h3'}});assert.ok(h3.structuredContent.model.parameter_schemas['generate_video#generate'].loras.properties);assert.deepEqual(h3.structuredContent.capabilities.map(c=>c.capability),['video.generate']);
+  assert.equal((await client.callTool({name:'list_media_models',arguments:{model:'nope'}})).isError,true);
   const accepted=await client.callTool({name:'generate_image',arguments:{request_id:'one',model:'qwen-image21',prompt:'cup'}});assert.equal(accepted.structuredContent.job_id,job.job_id);
   const goldfish=await client.callTool({name:'run_goldfish_workflow',arguments:{request_id:'goldfish-one',prompt:'A continuous shot',reference_asset_ids:['asset_a','asset_b','asset_c']}});assert.equal(goldfish.structuredContent.job_id,job.job_id);
   const longPrompt=await client.callTool({name:'run_goldfish_workflow',arguments:{request_id:'goldfish-long',prompt:'字'.repeat(32000)}});assert.notEqual(longPrompt.isError,true);assert.equal(forwardedPrompt,32000);

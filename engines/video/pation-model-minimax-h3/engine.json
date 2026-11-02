@@ -50,19 +50,12 @@
         "info": {
           "tasks": [
             "text-to-video",
-            "first-frame",
-            "first-last-frame",
             "multimodal-reference"
           ],
           "max_reference_images": 9,
           "max_reference_videos": 3,
           "total_reference_video_seconds": 15,
-          "presets": [
-            "turbo8",
-            "turbo4",
-            "reference",
-            "reference-turbo4"
-          ]
+          "max_reference_audios": 3
         }
       }
     ]

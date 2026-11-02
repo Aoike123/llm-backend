@@ -1,7 +1,7 @@
 import {readFile} from 'node:fs/promises';
 import {createHmac,randomBytes,timingSafeEqual} from 'node:crypto';
 import {join} from 'node:path';
-import {ID,CAPABILITIES,TOOL_GROUPS,COMMON_TOOLS,isGenerationTool,catalog,validateToolInput} from './capabilities.mjs';
+import {ID,CAPABILITIES,TOOL_GROUPS,COMMON_TOOLS,isGenerationTool,catalog,routes,validateToolInput} from './capabilities.mjs';
 import {LEGACY_TOOLS} from './media-tools.mjs';
 const KNOWN_TOOLS=new Set([...COMMON_TOOLS.map(t=>t.name),...Object.keys(LEGACY_TOOLS),...Object.keys(TOOL_GROUPS),...Object.values(CAPABILITIES).flatMap(c=>[c.tool,...(c.aliases??[])])]);
 const validateCommon=(name,input)=>validateToolInput(COMMON_TOOLS,name,input);
@@ -63,7 +63,7 @@ export class McpInfo{
       this.trim();await atomic(join(this.store.telemetry,'events.json'),this.state);
     });this.pending=work.catch(()=>{});return work;
   }
-  async overview(jobs,lifecycle){const media=await catalog();return {...ID,deployed:true,observed_at:new Date().toISOString(),gateway:{status:lifecycle.draining?'draining':'ready',recovery_pending:jobs.recoveryPending},tools_count:media.tools.length,models:media.models,workflows:media.workflows,capabilities:media.capabilities,instances:[...this.state.instances].sort((a,b)=>Date.parse(b.last_reported_at)-Date.parse(a.last_reported_at)).map(i=>({...i,stale:Date.now()-Date.parse(i.last_reported_at)>45000})),last_reported_at:this.state.instances.reduce((last,i)=>!last||i.last_reported_at>last?i.last_reported_at:last,null),pending_jobs:[...jobs.jobs.values()].filter(j=>!['succeeded','failed','cancelled','unknown'].includes(j.state)).length,storage:{used_bytes:this.store.usedBytes,quota_bytes:this.store.maxBytes},note:'实例上报与协议初始化是历史观察；心跳不代表宿主当前仍保持协议连接。'};}
+  async overview(jobs,lifecycle){const media=await catalog();return {...ID,deployed:true,observed_at:new Date().toISOString(),gateway:{status:lifecycle.draining?'draining':'ready',recovery_pending:jobs.recoveryPending},tools_count:media.tools.length,models:media.models,workflows:media.workflows,capabilities:routes(),instances:[...this.state.instances].sort((a,b)=>Date.parse(b.last_reported_at)-Date.parse(a.last_reported_at)).map(i=>({...i,stale:Date.now()-Date.parse(i.last_reported_at)>45000})),last_reported_at:this.state.instances.reduce((last,i)=>!last||i.last_reported_at>last?i.last_reported_at:last,null),pending_jobs:[...jobs.jobs.values()].filter(j=>!['succeeded','failed','cancelled','unknown'].includes(j.state)).length,storage:{used_bytes:this.store.usedBytes,quota_bytes:this.store.maxBytes},note:'实例上报与协议初始化是历史观察；心跳不代表宿主当前仍保持协议连接。'};}
   config(){return {transport:'stdio',command:ROOT+'lab',args:['mcp','stdio'],cwd:ROOT,config_file:'~/.config/llm-backend/media-mcp.json',setup_command:ROOT+'lab mcp setup',client_config:{mcpServers:{'local-media':{command:ROOT+'lab',args:['mcp','stdio']}}},credential_note:'先运行 setup，密钥仅保存在权限为 0600 的本机配置文件；此模板不含密钥。',remote_http:{deployed:false}};}
 }
 export function mcpRoutes(jobs,info,keys,lifecycle){

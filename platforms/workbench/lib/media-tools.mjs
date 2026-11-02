@@ -18,7 +18,8 @@ export function validateSchema(schema,input,path='arguments'){
     if(s.type==='object'){
       if(!v||typeof v!=='object'||Array.isArray(v))throw new Error(path+' must be an object');
       for(const k of s.required??[])if(v[k]===undefined)throw new Error(path+'.'+k+' is required');
-      for(const [k,value] of Object.entries(v)){if(!Object.hasOwn(s.properties,k))throw new Error('Unsupported parameter: '+k);check(s.properties[k],value,path+'.'+k);}
+      // A collapsed (advanced) object lists no properties here; the gateway checks it in full.
+      if(s.properties)for(const [k,value] of Object.entries(v)){if(!Object.hasOwn(s.properties,k))throw new Error('Unsupported parameter: '+k);check(s.properties[k],value,path+'.'+k);}
     }else if(s.type==='array'){
       if(!Array.isArray(v)||v.length<(s.minItems??0)||v.length>s.maxItems)throw new Error(path+' has invalid item count');v.forEach((x,i)=>check(s.items,x,path+'.'+i));
     }else if(s.type==='string'){
@@ -88,7 +89,7 @@ export const capabilityForSync=path=>Object.entries(CAPABILITIES).find(([,c])=>c
 const page={offset:{type:'integer',minimum:0,maximum:100000},limit:{type:'integer',minimum:1,maximum:100}};
 // Gateway-level tools that exist whatever engines are installed.
 export const COMMON_TOOLS=[
-  {name:'list_media_models',description:'List the enabled media capabilities, their recommended (primary) and fallback models, and each model\'s parameters. Does not load a model.',inputSchema:object(),example:{}},
+  {name:'list_media_models',description:'List the enabled media capabilities, their recommended (primary) and fallback models, and each model\'s parameters. Does not load a model. Give model to get its full parameter schemas, including the advanced ones the generation tools show collapsed.',inputSchema:object({model:{...str(80),description:'A model id, e.g. minimax-h3.'}}),example:{}},
   {name:'import_media',description:'Import a local image/video/audio from the import roots ('+importRoots().join(', ')+'), the workspace or MEDIA_IMPORT_ROOTS. Returns an owned asset_id; no URL fetching. Images are normalized to PNG; audio (or a video\'s soundtrack) up to 30 minutes is stored as WAV.',inputSchema:object({path:str(4096),kind:choice(['image','video','audio'])},['path','kind']),example:{path:'/media/aoike/Resource_Trad/Project/demo/reference.png',kind:'image'}},
   {name:'get_job',description:'Read an owned job, or list owned jobs newest first when job_id is omitted (offset/limit). Optional bounded wait up to 20 seconds. Disconnect does not cancel a job. unknown requires inspection; never automatically resubmit. served_by names the model that actually ran it.',inputSchema:object({job_id:id,wait_seconds:{type:'integer',minimum:0,maximum:20},...page}),example:{job_id:'job_example',wait_seconds:10}},
   {name:'cancel_job',description:'Cancel a job. Queued jobs are cancelled at once. Running jobs on an interruptible backend (ComfyUI) are interrupted and become cancelled once it stops; other running requests finish on their own. A false cancellable flag is authoritative.',inputSchema:object({job_id:id},['job_id']),example:{job_id:'job_example'}},

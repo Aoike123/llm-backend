@@ -4,8 +4,8 @@ const PROMPT_LIMIT=4000,PATHS={'image.generate':'/v1/images/generations','image.
 export default {
   async idle(ctx){return (await call(ctx.base,'/health')).busy===false;},
   async ready(ctx){return (await call(ctx.base,'/health')).status==='ready';},
-  params:{'image.generate':model=>({mode:choice(['text-to-image','rgba']),size:choice(model.info.sizes)})},
-  notes:{'image.generate':()=>'prompt ≤4000 characters','image.edit':()=>'output 1024×1024, combined reference pixels ≤4194304'},
+  params:{'image.generate':model=>({mode:{...choice(['text-to-image','rgba'],'text-to-image'),description:'rgba: transparent background'},size:choice(model.info.sizes,'1024x1024')})},
+  notes:{'image.generate':()=>'prompt ≤4000 characters','image.edit':()=>'prompt ≤4000 characters; output 1024×1024, combined reference pixels ≤4194304'},
   validate(capability,input){
     // About 3400 tokens; the 2.1 pipeline does not truncate, so longer prompts are refused.
     if(input.prompt.length>PROMPT_LIMIT)throw fail('Qwen prompt is limited to '+PROMPT_LIMIT+' characters (got '+input.prompt.length+')');
