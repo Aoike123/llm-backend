@@ -13,7 +13,7 @@ export function Overview({data,onService,onLibrary,onOpen}){
  const cards=[['当前后端',data?.runtime_topology?.current_runtime_name??(data?'待机':'读取中'),'单卡按需启动'],['GPU 租约',data?data.runtime_topology?.leased?'占用中':'空闲':'—','API / MCP 共用'],['网关等待',data?.queued??'—','等待 GPU 的请求'],['进行中的媒体任务',media?.pending_jobs??'—','API / MCP 提交的未完成任务']];
  const state=service=>data?.switching_target===service.id?['preparing','正在切换']:data?.current_model===service.id?['live','运行中']:['muted','按需启动'];
  return <div className="control-center">
-  {error&&<p className="error-banner" role="alert">媒体任务状态暂不可读：{error}</p>}
+  {error&&<p className="error-banner" role="alert">媒体任务状态读取失败：{error}</p>}
   <section className="stage-kpis">{cards.map(([title,value,note])=><div className="stage-kpi" key={title}><span className="label">{title}</span><div className="stage-value overview-value">{value}</div><p className="note">{note}</p></div>)}</section>
   <section className="mcp-card"><div className="charthead"><h2>模型服务</h2><span className="muted tiny">点击查看监控、作品与任务</span></div><div className="service-catalog">{SERVICES.map(service=>{const [tone,label]=state(service),jobs=counts?.facets?.engine?.[service.id];return <button key={service.id} onClick={()=>onService(service.id)}>
    <span className="catalog-head"><span className="catalog-symbol" style={{color:service.accent}}>{service.symbol}</span><span className={'catalog-state '+tone}>● {label}</span></span>

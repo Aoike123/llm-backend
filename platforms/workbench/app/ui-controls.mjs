@@ -17,6 +17,8 @@ const shapes={
   activity:[['path',{d:'M3 12h4l3-7 4 14 3-7h4'}]],
   settings:[['path',{d:'M4 7h16M4 17h16'}],['circle',{cx:9,cy:7,r:3}],['circle',{cx:15,cy:17,r:3}]],
   tasks:[['rect',{x:5,y:4,width:14,height:17,rx:2}],['path',{d:'M9 4V2h6v2M9 10h6M9 15h6'}]],
+  up:[['path',{d:'m6 15 6-6 6 6'}]],
+  down:[['path',{d:'m6 9 6 6 6-6'}]],
   play:[['path',{d:'M8 5v14l11-7z'}]],
   wave:[['path',{d:'M3 12h2M7 8v8M11 5v14M15 9v6M19 7v10M21 12h0'}]],
   text:[['path',{d:'M5 6h14M5 11h14M5 16h9'}]],
@@ -27,5 +29,6 @@ export function Icon({name,className=''}){
   return h('svg',{className:'ui-icon '+className,viewBox:'0 0 24 24',fill:'none',stroke:'currentColor',strokeWidth:1.6,strokeLinecap:'round',strokeLinejoin:'round','aria-hidden':true},(shapes[name]??shapes.chevron).map(([tag,props],key)=>h(tag,{...props,key})));
 }
 export function ActionButton({variant='secondary',icon,className='',children,...props}){
-  return h('button',{type:'button',...props,className:`ui-action ui-action-${variant} ${className}`},icon&&h(Icon,{name:icon}),children);
+  // Without a label the button is a round icon button; give it aria-label and title.
+  return h('button',{type:'button',...props,className:`ui-action ui-action-${variant}${icon&&!children?' is-icon':''} ${className}`},icon&&h(Icon,{name:icon}),children);
 }

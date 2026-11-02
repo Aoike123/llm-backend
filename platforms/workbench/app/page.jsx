@@ -81,7 +81,7 @@ export default function Page(){
   const refresh=useCallback(()=>setRevision(n=>n+1),[]);
   useEffect(()=>{
     const controller=new AbortController();let disposed=false,timer;setError('');
-    async function poll(){try{const params=new URLSearchParams({minutes,window:windowSeconds});if(model)params.set('model',model);const r=await fetch('/data?'+params,{cache:'no-store',signal:controller.signal});if(!r.ok)throw new Error();const d=await r.json();if(!disposed){setData(d);setError('');}}catch{if(!disposed)setError('监控连接暂时中断，正在重试。显示的是上次采集结果。');}finally{if(!disposed)timer=setTimeout(poll,5000);}}
+    async function poll(){try{const params=new URLSearchParams({minutes,window:windowSeconds});if(model)params.set('model',model);const r=await fetch('/data?'+params,{cache:'no-store',signal:controller.signal});if(!r.ok)throw new Error();const d=await r.json();if(!disposed){setData(d);setError('');}}catch{if(!disposed)setError('网关连接中断');}finally{if(!disposed)timer=setTimeout(poll,5000);}}
     poll();return()=>{disposed=true;controller.abort();clearTimeout(timer);};
   },[minutes,windowSeconds,model,revision]);
   const service=SERVICES.find(s=>s.id===model)??PENDING,matched=!!data&&data.model===model;
@@ -103,7 +103,6 @@ export default function Page(){
     <aside className="service-sidebar"><div className="studio-brand"><span aria-hidden="true">✦</span><strong>Workbench</strong></div><span className="sidebar-caption">INFERENCE CONTROL</span><nav className="service-navigation" aria-label="工作台导航"><span className="service-indicator" aria-hidden="true" style={{transform:`translateY(${NAVIGATION.findIndex(([id])=>id===section)*72}px)`}}/>{NAVIGATION.map(([id,icon,title,description])=><a key={id} href={'#/'+id} aria-current={section===id?'page':undefined} onClick={e=>{e.preventDefault();navigate({section:id});}}><span className="service-symbol" aria-hidden="true"><Icon name={icon}/></span><span>{title}<small>{description}</small></span></a>)}</nav>
       <section className="sidebar-status" aria-label="工作台状态"><div className="sidebar-status-heading"><i className={error?'status-offline':data?'status-online':'status-pending'}/><span>{error?'连接暂时中断':data?'网关监控已连接':'正在连接'}</span></div><span className="sidebar-status-label">{effective?.switching_target?'正在切换':'当前运行后端'}</span>{runningService?<button className="sidebar-running" onClick={()=>navigate({section:'services',service:runningService.id})}>{[runningService.name,runningService.version].filter(Boolean).join(' ')}</button>:<strong>{data?'待机':'读取中'}</strong>}<small className="sidebar-runtime-state">{error?'状态待确认':!data?'等待采集':effective?.switching_target?'正在准备引擎':runningService?'按需运行':'等待任务'}</small><div className="sidebar-device"><span>Radeon R9700</span><small>{data?.values?.vram_total?fmt(data.values.vram_total/2**30,0)+' GiB':'容量读取中'}</small></div>{canvas&&<a href={canvas} target="_blank" rel="noreferrer"><span>ComfyUI 画布</span><Icon name="external"/></a>}</section></aside>
     <main className="studio-main"><div className="studio-top"><span>工作空间 / <b>{NAVIGATION.find(([id])=>id===section)?.[2]}</b>{section==='services'&&model&&<> / <b>{service.name}</b></>}</span><span>单卡按需调度 <i/> API / MCP 统一执行</span></div>
-      {error&&section!=='services'&&<div className="error-banner" role="alert">{error}</div>}
       {section==='overview'&&<><Heading section="overview"/><Overview data={data} onService={id=>navigate({section:'services',service:id})} onLibrary={()=>navigate({section:'library'})} onOpen={openJob}/><DeviceStatus data={data} minutes={minutes}/></>}
       {section==='library'&&<><Heading section="library"/><div className="workspace-stage"><Gallery onOpen={openJob} limit={30}/></div></>}
       {section==='tasks'&&<><Heading section="tasks"/><TaskCenter data={data} onOpen={openJob} openId={route.job}/></>}
@@ -114,7 +113,7 @@ export default function Page(){
       {section==='services'&&<>
       <div className="model-selector" role="group" aria-label="模型服务">{SERVICES.map(item=><button key={item.id} aria-pressed={model===item.id} onClick={()=>navigate({section:'services',service:item.id,view:route.view})}><span style={{color:item.accent}}>{item.symbol}</span>{item.name}{data?.current_model===item.id&&<small className="live" title="运行中">●</small>}</button>)}</div>
       <section className="service-identity"><div><div className="eyebrow">{TYPE_LABEL[service.type]?.eyebrow??'MEDIA'} ENGINE · {service.kind}</div><h1>{service.name}{service.version&&<span>{service.version}</span>}</h1><p>{service.description}</p></div><div className="service-status"><strong className={error?'bad':state==='switching'?'preparing':live?'live':'muted'}>{live?'●':'○'} {status}</strong><small>{runtimeConfig?`${fmt(runtimeConfig.context_tokens/1024,0)}K 上下文 · ${runtimeConfig.concurrency??'—'} 路并发`:`当前后端 · ${serviceName(data?.current_model)}`}</small>{state==='switching'&&phase&&<small className="preparing">{phase}</small>}</div></section>
-      {(error||data?.error)&&<div className="error-banner" role="alert">{error||'调度异常：'+data.error}</div>}
+      {data?.error&&<div className="error-banner" role="alert">调度异常：{data.error}</div>}
       <div className="workspace-toolbar"><div className="workspace-tabs" role="tablist" aria-label="服务工作区">{views.map(([id,label,icon])=><button key={id} role="tab" id={'tab-'+id} aria-selected={view===id} aria-controls={'panel-'+id} tabIndex={view===id?0:-1} onClick={()=>navigate({section:'services',service:model,view:id})} onKeyDown={tabKey}><Icon name={icon}/>{label}</button>)}</div>{view==='runtime'&&<div className="workspace-range"><div className="controls" aria-label="图表时间范围">{[15,30,60].map(m=><button key={m} aria-pressed={minutes===m} onClick={()=>setMinutes(m)}>{m===60?'1 小时':m+' 分钟'}</button>)}</div><small>{matched?clock(data.timestamp)+' 更新':'读取中'}</small></div>}</div>
       <div className="workspace-stage">
         {view==='runtime'&&<section id="panel-runtime" role="tabpanel" aria-labelledby="tab-runtime"><Runtime data={shown} service={service} minutes={minutes} windowSeconds={windowSeconds} setWindowSeconds={setWindowSeconds}/></section>}
@@ -131,6 +130,7 @@ export default function Page(){
       </>}
       <footer className="studio-footer"><span>API / MCP 统一调度 · 当前后端 {serviceName(data?.current_model)}</span><span>监控每 5 秒更新</span></footer>
     </main>
+    {error&&<div className="connection-toast" role="status" aria-live="polite"><i/><span>网关连接中断，正在重连</span><small>显示的是上次读取的数据</small></div>}
     <JobDrawer id={route.job} onClose={closeJob}/>
   </div>;
 }

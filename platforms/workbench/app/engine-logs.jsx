@@ -50,7 +50,7 @@ export default function EngineLogs({model,data}){
           clearTimeout(summaryTimer.current);
           if(next.level==='info')summaryTimer.current=setTimeout(()=>setSummary(old=>old?.level==='info'?null:old),12000);
         }
-      }catch(e){if(!disposed)setError(e.message||'日志连接暂时中断，正在重试。');}
+      }catch(e){if(!disposed&&e.name!=='AbortError')setError(e instanceof TypeError?'':e.message||'日志读取失败，正在重试。');}
       finally{if(!disposed)timer=setTimeout(poll,switching?1000:3000);}
     }
     poll();return()=>{disposed=true;controller.abort();clearTimeout(timer);clearTimeout(summaryTimer.current);clearTimeout(copyTimer.current);};

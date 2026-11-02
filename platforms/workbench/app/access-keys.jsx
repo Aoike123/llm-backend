@@ -30,7 +30,7 @@ export default function AccessKeyManager(){
   const refresh=useCallback(async(signal)=>{
     const response=await fetch('/api/access-keys',{cache:'no-store',signal});const result=await response.json();if(!response.ok)throw new Error(result.error??'读取密钥失败');setData(result);setError('');
   },[]);
-  useEffect(()=>{const controller=new AbortController();let timer,disposed=false;async function poll(){try{await refresh(controller.signal);}catch(e){if(!disposed)setError(e.message);}finally{if(!disposed)timer=setTimeout(poll,3000);}}poll();return()=>{disposed=true;controller.abort();clearTimeout(timer);};},[refresh]);
+  useEffect(()=>{const controller=new AbortController();let timer,disposed=false;async function poll(){try{await refresh(controller.signal);}catch(e){if(!disposed&&e.name!=='AbortError')setError(e instanceof TypeError?'':e.message);}finally{if(!disposed)timer=setTimeout(poll,3000);}}poll();return()=>{disposed=true;controller.abort();clearTimeout(timer);};},[refresh]);
   useEffect(()=>{if(data)setLimits({...data.settings});},[data?.settings.maxConcurrent,data?.settings.requestsPerMinute,data?.settings.maxQueued,data?.settings.queueWaitSeconds]);
   async function change(payload){
     setBusy(true);setError('');
