@@ -12,13 +12,13 @@ Strata的strata-vision使用llama.cpp mtmd，是独立CPU编码器。其Flash-Ne
 
 ## 已实现路径
 
-运行时为`local-ai/pation-qwen38-cpu-vision:20261013-r2`。`.workbench/runtime/cpu-vision/server.py`在无GPU设备的独立容器`ai-vision-cpu`中加载原检查点的333个视觉权重张量，共460,730,096参数，使用HF原生视觉模型CPU SDPA/FP32计算并返回BF16特征。43个线程绑定CPU 0–42，容器内存上限8 GiB，特征LRU上限1 GiB；重启策略unless-stopped。服务仅监听127.0.0.1:18984。
+运行时为 LLM 镜像（配方 `engines/llm/pation-model-qwen38-27b-w3a4/image.json`，构建步骤 `.workbench/runtime/cpu-vision/install.sh`）。`.workbench/runtime/cpu-vision/server.py`在无GPU设备的独立容器`ai-vision-cpu`中加载原检查点的333个视觉权重张量，共460,730,096参数，使用HF原生视觉模型CPU SDPA/FP32计算并返回BF16特征。43个线程绑定CPU 0–42，容器内存上限8 GiB，特征LRU上限1 GiB；重启策略unless-stopped。服务仅监听127.0.0.1:18984。
 
 GPU客户端把vLLM原视觉塔替换为无参数代理，保持原vLLM图像预处理、网格、图片位置编码、特征合并及语言模型路径；不以文字描述替代图片。目前输入像素沿用vLLM的GPU暂存路径后送CPU，最终特征也需要GPU缓冲，所以不是零GPU多模态占用。
 
 只有`EncoderRunner.profile_encoder_cache`的虚构启动输入进入明确的profile上下文，以零特征分配对应GPU缓冲；不会调用CPU编码器。真实图片不进入该上下文，仍完整编码。此优化避免启动时对虚构4K图执行昂贵CPU计算，并非降采样或跳过用户图片。
 
-CPU服务成功后，控制器才启动GPU客户端。当前高并发保留8,859,648,000 bytes KV预算，长模式保留8 GiB KV；均默认medium。特征缓存、CPU服务管理和运行时配置位于`.workbench/runtime/cpu-vision/`及`.workbench/runtime/rocm101/active.json`。
+CPU服务成功后，控制器才启动GPU客户端。当前高并发保留8,859,648,000 bytes KV预算，长模式保留8 GiB KV；均默认medium。特征缓存、CPU服务管理和运行时配置位于`.workbench/runtime/cpu-vision/`及`./lab runtime status`。
 
 ## 设计依据与后续工作
 

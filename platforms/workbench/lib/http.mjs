@@ -2,7 +2,7 @@ import {once} from 'node:events';
 import {ApiError} from './api-errors.mjs';
 import {createReadStream} from 'node:fs';
 import {stat} from 'node:fs/promises';
-import {ARTIFACTS} from './media.mjs';
+import {artifactsDirectory} from './media.mjs';
 import {call} from './backend.mjs';
 import {executeMedia} from './media-executor.mjs';
 import {capabilityForSync,candidates,mediaModels,routes,runtimeTopology} from './capabilities.mjs';
@@ -74,7 +74,7 @@ export function handlers(coordinator,metrics,lifecycle,{llmBase='http://127.0.0.
       if(path==='/v1/capabilities')return send(res,200,{object:'list',data:routes()});
       if(path==='/metrics'){res.writeHead(200,{'Content-Type':'text/plain; version=0.0.4'});return res.end(metrics.prometheus(coordinator));}
       if(/^\/artifacts\/[a-f0-9]{32}\.mp4$/.test(path)){
-        try{const file=ARTIFACTS+path.split('/').at(-1),info=await stat(file);res.writeHead(200,{'Content-Type':'video/mp4','Content-Length':info.size});const stream=createReadStream(file);stream.on('error',()=>res.destroy());res.on('close',()=>stream.destroy());stream.pipe(res);return;}catch{return send(res,404,{error:'Artifact not found'});}
+        try{const file=artifactsDirectory()+path.split('/').at(-1),info=await stat(file);res.writeHead(200,{'Content-Type':'video/mp4','Content-Length':info.size});const stream=createReadStream(file);stream.on('error',()=>res.destroy());res.on('close',()=>stream.destroy());stream.pipe(res);return;}catch{return send(res,404,{error:'Artifact not found'});}
       }
       return send(res,404,{error:'Unknown API endpoint'});
     }

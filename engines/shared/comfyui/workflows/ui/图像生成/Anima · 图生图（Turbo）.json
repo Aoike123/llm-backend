@@ -629,7 +629,7 @@
       "mode": 0,
       "properties": {},
       "widgets_values": [
-        "原生 Anima（CircleStone Labs / Comfy Org，2B，动漫与插画方向，不擅长写实）：MODEL、CLIP、VAE、CONDITIONING、LATENT 均为原生对象，可替换采样器或接 LoRA。\nTurbo：CFG 1、8–12 步；Aesthetic：CFG 4–5、30–50 步，不使用 score_* 标签。分辨率 512²–1536²。\n提示词：小写 Danbooru 标签用空格代替下划线，画师加 @ 前缀；也可混合自然语言（至少两句）。\n权重：platforms/comfyui/models/anima.lock.json → workspace/data/video/minimax-h3/models。模型为非商用许可，生成图像可商用。"
+        "原生 Anima（CircleStone Labs / Comfy Org，2B，动漫与插画方向，不擅长写实）：MODEL、CLIP、VAE、CONDITIONING、LATENT 均为原生对象，可替换采样器或接 LoRA。\nTurbo：CFG 1、8–12 步；Aesthetic：CFG 4–5、30–50 步，不使用 score_* 标签。分辨率 512²–1536²。\n提示词：小写 Danbooru 标签用空格代替下划线，画师加 @ 前缀；也可混合自然语言（至少两句）。\n权重：platforms/comfyui/models/anima.lock.json → workspace/data/comfy/models。模型为非商用许可，生成图像可商用。"
       ],
       "color": "#343943",
       "bgcolor": "#252830"

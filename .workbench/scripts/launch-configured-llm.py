@@ -77,6 +77,8 @@ def configure(argv, eager=False):
         processor.setdefault('cap_pixels_per_frame', True)
         argv[i] = json.dumps(processor)
     runtime = Path(__file__).resolve().parents[1] / 'runtime/rocm101'
+    sys.path.insert(0, str(runtime))
+    import sdk
     site = '/usr/local/lib/python3.12/dist-packages/'
     argv[argv.index('serve') - 1:argv.index('serve') - 1] = [
         # GPU hot-loop CPU ops use one thread; CPU vision has its own budget.
@@ -85,7 +87,8 @@ def configure(argv, eager=False):
         '-e', 'WORKBENCH_ROCM_HIP=1', '-e', 'WORKBENCH_CONFIGURATION_VERSION=2', '-e', 'WORKBENCH_KV_PLAN_ID=' + uuid.uuid4().hex,
         '-e', 'WORKBENCH_KV_PLAN_PATH=/cache/workbench-kv-plan.json',
         '-v', str(runtime / 'workbench_runtime.py') + ':' + site + 'workbench_runtime.py:ro',
-        '-v', str(runtime / 'zz_workbench_runtime.pth') + ':' + site + 'zz_workbench_runtime.pth:ro']
+        '-v', str(runtime / 'zz_workbench_runtime.pth') + ':' + site + 'zz_workbench_runtime.pth:ro',
+        *sdk.mount()]
     return argv
 
 

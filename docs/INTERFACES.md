@@ -100,14 +100,7 @@ MCP 客户端 ──stdio──> platforms/mcp/server.mjs ──HTTP 18982 + Bea
 
 ### 资产存储
 
-统一到 HDD：`/media/aoike/Resource_Trad/Assets`
-
-| 子目录 | 内容 |
-| --- | --- |
-| `images/` `videos/` `audio/` | 各类型作品（任务产物与引擎直出） |
-| `materials/` | 参考素材（`import_media`） |
-| `records/jobs/` `records/telemetry/` | 任务 JSON 与调用记录 |
-| `engine/` | 预留的引擎直出目录 |
+状态在内置 NVMe 的 `workspace/data/media/`：`jobs/` 任务 JSON，`materials/` 参考素材（`import_media`），`telemetry/` 调用记录。作品在作品盘 `/media/aoike/Resource_Trad/Assets/`：`images|videos|audio/<YYYY-MM>/<job_id>/`、同步 API 的 `api/`、ComfyUI 的 `canvas/`、手动输出 `manual/<owner>/`。完整说明见 [存储](STORAGE.md)。
 
 ### 调用规范
 

@@ -41,8 +41,12 @@ def engine_command(args):
             models = ", ".join(m["id"] + "[" + "/".join(m["capabilities"]) + "]" for m in platform["models"]) or platform["engine"]
             print(f"  {name:32} {mark}  {models}")
         return 0
+    if action == "status":
+        return engine_status(args[1:])
+    if action == "remove":
+        return engine_remove(args[1:])
     if action not in ("enable", "disable") or len(args) != 2:
-        raise RuntimeError("用法：./lab engine list | enable PACKAGE | disable PACKAGE")
+        raise RuntimeError("用法：./lab engine list | status [PACKAGE] | enable PACKAGE | disable PACKAGE | remove PACKAGE [--apply]")
     name, wanted = args[1], action == "enable"
     if not registry().get(name, {}).get("platform"):
         raise RuntimeError(f"未知或未接入网关的引擎包：{name}")
@@ -62,6 +66,94 @@ def engine_command(args):
     engine_registry.STATE.parent.mkdir(parents=True, exist_ok=True)
     engine_registry.STATE.write_text(json.dumps(state, indent=2, ensure_ascii=False) + "\n")
     print(("已启用 " if wanted else "已停用 ") + name + "（网关未运行，下次启动生效）")
+    return 0
+
+
+def du(path):
+    """Apparent size of a directory or file, in bytes (0 when absent)."""
+    if not path.exists():
+        return 0
+    result = subprocess.run(["du", "-sb", str(path)], capture_output=True, text=True)
+    # du still prints the total when some cache files are unreadable (root-owned).
+    return int(result.stdout.split()[0]) if result.stdout else 0
+
+
+def resources(name, manifests):
+    """What one engine package owns, and what it only shares with other packages."""
+    import storage
+    sys.path.insert(0, str(ROOT / ".workbench/runtime"))
+    import images
+    manifest, others = manifests[name], {k: v for k, v in manifests.items() if k != name}
+    runtime = manifest.get("platform", {}).get("runtime", {}).get("id")
+    shared_runtime = runtime and any(v.get("platform", {}).get("runtime", {}).get("id") == runtime for v in others.values())
+    claimed = {p for v in others.values() for p in storage.owned(v)}
+    row = images.state().get(runtime, {}) if runtime else {}
+    return {"runtime": runtime, "shared_runtime": bool(shared_runtime), "recipe": images.recipes().get(runtime, {}).get("_file"),
+            "images": [tag for tag in (row.get("image"), row.get("previous")) if tag],
+            "data": [(p, p in claimed) for p in storage.owned(manifest)], "dir": manifest["_dir"]}
+
+
+def engine_status(args):
+    manifests = registry()
+    for name in args or manifests:
+        if name not in manifests:
+            raise RuntimeError(f"未知引擎包：{name}")
+        r = resources(name, manifests)
+        print(f"[{name}] {r['dir'].relative_to(ROOT)}" + ("" if manifests[name].get("platform") else "（仅命令行）"))
+        if r["runtime"]:
+            print(f"  运行时 {r['runtime']}" + ("（与其他引擎共用）" if r["shared_runtime"] else "") + (f"，配方 {r['recipe']}" if r["recipe"] else ""))
+            for tag in r["images"]:
+                print(f"  镜像   {tag}")
+        for path, shared in r["data"]:
+            print(f"  数据   {path.relative_to(ROOT)}  {du(path) / 2**30:.1f} GiB" + ("（共用）" if shared else ""))
+    return 0
+
+
+def engine_remove(args):
+    """Uninstall a package: disable it, delete its directory, the data and runtime images only it
+    used. Shared data and runtimes stay; generated artifacts are never touched."""
+    apply = "--apply" in args
+    names = [a for a in args if a != "--apply"]
+    if len(names) != 1:
+        raise RuntimeError("用法：./lab engine remove PACKAGE [--apply]")
+    name, manifests = names[0], registry()
+    if name not in manifests:
+        raise RuntimeError(f"未知引擎包：{name}")
+    r = resources(name, manifests)
+    data = [p for p, shared in r["data"] if not shared]
+    drop_images = r["images"] if r["runtime"] and not r["shared_runtime"] else []
+    print(f"删除引擎包 {name}：")
+    print(f"  目录   {r['dir'].relative_to(ROOT)}")
+    for path in data:
+        print(f"  数据   {path.relative_to(ROOT)}  {du(path) / 2**30:.1f} GiB")
+    for tag in drop_images:
+        print(f"  镜像   {tag}")
+    for path, shared in r["data"]:
+        if shared:
+            print(f"  保留   {path.relative_to(ROOT)}（其他引擎在用）")
+    if r["runtime"] and r["shared_runtime"]:
+        print(f"  保留   运行时 {r['runtime']}（其他引擎在用）")
+    if not apply:
+        print("以上为预览；加 --apply 执行。作品不会删除。")
+        return 0
+    if manifests[name].get("platform") and engine_registry.enabled(name, manifests[name]):
+        engine_command(["disable", name])
+    sys.path.insert(0, str(ROOT / ".workbench/runtime"))
+    import images
+    for tag in drop_images:
+        subprocess.run(["docker", "rmi", tag], check=False)
+    if drop_images:
+        state = images.state()
+        state.pop(r["runtime"], None)
+        images.save(state)
+    for path in data:
+        # Containers write as root; a throwaway container removes what the user cannot.
+        subprocess.run(["docker", "run", "--rm", "-v", f"{path.parent}:/x", "ubuntu:24.04", "rm", "-rf", "/x/" + path.name], check=True)
+    shutil.rmtree(r["dir"])
+    state = engine_registry.state()
+    state.get("engines", {}).pop(name, None)
+    engine_registry.STATE.write_text(json.dumps(state, indent=2, ensure_ascii=False) + "\n")
+    print(f"已删除 {name}。用 git 提交目录删除；如果它的配方也随包删除，运行时镜像已一并清理。")
     return 0
 
 
@@ -89,7 +181,7 @@ def main(argv=None):
         "mcp": ["bash", str(ROOT / "platforms/mcp/launch.sh")],
         "services": [sys.executable, str(ROOT / "platforms/services/controller.py")],
         "scheduler": [node, str(ROOT / "platforms/workbench/cli.mjs")],
-        "runtime": [sys.executable, str(ROOT / ".workbench/runtime/rocm101/controller.py")],
+        "runtime": [sys.executable, str(ROOT / ".workbench/runtime/images.py")],
         "comfyui": [sys.executable, str(ROOT / "engines/shared/comfyui/controller.py")],
         "monitor": [sys.executable, str(ROOT / "platforms/monitoring/controller.py")],
         "smoke": [sys.executable, str(ROOT / ".workbench/scripts/smoke-llm.py")],
@@ -109,10 +201,10 @@ def main(argv=None):
         print("媒体 MCP：./lab mcp setup | stdio | check")
         print("调度：./lab scheduler status | switch llm | switch h3")
         print("ComfyUI：./lab comfyui start | stop | status | check | sync（按需启动，不常驻）")
-        print("ROCm 10.1 镜像：./lab runtime build | status | check --engine ENGINE")
+        print("运行时镜像：./lab runtime status | build RUNTIME | activate RUNTIME TAG | prune [--apply] | sdk install|verify")
         print("监控平台：./lab monitor start | status | check | export")
-        print("引擎包：./lab engine list | enable PACKAGE | disable PACKAGE")
-        print("模型／缓存／输出／报告：workspace/    使用说明：docs/")
+        print("引擎包：./lab engine list | status [PACKAGE] | enable PACKAGE | disable PACKAGE | remove PACKAGE [--apply]")
+        print("存储：platforms/platform.json 的 storage 段；作品在 workspace/outputs（作品盘）    使用说明：docs/")
         print("引擎：" + ", ".join(engines))
         print("默认部署为 Qwen3.8 27B W3A4；MXFP4 使用独立部署入口。")
         return 0

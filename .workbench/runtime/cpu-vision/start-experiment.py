@@ -9,7 +9,8 @@ spec.loader.exec_module(controller)
 controller.require_docker()
 controller.require_idle()
 controller.model_env('llm-throughput')
-image = 'local-ai/pation-qwen38-cpu-vision:20261013-r2'
+# A built but not yet activated tag can be passed as the first argument.
+image = sys.argv[1] if len(sys.argv) > 1 else controller.images.active('llm')
 controller.ENV['PAITON_FEATURE_IMAGE'] = image
 controller.run([sys.executable,Path(__file__).with_name('controller.py'),image])
 args = list(controller.PROFILES['llm-throughput']['args'])

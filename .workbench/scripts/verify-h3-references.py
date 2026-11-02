@@ -4,6 +4,9 @@ import argparse,base64,json,subprocess,time,threading
 from pathlib import Path
 from urllib.request import Request,urlopen
 ROOT=Path(__file__).resolve().parents[2]
+import sys
+sys.path.insert(0,str(ROOT/'.workbench'))
+import storage  # noqa: E402
 REPORT=ROOT/'workspace/reports/h3-reference-20261019'
 p=argparse.ArgumentParser(description=__doc__)
 p.add_argument('--case',choices=['image-quality','video-quality','mixed','maximum','long-quality','maximum-quality'],required=True)
@@ -11,7 +14,7 @@ p.add_argument('--prepare-only',action='store_true')
 p.add_argument('--engine',choices=['stock','paiton'],default='stock')
 a=p.parse_args();REPORT.mkdir(parents=True,exist_ok=True)
 fixtures=REPORT/'fixtures';fixtures.mkdir(exist_ok=True)
-source=ROOT/'workspace/outputs/video/minimax-h3/MiniMax-H3/rocm101-turbo8-576x320_00001_.mp4'
+source=storage.canvas()/'MiniMax-H3/rocm101-turbo8-576x320_00001_.mp4'
 def ffmpeg(*args):subprocess.run(['ffmpeg','-nostdin','-v','error',*map(str,args)],check=True)
 for i in range(9):
  image=fixtures/f'fox-{i+1}.png'

@@ -1,14 +1,14 @@
 import {mkdir,readFile,stat,open,rename} from 'node:fs/promises';
 import {dirname,join} from 'node:path';
-import {homedir} from 'node:os';
 import {fileURLToPath} from 'node:url';
 import {configPath,configuration} from './client.mjs';
+import {stateRoot} from '../workbench/lib/storage.mjs';
 const root=fileURLToPath(new URL('../../',import.meta.url));
 async function setup(){
   const file=configPath();try{await stat(file);await configuration();console.log('已有可读取的配置：'+file);return;}catch(e){if(e.code!=='ENOENT')throw e;}
-  const home=homedir(),base=process.env.MEDIA_GATEWAY_URL??'http://127.0.0.1:18982',telemetryRoot=process.env.MEDIA_STORAGE_ROOT??join(home,'文档/llm-backend/MCP');
+  const base=process.env.MEDIA_GATEWAY_URL??'http://127.0.0.1:18982',telemetryRoot=join(stateRoot(),'telemetry');
   // Read credential material before creating the key, so a failed setup leaves no unused key.
-  const {token}=JSON.parse(await readFile(join(telemetryRoot,'调用记录/secret.json'),'utf8'));
+  const {token}=JSON.parse(await readFile(join(telemetryRoot,'secret.json'),'utf8'));
   const url=new URL(base);if(url.origin!=='http://127.0.0.1:18982'&&(!['127.0.0.1','localhost','[::1]'].includes(url.hostname)||url.protocol!=='http:'))throw new Error('Use a loopback gateway');
   const controller=new URL(base);controller.port=process.env.WORKBENCH_PORT??'13000';controller.pathname='/api/access-keys';
   const response=await fetch(controller,{method:'POST',redirect:'error',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'create',name:'本机媒体 MCP',maxConcurrent:1,requestsPerMinute:600,maxQueued:8}),signal:AbortSignal.timeout(10000)});

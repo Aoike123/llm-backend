@@ -91,14 +91,14 @@ ROCm 10.1 的迁移过程与运行时构建说明见 [升级记录](rocm101-upgr
 ## 存储与复现
 
 - `workspace/data/`：模型、HF 下载和运行时缓存。
-- `workspace/outputs/`：图像、视频、GenEval 样本及媒体测速原始数据。
+- 作品盘（`workspace/outputs`）：任务作品、画布、手动输出、GenEval 样本与测速原始数据，见 [存储](STORAGE.md)。
 - `workspace/reports/`：LLM 测速 JSON、能力评测结果和环境记录。
 - `.workbench/sources.lock.json`：四个官方项目的确切 Git commit。
 - `.workbench/tools.resolved.txt`：`setup-tools` 安装完成后记录解析出的依赖版本。
 
-作品、报告、研究资料、设计稿与归档已迁到 `/home/aoike/` 下的图片、视频和文档目录；上述 `workspace/outputs/` 子目录及 `workspace/reports/` 等入口通过符号链接访问外部文件，后续生成也写入外部目录。实际目录与挂载维护方法见 [外部生成物存储](DEVELOPMENT.md#外部生成物存储)。模型、运行缓存、依赖与生产构建仍保存在项目中。
+报告、研究资料、设计稿与归档在 `~/文档/llm-backend/`，通过 `workspace/reports` 等链接访问，见 [开发与整理](DEVELOPMENT.md#存储)。模型、运行缓存、依赖与生产构建在项目中。
 
-Qwen 文本的模型 revisions 固定；Qwen 容器由上游按 digest 锁定。Qwen-Image 使用上游发布 tag，其他视频容器使用上游固定底座构建；正式评测还应保存实际镜像 digest。H3 Compose 文件做了本地补丁，将发布地址改为 `127.0.0.1`；`bootstrap` 会复用补丁，保留缓存和已有改动。
+模型 revisions 固定；所有运行时镜像都从按 digest 锁定的供应商底座构建，配方与构建回执见 [运行时镜像](RUNTIME_IMAGES.md)。正式评测还应记录实际使用的镜像标签。H3 Compose 文件做了本地补丁，将发布地址改为 `127.0.0.1`；`bootstrap` 会复用补丁，保留缓存和已有改动。
 
 所有工作负载按需下载，避免一次拉取全部模型。为全套镜像、权重、编译缓存和输出预留约 200–300 GB，是规划值。2026-10-19 的容器存储维护将 Docker 与 containerd 分别迁往 `/mnt/Code/.runtime/docker` 和 `/mnt/Code/.runtime/containerd`，执行状态及检查方法见 [容器存储与空间维护](CONTAINER_STORAGE.md)。模型与运行缓存保存在项目 NVMe，作品与报告通过上述符号链接保存到家目录。实际余量用 `df -h / /mnt/Code` 查看。
 

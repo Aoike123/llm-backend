@@ -9,41 +9,32 @@
 | `engines/` | 各部署的注册、模型配置与运行入口；`shared/` 存放公共实现 |
 | `platforms/` | 网关与页面、MCP、调度、监控和 systemd 服务 |
 | `.workbench/scripts/` | 安装、检查、同步、评测与诊断工具 |
-| `.workbench/runtime/` | ROCm 与 CPU 视觉运行时实现、镜像定义和版本锁 |
+| `.workbench/runtime/` | 运行时镜像构建器（`images.py`）、共享 ROCm SDK 与构建步骤（`rocm101/`）、CPU 视觉 |
+| `.workbench/evaluation/` | 评测工具的镜像配方（VBench） |
 | `.workbench/tests/` | 部署路由、运行时与工具的回归测试 |
 | `docs/` | 使用说明、架构、研究结论与验证摘要 |
-| `workspace/data/` | 模型、缓存、服务状态与本机凭据 |
-| `workspace/outputs/` | 各子目录均为外部生成物目录的符号链接 |
+| `workspace/data/` | 模型、缓存、服务状态与本机凭据；`media/` 为任务记录、素材与遥测 |
+| `workspace/config/` | 本机状态：引擎启用与路由、运行时镜像选择 |
+| `workspace/outputs` | 指向作品盘根目录的链接 |
 | `workspace/reports/` | 外部报告目录的符号链接 |
 | `workspace/research/` | 外部专题研究资料目录的符号链接 |
 | `workspace/archive/` | 外部历史构建归档目录的符号链接 |
 
-## 外部生成物存储
+## 存储
 
-2026-10-19，作品、报告、研究下载、设计稿和归档迁入用户家目录。旧路径保留符号链接，脚本、文档和 API 无需更改路径；后续写入也会落到外部目录。
+作品、任务状态和引擎数据的位置只在 `platforms/platform.json` 的 `storage` 段定义，布局、离线行为和 2026-11-02 的迁移记录见 [存储](STORAGE.md)。报告、研究资料、设计稿和归档仍通过 `workspace/reports`、`workspace/research` 等链接放在 `~/文档/llm-backend/`：
 
-| 项目中的兼容入口 | 实际目录 |
+| 项目中的入口 | 实际目录 |
 |---|---|
-| `workspace/outputs/image/` | `/home/aoike/图片/llm-backend/模型输出/` |
-| `workspace/outputs/video/` | `/home/aoike/视频/llm-backend/模型输出/` |
-| `workspace/outputs/api/` | `/home/aoike/视频/llm-backend/API/` |
-| `workspace/outputs/comfyui/` | `/home/aoike/文档/llm-backend/生成物/ComfyUI/` |
-| `workspace/outputs/geneval/` | `/home/aoike/文档/llm-backend/生成物/GenEval/` |
-| `workspace/outputs/paiton/` | `/home/aoike/文档/llm-backend/生成物/Paiton/` |
-| `workspace/reports/` | `/home/aoike/文档/llm-backend/报告/` |
-| `workspace/research/` | `/home/aoike/文档/llm-backend/研究资料/专题/` |
-| `workspace/avatar-research/` | `/home/aoike/文档/llm-backend/研究资料/数字人/` |
-| `workspace/rocm-research/` | `/home/aoike/文档/llm-backend/研究资料/ROCm/` |
-| `workspace/designs/` | `/home/aoike/文档/llm-backend/设计稿/` |
-| `workspace/archive/` | `/home/aoike/文档/llm-backend/归档/` |
+| `workspace/outputs` | 作品盘 `/media/aoike/Resource_Trad/Assets/` |
+| `workspace/reports/` | `~/文档/llm-backend/报告/` |
+| `workspace/research/` | `~/文档/llm-backend/研究资料/专题/` |
+| `workspace/avatar-research/` | `~/文档/llm-backend/研究资料/数字人/` |
+| `workspace/rocm-research/` | `~/文档/llm-backend/研究资料/ROCm/` |
+| `workspace/designs/` | `~/文档/llm-backend/设计稿/` |
+| `workspace/archive/` | `~/文档/llm-backend/归档/` |
 
-ComfyUI 的图片、视频以及工作流关联目录整体保存；GenEval 的样本图片、元数据和回执整体保存。报告中的验证图片和视频也保留在对应报告中。
-
-新增下载资料放到 `workspace/research/<主题>/<日期>/`，结论写入 `docs/`；截图与验证输出放入对应的 `workspace/reports/` 子目录。两者均通过符号链接写入家目录。运行所需的模型、缓存、依赖和生产构建保留在项目中。
-
-迁移清单、逐文件 SHA256 和容器恢复记录位于 `/home/aoike/文档/llm-backend/迁移记录/`。迁移时逐目录复制并校验后才移除原件；相关输出容器重新启动以刷新挂载，并验证容器能够读取外部输出文件。
-
-迁移项目到其他机器时，需要一并复制外部生成物目录，或重建兼容符号链接。修改外部目录位置后，先更新对应链接，再重启挂载这些输出目录的容器。
+新增下载资料放到 `workspace/research/<主题>/<日期>/`，结论写进 `docs/`；截图与验证输出放进对应的 `workspace/reports/` 子目录。代码里需要输出目录时，用 `storage.manual(<引擎包或工具名>)`，不要写死路径。迁移项目到其他机器时，改 `platform.json` 的 `storage` 段，并重建上面这些链接。
 
 ## 统一检查
 

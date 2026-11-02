@@ -8,6 +8,9 @@ import time
 from urllib.request import Request, urlopen
 
 ROOT = Path(__file__).resolve().parents[2]
+import sys
+sys.path.insert(0,str(ROOT/'.workbench'))
+import storage  # noqa: E402
 
 
 def export(metadata_path, output, endpoint, limit=None, samples=4, size=1024):
@@ -52,5 +55,5 @@ if __name__ == "__main__":
     parser.add_argument("--size", type=int, choices=(1024, 2048), default=1024)
     parser.add_argument("--endpoint", default="http://127.0.0.1:8191/v1/images/generations")
     args = parser.parse_args()
-    output = ROOT / "workspace/outputs/geneval" / datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
+    output = storage.manual("geneval") / datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
     print(export(ROOT / ".workbench/vendor/geneval/prompts/evaluation_metadata.jsonl", output, args.endpoint, args.limit, args.samples, args.size))

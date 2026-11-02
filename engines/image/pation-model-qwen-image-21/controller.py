@@ -11,15 +11,16 @@ from urllib.request import Request,urlopen
 from urllib.error import HTTPError
 
 ROOT=Path(__file__).resolve().parents[3]
+sys.path.insert(0,str(ROOT/'.workbench/runtime/rocm101'))
+import sdk  # noqa: E402
 DATA=ROOT/'workspace/data/image/qwen-image'
 MODELS=DATA/'models/qwen-image21-mxfp4-rdna4'
 REPORTS=ROOT/'workspace/reports/image/qwen-image21'
-OUTPUTS=ROOT/'workspace/outputs/image/qwen-image'
 UPSTREAM=ROOT/'engines/shared/paiton/upstream/models/Qwen-Image-2.1'
-IMAGE='ghcr.nju.edu.cn/eliovp/paiton-vllm-plugin@sha256:64f6a6154b93f39b34f272fc66110ce17f72cca3ec31284ab57056ca5cdc2677'
-RUNTIME_CONFIG=ROOT/'.workbench/runtime/rocm101/active.json'
-if RUNTIME_CONFIG.exists():
-    IMAGE=json.loads(RUNTIME_CONFIG.read_text()).get('qwen-image21',{}).get('target',IMAGE)
+sys.path.insert(0,str(ROOT/'.workbench/runtime'))
+sys.path.insert(0,str(ROOT/'.workbench'))
+import images  # noqa: E402
+import storage  # noqa: E402
 NAME='paiton-qwen-image21'
 API='http://127.0.0.1:8191'
 GPU_NAMES={'paiton-qwen38',NAME,'paiton-h3','ai-vbench'}
@@ -48,11 +49,10 @@ def main():
     parser.add_argument('--diagnostics',action='store_true')
     parser.add_argument('--blas',choices=['hipblas','hipblaslt'],default='hipblas',help='默认使用已验证的 hipBLAS；hipBLASLt 尚待单独验证')
     args=parser.parse_args()
-    for folder in [DATA,REPORTS,OUTPUTS]:folder.mkdir(parents=True,exist_ok=True)
+    for folder in [DATA,REPORTS]:folder.mkdir(parents=True,exist_ok=True)
     if args.command=='prepare':
-        if IMAGE.startswith('local-ai/'):
-            docker('image','inspect',IMAGE,capture=True)
-        else:docker('pull',IMAGE)
+        # The runtime image is built and activated by ./lab runtime; prepare only fetches weights.
+        docker('image','inspect',images.active('qwen-image'),capture=True)
         subprocess.run([sys.executable,str(ROOT/'.workbench/scripts/fetch-locked-checkpoint.py'),'--lock',str(UPSTREAM/'checkpoint.lock.json'),'--destination',str(MODELS)],check=True)
     elif args.command=='start':
         if not (MODELS/'verification.json').exists():raise RuntimeError('先执行 prepare 下载并验证权重')
@@ -78,7 +78,7 @@ def main():
             launch_args=['-u','-m','paiton_image21','--model-dir','/models/qwen-image21','--backend','reference','serve','--host','0.0.0.0']
         if args.diagnostics:
             options[1]=str(Path(__file__).parent/'runtime/diagnostic_runtime.py')+':/app/paiton_image21/runtime.py:ro'
-        docker('run','-d','--name',NAME,'--restart','no','--ulimit','core=0','-e','HSA_ENABLE_SDMA='+('0' if args.sdma=='off' else '1'),'--device','/dev/kfd','--device','/dev/dri','--group-add',render_gid,'--ipc=host','-p','127.0.0.1:8191:8191','-v',str(DATA)+':/cache','-v',str(MODELS)+':/models/qwen-image21:ro',*options,IMAGE,*launch_args)
+        docker('run','-d','--name',NAME,'--restart','no','--ulimit','core=0','-e','HSA_ENABLE_SDMA='+('0' if args.sdma=='off' else '1'),'--device','/dev/kfd','--device','/dev/dri','--group-add',render_gid,'--ipc=host','-p','127.0.0.1:8191:8191',*sdk.mount(),'-v',str(DATA)+':/cache','-v',str(MODELS)+':/models/qwen-image21:ro',*options,images.active('qwen-image'),*launch_args)
         print('图像服务正在加载：'+API+'；使用 check 查看就绪状态')
     elif args.command=='stop':docker('stop',NAME)
     elif args.command=='status':docker('ps','-a','--filter','name=^/'+NAME+'$')
@@ -91,7 +91,7 @@ def main():
     else:
         if args.mode=='edit' and (args.image is None or args.size!=1024):raise RuntimeError('编辑需要 --image，--size 必须是1024')
         stamp=datetime.datetime.now().strftime('%Y%m%dT%H%M%S')
-        path=(args.output or OUTPUTS/(args.mode+'-'+stamp+'.png')).resolve()
+        path=(args.output or storage.manual('pation-model-qwen-image-21')/(args.mode+'-'+stamp+'.png')).resolve()
         if path.exists():raise RuntimeError('输出文件已存在，请选择新路径')
         payload={'prompt':args.prompt,'mode':args.mode,'size':f'{args.size}x{args.size}','seed':args.seed,'n':1}
         if args.mode=='edit':payload['image_b64']=base64.b64encode(args.image.read_bytes()).decode()

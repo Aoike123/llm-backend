@@ -25,6 +25,13 @@ def patch_loopback():
         if '      HSA_ENABLE_SDMA:' not in source:
             if marker not in source:raise RuntimeError(f"上游 Compose 环境格式已变化：{path}")
             path.write_text(source.replace(marker,marker+additions))
+        # The ComfyUI container runs on the shared host ROCm SDK (docs/ROCM_SHARED_SDK_PLAN.md).
+        source=path.read_text()
+        sdk='      - ${PAITON_ROCM101_SDK:?Use project controller}:/opt/rocm101-sdk:ro\n'
+        anchor='      - ${PAITON_H3_OUTPUTS:?Use launch.sh}:/outputs\n'
+        if model=='MiniMax-H3' and sdk not in source:
+            if anchor not in source:raise RuntimeError(f"上游 Compose 挂载格式已变化：{path}")
+            path.write_text(source.replace(anchor,anchor+sdk))
 
 
 def patch_model_alias():
@@ -55,6 +62,10 @@ def patch_local_runtime():
         if '-e HSA_ENABLE_SDMA=0' not in source:
             assert marker in source,str(path)
             path.write_text(source.replace(marker,marker+'  -e "HF_HUB_OFFLINE=${HF_HUB_OFFLINE:-0}" -e HSA_ENABLE_SDMA=0 -e TORCH_BLAS_PREFER_HIPBLASLT=0 \\\n'))
+        source=path.read_text()
+        if model=='MiniMax-H3' and 'rocm101-sdk' not in source:
+            assert marker in source,str(path)
+            path.write_text(source.replace(marker,marker+'  ${PAITON_ROCM101_SDK:+-v "$PAITON_ROCM101_SDK:/opt/rocm101-sdk:ro"} \\\n'))
     path=models/'Wan2.2/Dockerfile'
     source=path.read_text()
     original='FROM ghcr.io/eliovp/paiton-vllm-plugin@sha256:c56baf54aca1ad229829c1de26e8792806608e65ee9d06ee210b79cd49f70bc9'

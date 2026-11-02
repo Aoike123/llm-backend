@@ -13,15 +13,16 @@ from urllib.request import urlopen
 
 ROOT=Path(__file__).resolve().parents[3]
 HERE=Path(__file__).resolve().parent
-DATA=ROOT/'workspace/data/comfyui'
-OUTPUT=ROOT/'workspace/outputs/comfyui'
+# The runtime's /data: weights shared by H3 and Anima, the canvas user directory and caches.
+RUNTIME_DATA=ROOT/'workspace/data/comfy'
+DATA=RUNTIME_DATA/'sync'
 sys.path.insert(0,str(ROOT/'.workbench'))
 import registry  # noqa: E402
 RUNTIME=registry.native_runtime()
 # The ComfyUI container is the Paiton H3 image; its compose project starts it.
 LAUNCH=['pation-model-minimax-h3','start']
 NAME=RUNTIME['container']
-WORKFLOWS=ROOT/'workspace/data/video/minimax-h3/user/default/workflows'
+WORKFLOWS=RUNTIME_DATA/'user/default/workflows'
 
 
 def docker(*args,capture=False):

@@ -1,0 +1,8 @@
+{
+  "runtime": "qwen-image",
+  "repository": "local-ai/qwen-image21",
+  "base": "ghcr.nju.edu.cn/eliovp/paiton-vllm-plugin@sha256:64f6a6154b93f39b34f272fc66110ce17f72cca3ec31284ab57056ca5cdc2677",
+  "steps": [
+    {"script": "attach-sdk.py"}
+  ]
+}

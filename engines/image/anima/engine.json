@@ -4,9 +4,11 @@
   "entrypoint": "engines/shared/comfyui/controller.py",
   "models_available_locally": true,
   "category": "image",
-  "cache": "workspace/data/video/minimax-h3/models",
-  "outputs": "workspace/outputs/image/anima",
-  "reports": "workspace/reports/image/anima",
+  "storage": {
+    "data": [
+      "workspace/data/comfy"
+    ]
+  },
   "deployment_id": "anima",
   "backend": "ComfyUI 原生节点",
   "platform": {

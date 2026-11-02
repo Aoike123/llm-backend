@@ -25,14 +25,9 @@ cat /etc/containerd/config.toml
 
 `docker image ls` 的镜像大小含共享层，不能逐项相加。containerd 还保存镜像下载包；镜像历史层中被后续删除或覆盖的文件仍占空间。不要直接删除 containerd 的 blobs 或 snapshots。
 
-## 本次清理和构建优化
+## 镜像体积
 
-- 清理两个失败的临时容器和无容器引用的无标签镜像；保留正式容器、模型、具名镜像及配置引用的运行时。
-- ComfyUI 离线组装与 VBench 改用多阶段构建，最终镜像只复制已安装依赖，不携带 wheel 包的 COPY 层。兼容本机现有传统 Docker 构建器。
-- ROCm `finalize` 先检查已有 SDK 运行库，已初始化时只检查或修复链接，避免重复运行初始化而产生约 7GB 的文件重写层。
-- 修改后的构建配方在后续构建时生效。本次迁移继续使用原镜像，不更换推理环境。
-
-SDK 升级镜像仍继承原供应商镜像的旧层，安装包 COPY 层也仍在现有镜像中。进一步缩小这部分需要重新组织 SDK 构建并逐个验证 ABI，不能通过在容器里删除文件实现。
+2026-11-02 起，所有运行时镜像都由 `./lab runtime build` 从供应商底座构建成单层镜像，ROCm SDK 在宿主机上只存一份，以只读方式挂载。之前叠层构建留下的旧 SDK、安装包和重复副本因此一并消失：三个 GPU 镜像从约 145 GB 降到约 36 GB。做法和升级流程见 [运行时镜像](RUNTIME_IMAGES.md)。
 
 ## 迁移与回退
 
@@ -42,4 +37,4 @@ SDK 升级镜像仍继承原供应商镜像的旧层，安装包 COPY 层也仍�
 
 维护单元日志、原配置备份和执行清单位于 `workspace/reports/maintenance/docker-20261019/`。迁移完成后，旧存储副本已删除，后续回迁需要重新停服务并同步当前数据，不能只恢复旧配置。
 
-定期清理前先核对 `active.json`、`images.json` 和服务配置中的镜像。停止的 GPU 容器可能只是等待调度；不要使用无范围的容器或卷清理命令。
+镜像清理用 `./lab runtime prune`：它只删除没有被 `workspace/config/runtime-images.json` 引用的镜像、SDK 版本和构建残留，默认只预览。停止的 GPU 容器可能只是在等待调度；不要使用无范围的 `docker system prune`。

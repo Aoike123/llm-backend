@@ -2,7 +2,7 @@
 
 [文档目录](README.md)
 
-`/mnt/Code/llm-backend` 是所有引擎的项目根目录，文本、图像、视频都放在这里。
+每个引擎是 `engines/` 下的一个包；网关、MCP、控制台、镜像构建和存储都从包里的清单读取，接入、升级和卸载不需要改平台代码。
 
 ## 部署说明
 
@@ -16,7 +16,6 @@
 | 语音 | [BS-RoFormer](../engines/audio/bs-roformer/engine.json) | 人声 / 伴奏分离，3 分钟音频约 2 分钟 |
 | 语音 | [Qwen3-ASR 1.7B](../engines/audio/qwen3-asr/engine.json) | 中文与方言识别；为语音克隆自动补全参考文本 |
 | 文本 | [Qwen38 MXFP4](../engines/llm/pation-model-qwen38-27b-mxfp4/README.md) | 入口已登记，未完成验收 |
-| 文本 | [原生 vLLM](../engines/llm/vllm/README.md) / [llama.cpp](../engines/llm/llama-cpp/README.md) / [Strata](../engines/llm/strata/README.md) | 资源或配置已登记，运行环境待接入 |
 
 ## 目录与命名
 
@@ -25,61 +24,45 @@ llm-backend/
 ├── lab                           # 用户统一入口
 ├── README.md                     # 首页
 ├── engines/
-│   ├── llm/                      # Qwen3.8 专用部署及通用引擎
-│   ├── image/                    # Qwen-Image / Anima
-│   ├── video/                    # MiniMax H3
-│   ├── audio/                    # Drama 3 / BS-RoFormer / Qwen3-ASR（共用 audio.cpp 运行时）
-│   ├── shared/paiton/            # 共用后端源码及控制器
-│   ├── shared/comfyui/           # ComfyUI 运行时：客户端、节点、模板（H3 / Anima 共用）
-│   └── shared/audiocpp/          # audio.cpp 运行时控制器与客户端
-├── docs/                         # 使用与评测说明
-├── workspace/
-│   ├── data/                     # 模型与运行缓存
-│   ├── outputs/                  # 生成作品
-│   └── reports/                  # 推理、性能、能力评测记录
-└── .workbench/
-    ├── registry.py               # Python 侧读取引擎清单（lab、ComfyUI 控制器共用）
-    ├── scripts/                  # 内部维护和评测脚本
-    ├── tests/                    # 项目检查
-    ├── vendor/                   # 标准评测工具源码
-    ├── docker/                   # 可选评测镜像构建文件
-    ├── envs/                     # 工具 Python 环境
-    ├── cache/                    # 内部 Python 缓存
-    └── sources.lock.json         # 上游版本锁
-```
-
-每个引擎目录保存 `engine.json`、`config/models.json` 和说明；接入网关的引擎另有 `adapter.mjs` 和可选的 `tests/`（随 `./lab check` 运行），规范见下文「接入新引擎」。共用同一服务进程的引擎把运行时放在 `engines/shared/<运行时>/`，引擎包只保留自己的图、参数和校验。
-
-日常请求走统一 API；下面的启动命令用于空闲时的手动维护。
-
-```bash
-./lab engines
-./lab models
-./lab pation-model-qwen38-27b-w3a4 start w3a4  # 已验证文本部署
-./lab pation-model-qwen-image-21 start
-./lab comfyui start                # H3 / Anima 共用的 ComfyUI
-./lab stop                       # 停止当前接入的 Paiton 系列服务
-```
-
-W3A4 文本部署已通过长上下文、视觉、思考与 8 路混合请求检查。Qwen-Image 2.1、MiniMax H3 与 Anima 已通过媒体生成验证，权重在项目 NVMe。MXFP4 独立文本入口以及原生 vLLM、llama.cpp、Strata 尚未完成部署验收。
-
-
-现有 `./lab start llm`、`./lab fetch`、`./lab bench video-audio` 等命令继续可用。新方案优先使用显式引擎名称。文本权重路径保存在 `engines/llm/pation-model-qwen38-27b-w3a4/config/local-models.json`；运行权重已复制到项目 NVMe，并只读挂载，资源盘原件保留。
-
-目录名优先标识模型部署或通用引擎。`pation-model-qwen38-27b-w3a4` 的后端记录为 Paiton / vLLM，`pation-model-qwen38-27b-mxfp4` 为独立的 MXFP4 部署入口，二者共享模型资源；公共后端源码仍放在 `engines/shared/paiton/`。旧 `paiton` 命令仅作为迁移兼容入口，注册表不再将其列作通用引擎。
-
-目录按 `pation-model-<模型型号>-<量化版本>` 命名，设备型号记录在配置中。已清理废弃的评测环境与旧 Python 缓存；当前运行缓存、模型、标准评测源码与图像／视频部署配置保留。
-
-下线记录：2026-10-20 Wan/FastWan；2026-11 CosyVoice；2026-11-02 FLUX.2 klein（使用频率低，由 Anima 补位图像降级）。当前运行时与调度见 [运行模式](RUNTIME_TOPOLOGY.md)。
-
-## 接入新引擎
-
-一个引擎就是 `engines/<category>/<id>/` 下的一个目录。网关、MCP 和控制台都从这里读取，不需要改它们的代码。设计与取舍见 [引擎平台化](ENGINE_PLATFORM.md)。
+│   ├── llm/       ## 目录与命名
 
 ```text
-engines/audio/fish-drama3/
-├── engine.json     # 清单：lab 字段 + platform 段
+llm-backend/
+├── lab                               # 统一入口
+├── engines/
+│   ├── <category>/<package>/         # 引擎包：engine.json、adapter.mjs、可选 image.json / tests/ / controller.py
+│   └── shared/<runtime>/             # 多个引擎共用的运行时：comfyui、audiocpp、paiton（供应商启动器）
+├── platforms/                        # 网关与控制台、MCP、调度、监控、systemd 单元；platform.json 定义端口与存储
+├── .workbench/
+│   ├── registry.py / storage.py      # Python 侧读取引擎清单与存储布局
+│   ├── runtime/images.py             # 运行时镜像：发现配方、构建、激活、清理
+│   ├── runtime/rocm101/              # 共享 ROCm SDK：sdk.py、版本锁、构建步骤
+│   ├── evaluation/vbench/            # VBench 评测镜像配方
+│   └── scripts/ tests/ vendor/ envs/
+├── workspace/                        # 不进 Git：data/（模型、缓存、状态）、config/（本机状态）、outputs → 作品盘
+└── docs/
+```
+
+目录名标识模型部署，如 `pation-model-<模型>-<量化>`；设备型号记录在配置里。共用一个服务进程的引擎把运行时放在 `engines/shared/<runtime>/`，引擎包里只保留自己的图、参数和校验。
+
+日常请求走统一 API，运行时由网关按需启动。下面的命令用于维护：
+
+```bash
+./lab engine status                 # 每个包占用的镜像与数据
+./lab runtime status                # 每个运行时的镜像与 SDK 版本
+./lab pation-model-qwen38-27b-w3a4 start w3a4
+./lab comfyui start                 # H3 / Anima 共用的 ComfyUI
+./lab stop                          # 停止当前 GPU 容器
+```
+
+文本权重路径保存在 `engines/llm/pation-model-qwen38-27b-w3a4/config/local-models.json`，运行权重已复制到项目 NVMe 并只读挂载。`pation-model-qwen38-27b-mxfp4` 是同一模型的 MXFP4 部署入口，只能命令行启动，未接入网关。
+
+下线记录：2026-10-20 Wan/FastWan；2026-11 CosyVoice；2026-11-02 FLUX.2 klein（使用频率低，由 Anima 接替图像降级），以及只有占位登记、从未接入的 vLLM、llama.cpp、Strata 三个包。当前运行时与调度见 [运行模式](RUNTIME_TOPOLOGY.md)。
+
+ama3/
+├── engine.json     # 清单：lab 字段、platform 段、storage.data（占用的数据目录）
 ├── adapter.mjs     # 生命周期与能力实现，只引用 engine-sdk.mjs 和 engines/shared/<运行时>/client.mjs
+├── image.json      # 可选：运行时镜像配方（独占运行时的引擎；共用运行时的配方在 engines/shared/<runtime>/）
 ├── tests/          # 可选：*.test.mjs，./lab check 自动发现
 ├── controller.py   # lab 的启停入口（engine.json 的 entrypoint）
 └── README.md
@@ -134,14 +117,24 @@ engines/audio/fish-drama3/
 
 错误语义沿用网关规则：`answered()` 包住后端调用，HTTP 错误记为 `BACKEND_FAILED`；`beforeSubmission()` 包住提交前的准备，失败记为 `NOT_SUBMITTED`；其他异常在派发后记为结果不确定，不会重试。
 
-### 接入与卸载
+### 接入、升级与卸载
+
+| 操作 | 步骤 |
+| --- | --- |
+| 接入 | 放入包目录 → 如果需要新运行时，写 `image.json` 并执行 `./lab runtime build <runtime>`，GPU 验收后 `./lab runtime activate` → `./lab check` → `./lab engine enable <package>` |
+| 升级引擎 | 改 `image.json`（换底座 digest 或步骤）→ `build` → 验收 → `activate` → `./lab runtime prune --apply`；回滚：`activate` 上一版 |
+| 升级 ROCm SDK | 见 [运行时镜像 · 升级流程](RUNTIME_IMAGES.md#升级流程)；镜像不用重建 |
+| 卸载 | `./lab engine remove <package>` 先预览；加 `--apply` 后停用引擎，删除包目录、只被它占用的数据目录和运行时镜像，再用 Git 提交目录删除。共用的数据和运行时保留，作品从不删除 |
 
 ```bash
 ./lab engine list                    # 所有引擎包及启用状态
+./lab engine status [package]        # 镜像、数据目录与体积，标出共用资源
 ./lab engine enable <package>        # 网关运行时立即生效；否则下次启动生效
 ./lab engine disable <package>       # 正在使用或排队的引擎不能停用；运行中的容器会先停止
+./lab engine remove <package> [--apply]
 ./lab services deploy                # 改了控制台代码后构建并重启网关
 ```
 
-也可以在控制台「引擎」页操作，并在同一页设置每种能力的主推和降级顺序。启用状态和路由保存在 `workspace/config/platform-state.json`，不进 git。
+也可以在控制台「引擎」页启用、停用引擎，并在同一页设置每种能力的主推和降级顺序。启用状态和路由保存在 `workspace/config/platform-state.json`，运行时镜像的选择保存在 `workspace/config/runtime-images.json`，都不进 Git。
 
+`engine.json` 的 `storage.data` 列出包占用的目录（模型、缓存）。多个包声明同一个目录就表示共用；卸载时只删没有其他包声明的目录。布局与作品位置见 [存储](STORAGE.md)。

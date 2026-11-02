@@ -6,7 +6,7 @@
 
 此前 ROCm 10.0 出图曾触发 GPU 映射错误与桌面异常；升级后的测试未观察到新的内核故障，长期稳定性及旧故障根因仍未最终确认。原始诊断保存在 `workspace/reports/image/qwen-image21/BLACK_SCREEN.md`。
 
-权重位于 `workspace/data/image/qwen-image/models/qwen-image21-mxfp4-rdna4`，输出位于 `workspace/outputs/image/qwen-image`。
+权重位于 `workspace/data/image/qwen-image/models/qwen-image21-mxfp4-rdna4`，手动生成的输出在作品盘 `manual/pation-model-qwen-image-21/`；镜像配方 `image.json`。
 
 入口：`./lab pation-model-qwen-image-21 prepare|start|stop|status|logs|check|generate`。可用 `start --precision-profile exact --no-native-fusions` 回到保守路径（该路径也已验证）。先停止其他 GPU 引擎再启动。
 

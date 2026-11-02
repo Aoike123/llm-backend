@@ -1,0 +1,9 @@
+{
+  "runtime": "llm",
+  "repository": "local-ai/qwen38",
+  "base": "ghcr.nju.edu.cn/eliovp/paiton-vllm-plugin@sha256:245c71d54f046f89b74dbfbd4c894003754561e55c9d215a8d3ce65364fb0f80",
+  "steps": [
+    {"script": "attach-sdk.py"},
+    {"script": ".workbench/runtime/cpu-vision/install.sh"}
+  ]
+}

@@ -1,3 +1,4 @@
+import {randomUUID} from 'node:crypto';
 import {call,pause} from '../../../../platforms/workbench/lib/engine-sdk.mjs';
 import {workflowGraph,uploadFile,runPrompt,saveVideoOutput,beforeSubmission} from '../../../shared/comfyui/client.mjs';
 import {decodeReference} from './references.mjs';
@@ -60,6 +61,8 @@ export async function buildGoldfishGraph(input,{uploadImage,uploadVideo,uploadAu
 export async function runGoldfish(input,{base,onSubmitted,outputDirectory,request=call,uploadImage,uploadVideo,uploadAudio,preparedVideos,saveOutput=saveVideoOutput,wait=pause}={}){
  const started=performance.now();
  const graph=await beforeSubmission(()=>buildGoldfishGraph(input,{uploadImage:uploadImage??(bytes=>uploadFile(base,decodeReference(bytes),'png','image/png')),uploadVideo:uploadVideo??(bytes=>uploadFile(base,bytes,'mp4','video/mp4')),uploadAudio:uploadAudio??(bytes=>uploadFile(base,bytes,'wav','audio/wav')),preparedVideos}));
+ // API results go under canvas/api, never among the canvas's own YZ_H3_ files, and are moved out on success.
+ graph['364'].inputs.filename_prefix='api/goldfish-'+randomUUID().replaceAll('-','');
  const {prompt_id,entry}=await runPrompt(base,graph,{onSubmitted,request,wait,label:'Goldfish workflow'});
  const saved=await saveOutput(base,entry,outputDirectory);
  return {data:[saved],metrics:{prompt_id,workflow:GOLDFISH_ID,generation_seconds:(performance.now()-started)/1000}};

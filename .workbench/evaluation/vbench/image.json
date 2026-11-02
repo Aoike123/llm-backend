@@ -1,0 +1,16 @@
+{
+  "runtime": "vbench",
+  "repository": "local-ai/vbench",
+  "base": "ghcr.nju.edu.cn/eliovp/paiton-vllm-plugin@sha256:56c405453d21fd405ab0bb3f7eb0e0a2d6069ab672d617c319528e210ff2dd19",
+  "prepare": ".workbench/evaluation/vbench/prepare.py",
+  "steps": [
+    {"script": "attach-sdk.py"},
+    {"copy": {"runtime": "llm", "from": "/usr/local/lib/python3.12/dist-packages", "names": ["torch", "torch-2.12.0+rocm10.0.0.dist-info"],
+              "into": "/opt/paiton/site-packages", "replace": ["torch", "torch-*.dist-info"]}},
+    {"script": "patch-torch-init.py"},
+    {"script": ".workbench/evaluation/vbench/install.sh"}
+  ],
+  "env": {"PYTHONPATH": "/opt/vbench-deps:/opt/vbench-source:/opt/paiton/venv-site-packages:/opt/paiton/site-packages",
+          "VBENCH_CACHE_DIR": "/cache", "TORCH_HOME": "/cache/torchhub", "HF_HOME": "/cache/huggingface", "HSA_ENABLE_SDMA": "0"},
+  "config": {"Entrypoint": ["python3", "/opt/vbench-entry.py"], "Cmd": null, "WorkingDir": "/opt/vbench-source"}
+}

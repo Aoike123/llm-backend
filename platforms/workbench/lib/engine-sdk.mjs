@@ -12,7 +12,8 @@ export {str,id,seed,list,choice,object,prompt,PROMPT_MAX_LENGTH,validateSchema} 
 
 // A single-request backend that answered with an HTTP error has finished; only a lost answer is uncertain.
 export const answered=async request=>{try{return await request();}catch(e){if(e.status)e.code='BACKEND_FAILED';throw e;}};
-export {beforeSubmission,ARTIFACTS} from './media.mjs';
+export {beforeSubmission,artifactsDirectory} from './media.mjs';
+export {canvasRoot,requireArtifacts} from './storage.mjs';
 
 const run=promisify(execFile);
 // Whether another model is enabled right now, for adapters that can use it as a helper step.

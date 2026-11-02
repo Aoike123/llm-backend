@@ -4,7 +4,7 @@
 
 类别：video。ROCm 10.1 下文生视频、参考首帧、首尾帧均通过实测，带原生音频。默认 Turbo8、864×480、124帧、24fps，约5.17秒；该冷请求用时105.54秒，仍有粗糙纹理。
 
-按需启动：请求或 `./lab comfyui start` 通过调度器拉起共享 ComfyUI，不需要手工停止其他引擎。Turbo8/Turbo4 共35.92GB权重已校验，位于项目 NVMe 的 `workspace/data/video/minimax-h3/models`。
+按需启动：请求或 `./lab comfyui start` 通过调度器拉起共享 ComfyUI，不需要手工停止其他引擎。Turbo8/Turbo4 共35.92GB权重已校验，位于项目 NVMe 的 `workspace/data/comfy/models`。
 
 FL2VA参考图作为首帧约束，也可提供末帧；多图、视频和混合参考使用新增Ref2VA路径，见下文。任意人物或物体参考一致性仍需按素材验收。Turbo4 可用于快速预览；首尾帧与参考模板保留已验证的576×320设置。
 
@@ -21,7 +21,7 @@ API：`POST /v1/videos/generations`，使用 `reference_images_b64`（最多9张
 ```bash
 python3 .workbench/scripts/fetch-locked-checkpoint.py \
   --lock engines/video/pation-model-minimax-h3/reference-models.lock.json \
-  --destination workspace/data/video/minimax-h3/models
+  --destination workspace/data/comfy/models
 ```
 
 ROCm运行配置保留 `--fast-disk --reserve-vram 2 --cache-ram 2`、DynamicVRAM及双流异步卸载，不通过降低输出帧数或步数回避显存问题。公共原生模板的视频24fps转换节点由项目控制器挂载到GPU工作容器，宿主API使用FFmpeg/FFprobe。更改Compose后通过原调度器重新准备H3工作容器。

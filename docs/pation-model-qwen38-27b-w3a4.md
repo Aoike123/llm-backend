@@ -40,7 +40,7 @@ API：`http://127.0.0.1:18982/v1`，模型名：`qwen38-27b-w3a4`。停止服务
 
 三个模型目录来自 `engines/llm/pation-model-qwen38-27b-w3a4/config/local-models.json`，已复制到项目 NVMe 的 `workspace/data/llm/paiton/models/` 并通过全部 91 项 SHA256 校验，均从 NVMe 只读挂载。资源盘原件保留，运行时不再从机械盘读取这些权重。`./lab fetch --fast` 复用本地模型，并验证 INT3 包的 SHA256。运行时缓存写入项目 `workspace/data/llm/paiton/runtime/qwen38/`。
 
-上游锁定启动器的 2026-10-05 基础镜像 digest 如下；本机后续 ROCm 10.1 与 CPU 视觉运行时派生自该底座，实际启用镜像见 `.workbench/runtime/rocm101/active.json` 与 [升级记录](rocm101-upgrade.md)。
+上游锁定启动器的 2026-10-05 基础镜像 digest 如下；本机后续 ROCm 10.1 与 CPU 视觉运行时派生自该底座，实际启用镜像见 `./lab runtime status` 与 [升级记录](rocm101-upgrade.md)。
 
 ```text
 ghcr.io/eliovp/paiton-vllm-plugin:qwen38-rocm10-vllm029-20261005-r1@sha256:245c71d54f046f89b74dbfbd4c894003754561e55c9d215a8d3ce65364fb0f80

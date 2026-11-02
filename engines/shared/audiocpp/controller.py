@@ -16,14 +16,17 @@ from urllib.request import urlopen
 
 ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT / ".workbench"))
+sys.path.insert(0, str(ROOT / ".workbench/runtime/rocm101"))
 import registry  # noqa: E402
+import sdk  # noqa: E402
+import storage  # noqa: E402
 
 DATA = ROOT / "workspace/data/audio/audiocpp"
 NAME = "paiton-audiocpp"
 PORT = 18986
 IMAGE = "ubuntu:24.04"
-ROCM = Path("/opt/rocm/core-10.1")
-MEDIA = Path("/media/aoike/Resource_Trad/Assets")
+# The same shared ROCm SDK every GPU image runs on, mounted read-only.
+ROCM = Path(sdk.TARGET) / "_rocm_sdk_devel"
 # Every model the server can load; the gateway routes only to enabled packages.
 MODELS = [
     {"id": "fish-drama3", "family": "fish_drama3", "path": "models/Drama-3-GGUF/drama-3-backbone-8bit-F32-routers-experts-Q4_K_S.gguf", "task": "clon",
@@ -54,7 +57,7 @@ def health(timeout=2):
 
 def prepare():
     missing = [str(DATA / m["path"]) for m in MODELS if not (DATA / m["path"]).exists()]
-    missing += [str(p) for p in (DATA / "bin/audiocpp_server", ROCM / "lib/libamdhip64.so.7") if not p.exists()]
+    missing += [str(p) for p in (DATA / "bin/audiocpp_server", sdk.path() / "_rocm_sdk_devel/lib/libamdhip64.so.7") if not p.exists()]
     for item in missing:
         print("缺少：" + item)
     return 1 if missing else 0
@@ -79,8 +82,9 @@ def start():
     docker("rm", "-f", NAME, capture=True, check=False)
     render = Path("/dev/kfd").stat().st_gid
     docker("run", "-d", "--name", NAME, "--restart", "no", "--device", "/dev/kfd", "--device", "/dev/dri", "--group-add", render,
-           "--ipc=host", "-p", f"127.0.0.1:{PORT}:{PORT}", "-v", f"{DATA}:/audiocpp", "-v", f"{ROCM}:{ROCM}:ro",
-           "-v", f"{MEDIA}:{MEDIA}:ro", "-e", f"LD_LIBRARY_PATH={ROCM}/lib", "-w", "/audiocpp",
+           "--ipc=host", "-p", f"127.0.0.1:{PORT}:{PORT}", "-v", f"{DATA}:/audiocpp", *sdk.mount(),
+           # Materials and earlier artifacts are opened by their host paths.
+           *storage.mounts(), "-e", f"LD_LIBRARY_PATH={ROCM}/lib", "-e", f"ROCM_PATH={ROCM}", "-w", "/audiocpp",
            IMAGE, "/audiocpp/bin/audiocpp_server", "--config", "/audiocpp/config.json", capture=True)
     for _ in range(60):
         try:

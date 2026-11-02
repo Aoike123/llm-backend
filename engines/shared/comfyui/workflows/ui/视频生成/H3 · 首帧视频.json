@@ -1018,7 +1018,7 @@
       "mode": 0,
       "properties": {},
       "widgets_values": [
-        "原生 H3：MODEL、CLIP、VAE、CONDITIONING、LATENT、IMAGE、AUDIO 均在同一个 GPU 工作进程中连接。\n修改 LoRA、采样器、步数后按实际输出重新验证。Turbo8 默认 8 步；Turbo4 需同时替换为匹配的 4 步 LoRA。\n权重：workspace/data/video/minimax-h3/models → GPU 容器模型目录；公共页面不重复加载权重。"
+        "原生 H3：MODEL、CLIP、VAE、CONDITIONING、LATENT、IMAGE、AUDIO 均在同一个 GPU 工作进程中连接。\n修改 LoRA、采样器、步数后按实际输出重新验证。Turbo8 默认 8 步；Turbo4 需同时替换为匹配的 4 步 LoRA。\n权重：workspace/data/comfy/models → GPU 容器模型目录；公共页面不重复加载权重。"
       ],
       "color": "#343943",
       "bgcolor": "#252830"

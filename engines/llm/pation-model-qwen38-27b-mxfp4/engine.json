@@ -3,9 +3,11 @@
   "entrypoint": "engines/shared/paiton/controller.py",
   "status": "权重已准备；GPU 推理待验证",
   "upstream": "engines/shared/paiton/upstream",
-  "cache": "workspace/data/llm/paiton",
-  "outputs": "workspace/outputs/llm/paiton",
-  "reports": "workspace/reports/llm/paiton",
+  "storage": {
+    "data": [
+      "workspace/data/llm/paiton"
+    ]
+  },
   "category": "llm",
   "kind": "model-deployment",
   "backend": "Paiton / vLLM",

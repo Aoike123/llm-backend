@@ -24,8 +24,7 @@ ENV.update({
     "PAITON_CACHE_DIR": str(ROOT / "workspace/data/llm/paiton/runtime/qwen38"),
     "PAITON_H3_REFERENCE_NODES": str(ROOT / "engines/shared/comfyui/nodes/h3_references"),
     "PAITON_H3_NODES": str(ROOT / "engines/shared/comfyui/nodes/packs"),
-    "PAITON_H3_DATA": str(ROOT / "workspace/data/video/minimax-h3"),
-    "PAITON_H3_OUTPUTS": str(ROOT / "workspace/outputs/video/minimax-h3"),
+    "PAITON_H3_DATA": str(ROOT / "workspace/data/comfy"),
     "HF_HUB_DISABLE_TELEMETRY": "1",
 })
 LOCAL_MODELS_PATH = ROOT / "engines/llm/pation-model-qwen38-27b-w3a4/config/local-models.json"
@@ -34,8 +33,11 @@ MODEL_VARIABLES = {"PAITON_TARGET_DIR", "PAITON_DRAFT_DIR", "PAITON_W3ROT_DIR"}
 if set(LOCAL_MODELS) - MODEL_VARIABLES:
     raise RuntimeError("engines/llm/pation-model-qwen38-27b-w3a4/config/local-models.json 包含不支持的模型路径变量")
 ENV.update(LOCAL_MODELS)
-RUNTIME_CONFIG=ROOT/'.workbench/runtime/rocm101/active.json'
-RUNTIMES=json.loads(RUNTIME_CONFIG.read_text()) if RUNTIME_CONFIG.exists() else {}
+# Which image each runtime starts from is operator state, set by ./lab runtime activate.
+sys.path.insert(0, str(ROOT / '.workbench/runtime'))
+sys.path.insert(0, str(ROOT / '.workbench'))
+import images  # noqa: E402
+import storage  # noqa: E402
 
 
 def check_local_model(variable):
@@ -76,15 +78,19 @@ def require_docker():
 def model_env(profile):
     if profile in ("llm", "llm-fast", "llm-throughput"):
         ENV["PAITON_SERVED_MODEL_NAME"] = PROFILES[profile].get("served_model_name", "Qwen3.8")
-        if 'llm' in RUNTIMES:
-            ENV['PAITON_FEATURE_IMAGE']=RUNTIMES['llm']['target']
-            ENV['PAITON_FEATURE_BASE_IMAGE']='ghcr.io/eliovp/paiton-vllm-plugin:qwen38-rocm10-vllm029-20261005-r1@sha256:245c71d54f046f89b74dbfbd4c894003754561e55c9d215a8d3ce65364fb0f80'
-    if profile=='video-audio' and 'minimax-h3' in RUNTIMES:
-        ENV['PAITON_H3_BASE_IMAGE']=RUNTIMES['minimax-h3']['target']
-        ENV['PAITON_H3_IMAGE']='local-ai/pation-minimax-h3-comfyui-rocm101:20261011'
+        ENV['PAITON_FEATURE_IMAGE']=images.active('llm')
+        ENV['PAITON_FEATURE_BASE_IMAGE']='ghcr.io/eliovp/paiton-vllm-plugin:qwen38-rocm10-vllm029-20261005-r1@sha256:245c71d54f046f89b74dbfbd4c894003754561e55c9d215a8d3ce65364fb0f80'
+    if profile=='video-audio':
+        # The ComfyUI container mounts the shared ROCm SDK read-only and writes the canvas directory.
+        ENV['PAITON_ROCM101_SDK']=str(images.sdk.path())
+        ENV['PAITON_H3_OUTPUTS']=str(storage.canvas())
+        # Built by ./lab runtime build comfy; never assembled by the vendor launcher.
+        ENV['PAITON_H3_IMAGE']=images.active('comfy')
+        if not images.image_info(ENV['PAITON_H3_IMAGE']):
+            raise RuntimeError(f"ComfyUI 镜像不存在：{ENV['PAITON_H3_IMAGE']}。执行 ./lab runtime build comfy 并激活。")
     if profile == "image-hq":
         ENV["PAITON_CACHE"] = str(ROOT / "workspace/data/image/qwen-image")
-        ENV["PAITON_OUTPUTS"] = str(ROOT / "workspace/outputs/image/qwen-image")
+        ENV["PAITON_OUTPUTS"] = str(storage.manual("pation-model-qwen-image-21"))
     for key, value in ENV.items():
         if key.startswith("PAITON_") and (key.endswith("DIR") or key.endswith("DATA") or key.endswith("OUTPUTS") or key == "PAITON_CACHE"):
             if key in LOCAL_MODELS:
@@ -263,17 +269,17 @@ def main():
                     launch_args+=['--context',str(context),'--max-num-seqs',str(sequences),
                                   '--eager-mode','on' if policy.get('eager',False) else 'off',
                                   '--kv-cache-memory-bytes',str(policy.get('kv_budget_bytes',8859648000 if context<=65536 else 8589934592))]
-            if args.profile in ('llm','llm-fast','llm-throughput') and 'llm' in RUNTIMES:
+            if args.profile in ('llm','llm-fast','llm-throughput'):
                 if '--image' in launch_args:
                     index=launch_args.index('--image');del launch_args[index:index+2]
-                launch_args+=['--image',RUNTIMES['llm']['target']]
-                if RUNTIMES['llm'].get('cpu_vision'):
-                    if '--vision' not in launch_args:
-                        launch_args.append('--vision')
-                    if args.profile == 'llm-throughput' and '--kv-cache-memory-bytes' not in launch_args:
-                        launch_args += ['--kv-cache-memory-bytes', '8859648000']
-                    if '--dry-run' not in extra:
-                        run([sys.executable, ROOT/'.workbench/runtime/cpu-vision/controller.py', RUNTIMES['llm']['target']])
+                launch_args+=['--image',images.active('llm')]
+                # The LLM image always carries the CPU vision proxy (.workbench/runtime/cpu-vision/install.sh).
+                if '--vision' not in launch_args:
+                    launch_args.append('--vision')
+                if args.profile == 'llm-throughput' and '--kv-cache-memory-bytes' not in launch_args:
+                    launch_args += ['--kv-cache-memory-bytes', '8859648000']
+                if '--dry-run' not in extra:
+                    run([sys.executable, ROOT/'.workbench/runtime/cpu-vision/controller.py', images.active('llm')])
             residency_file=ROOT/'platforms/scheduler/residency.json'
             residency=json.loads(residency_file.read_text()) if residency_file.exists() else {}
             resident=(args.profile=='llm-fast' and ENV.get('LAB_LLM_RESIDENCY_DISABLE')!='1' and (ENV.get('LAB_LLM_RESIDENCY_TEST')=='1' or residency.get('enabled',False)))

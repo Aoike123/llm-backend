@@ -4,8 +4,11 @@
   "entrypoint": "engines/shared/audiocpp/controller.py",
   "category": "audio",
   "deployment_id": "qwen3-asr",
-  "cache": "workspace/data/audio/audiocpp",
-  "outputs": "workspace/outputs/audio/qwen3-asr",
+  "storage": {
+    "data": [
+      "workspace/data/audio/audiocpp"
+    ]
+  },
   "backend": "audio.cpp 0.9.3 (GGML / HIP)",
   "platform": {
     "engine": "qwen3-asr",

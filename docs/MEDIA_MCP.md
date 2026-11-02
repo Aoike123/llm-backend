@@ -72,7 +72,7 @@
 - Qwen：生图 1024 / 2048，编辑输出 1024；最多 4 张参考，合计不超过 4194304 像素。
 - 图片导入仅接受合法 PNG/JPEG/WebP，归一化 PNG 并保留透明度；最多 16 MiB、16777216 像素。只读取允许目录中的普通文件，不抓取 URL。
 - 所有任务、素材与作品按 API 身份隔离；不会向 MCP 客户端返回密钥或大段作品 base64。
-- 图像输出位于 `/home/aoike/图片/llm-backend/MCP/<job_id>/output.png`，任务和协议元数据位于 `/home/aoike/文档/llm-backend/MCP/`。
+- 作品位于作品盘 `Assets/<images|videos|audio>/<YYYY-MM>/<job_id>/`，任务记录、素材和调用记录在 `workspace/data/media/`；作品盘未挂载时，创建任务返回 503。见 [存储](STORAGE.md)。
 
 ## 视频生成（H3 原版工作流）
 
@@ -124,7 +124,7 @@
 
 未传控制参数时保留原版模型、LoRA、注意力优化、1.5MP分辨率、10步 SelfLift 和音视频链。默认10秒、24fps，按原版表达式对齐到243帧；时长接受4–15秒，默认种子905138662823835。SelfLift 保持 Euler/simple；没有把它伪装成可以直接旁路的开关。
 
-返回持久 `job_id`，通过 `get_job`、`get_artifact` 取回MP4。任务经过现有身份准入和 GPU 服务切换，动态编译上述原版分支后向原生 `/prompt` 提交；原生 `prompt_id` 保存以便恢复，避免重复提交。输出位于 `/home/aoike/视频/llm-backend/MCP/<job_id>/output.mp4`。通用视频工具保持移除，不接受任意工作流 JSON、节点或模型路径。
+返回持久 `job_id`，通过 `get_job`、`get_artifact` 取回MP4。任务经过现有身份准入和 GPU 服务切换，动态编译上述原版分支后向原生 `/prompt` 提交；原生 `prompt_id` 保存以便恢复，避免重复提交。输出位于作品盘 `videos/<YYYY-MM>/<job_id>/output.mp4`。通用视频工具保持移除，不接受任意工作流 JSON、节点或模型路径。
 
 导入目录默认是资源盘的 `Assets` 与 `Project` 加当前工作区，由代码给出，不再写入凭据文件；凭据文件的 `import_roots` 或 `MEDIA_IMPORT_ROOTS` 只用于追加目录。升级后重新连接 MCP 客户端以刷新 Schema。
 

@@ -4,9 +4,11 @@
   "entrypoint": "engines/image/pation-model-qwen-image-21/controller.py",
   "models_available_locally": true,
   "category": "image",
-  "cache": "workspace/data/image/qwen-image",
-  "outputs": "workspace/outputs/image/qwen-image",
-  "reports": "workspace/reports/image/qwen-image21",
+  "storage": {
+    "data": [
+      "workspace/data/image/qwen-image"
+    ]
+  },
   "deployment_id": "pation-model-qwen-image-21",
   "backend": "Paiton / Diffusers",
   "platform": {

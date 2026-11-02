@@ -18,7 +18,8 @@ sys.path.insert(0,str(ROOT/'.workbench'))
 import registry  # noqa: E402
 BASE='http://127.0.0.1:'+str(registry.native_runtime()['port'])
 REPORTS=ROOT/'workspace/reports/image/anima'
-OUTPUTS=ROOT/'workspace/outputs/image/anima'
+import storage  # noqa: E402
+OUTPUTS=storage.manual('anima')
 
 
 def post(path,body,content_type='application/json'):

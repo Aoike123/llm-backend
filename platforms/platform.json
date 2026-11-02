@@ -4,5 +4,16 @@
   "management_port": 13000,
   "control_port": 18990,
   "state_file": "workspace/config/platform-state.json",
-  "next_dist": ".next-workbench"
+  "next_dist": ".next-workbench",
+  "storage": {
+    "state": "workspace/data/media",
+    "artifacts": "/media/aoike/Resource_Trad/Assets",
+    "marker": ".llm-backend-artifacts",
+    "import_roots": [
+      "/media/aoike/Resource_Trad/Assets",
+      "/media/aoike/Resource_Trad/Project"
+    ],
+    "quota_gib": 500,
+    "min_free_gib": 50
+  }
 }

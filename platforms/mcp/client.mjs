@@ -3,9 +3,9 @@ import {constants} from 'node:fs';
 import {createHash} from 'node:crypto';
 import {resolve,relative,isAbsolute,delimiter,join,dirname,extname} from 'node:path';
 import {homedir} from 'node:os';
-const RESOURCE_ROOT='/media/aoike/Resource_Trad';
-// Defaults follow the resource disk instead of being frozen into each saved config.
-export const defaultImportRoots=()=>[process.env.MEDIA_ASSETS_ROOT??join(RESOURCE_ROOT,'Assets'),join(RESOURCE_ROOT,'Project')];
+import {importRoots as storageImportRoots} from '../workbench/lib/storage.mjs';
+// Defaults follow platforms/platform.json instead of being frozen into each saved config.
+export const defaultImportRoots=()=>storageImportRoots();
 export const configPath=()=>process.env.MEDIA_MCP_CONFIG??join(homedir(),'.config/llm-backend/media-mcp.json');
 export async function configuration(){
   let saved={};try{saved=JSON.parse(await readFile(configPath(),'utf8'));}catch(e){if(e.code!=='ENOENT')throw e;}

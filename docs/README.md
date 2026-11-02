@@ -17,6 +17,8 @@
 | [项目现状](PROJECT_STATUS.md) | 可用部署、能力边界、待验收事项和证据入口 |
 | [安装与运维](OPERATIONS.md) | 首次安装、服务管理、手动维护、检查与复现 |
 | [容器存储与空间维护](CONTAINER_STORAGE.md) | Docker/containerd 数据分区、迁移记录、构建层优化与清理边界 |
+| [存储](STORAGE.md) | 作品、任务状态与引擎数据的位置，作品盘离线行为，迁移记录 |
+| [运行时镜像](RUNTIME_IMAGES.md) | 镜像配方注册、单层构建、共享 ROCm SDK、升级与回滚 |
 | [ComfyUI 运行时](COMFYUI.md) | H3 与 Anima 共用的按需 ComfyUI：启停、目录、挂载、模板与 Anima 说明 |
 | [H3 多参考编码](H3_REFERENCE_ENCODE.md) | 6 图 × 1.5MP 的 OOM 边界、分块注意力修复、视觉塔与节点缓存、分阶段实测与未采用方案 |
 | [接口与控制台结构](INTERFACES.md) | MCP 工具面、API 路由分组、控制台区块与跳转、调用规范 |
@@ -49,7 +51,7 @@
 | [评测协议](EVALUATION.md) | vLLM、lm-evaluation-harness、GenEval、VBench 的运行方法与验收状态 |
 | [CPU 视觉实现](CPU_VISION_DESIGN.md) | 已接入路径、设计依据、混合负载实测及后续验证 |
 
-原始输出、日志和报告保存在 `workspace/reports/`；生成作品保存在 `workspace/outputs/`。不同日期、配置或计时范围的数字不能直接合并为当前性能结论。
+原始输出、日志和报告保存在 `workspace/reports/`；生成作品在作品盘（`workspace/outputs`），见 [存储](STORAGE.md)。不同日期、配置或计时范围的数字不能直接合并为当前性能结论。
 
 ## 研究与历史
 

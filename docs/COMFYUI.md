@@ -44,6 +44,8 @@ engines/shared/comfyui/
 │   └── packs/                # manifest.json 锁定的第三方节点包 + h3_attention_patch
 ├── schema/h3.json    # 原生节点 schema 快照（模板测试用）
 ├── workflows/        # 画布模板：catalog.json、ui/、api/
+├── image.json        # 运行时镜像配方；image/ 下是构建前校验与组装步骤
+├── tools/            # sync-schema.py 刷新 schema；build-api-workflows.py + workflow_layout.py 由 API 图生成画布模板
 └── tests/            # 模板与同步测试
 ```
 
@@ -55,14 +57,15 @@ engines/shared/comfyui/
 
 | 宿主路径 | 容器路径 |
 | --- | --- |
-| `workspace/data/video/minimax-h3/` | `/data`：权重（H3 与 Anima 共用 `models/`）、输入、画布用户目录、编译缓存 |
-| `workspace/outputs/video/minimax-h3/` | `/outputs`：画布作品 |
+| `workspace/data/comfy/` | `/data`：权重（H3 与 Anima 共用 `models/`）、输入、画布用户目录、编译缓存；`sync/` 为模板同步清单与备份 |
+| 作品盘 `canvas/` | `/outputs`：画布作品；API 任务的视频完成后移出到任务目录 |
+| `workspace/data/runtime/rocm101/sdk/<版本>/` | `/opt/rocm101-sdk`（只读）：共享 ROCm SDK |
 | `engines/shared/comfyui/nodes/h3_references/` | `custom_nodes/workbench_h3_references`（只读） |
 | `engines/shared/comfyui/nodes/packs/<包>/` | `custom_nodes/<包>`（`h3_attention_patch` 只读） |
 
 挂载在 `engines/shared/paiton/upstream/models/MiniMax-H3/compose.yaml`，路径由 `engines/shared/paiton/controller.py` 传入。
 
-API 与 MCP 任务的产物写在任务目录（见 [MCP 存储约定](MEDIA_MCP.md)）。Anima 的结果走 `PreviewImage`，只在 ComfyUI 临时目录留一份，`/outputs` 里不再多存一份。
+API 与 MCP 任务的产物写在任务目录（见 [存储](STORAGE.md)）：H3 的视频完成后从 `canvas/api/` 移到任务目录，附带的无音轨视频和预览图同时删除；Anima 的结果走 `PreviewImage`，不进画布。镜像由 `engines/shared/comfyui/image.json` 构建，见 [运行时镜像](RUNTIME_IMAGES.md)。
 
 ## 工作流模板
 
@@ -75,7 +78,7 @@ API 与 MCP 任务的产物写在任务目录（见 [MCP 存储约定](MEDIA_MCP
 | 视频生成 | H3 · 多参考图 / 参考视频 / 图像与视频混合参考 | `minimax-h3-multireference-*` |
 | 第三方工作流 | 金鱼 · H3 终极篇（原版） | `yz-h3-ultimate-original` |
 
-`./lab comfyui sync` 按“分类/模板”写入 `workspace/data/video/minimax-h3/user/default/workflows/`。用户自己的文件不动；如果托管模板被手工改过，更新前先备份到 `workspace/data/comfyui/workflow-backups/`。
+`./lab comfyui sync` 按“分类/模板”写入 `workspace/data/comfy/user/default/workflows/`。用户自己的文件不动；如果托管模板被手工改过，更新前先备份到 `workspace/data/comfy/sync/workflow-backups/`。
 
 画布任务进入 ComfyUI 自己的队列和历史，不算网关任务。控制台不为 ComfyUI 单独设卡片：H3 与 Anima 的卡片只显示各自的工作流任务，配置页给出共用运行时和画布入口；全部原生队列与历史在「任务中心 → ComfyUI 原生队列」。
 
@@ -99,8 +102,8 @@ Anima 是 CircleStone Labs 与 Comfy Org 发布的 2B 动漫与插画模型，�
 - 权重约 9.8 GB，按 [锁文件](../engines/image/anima/config/models.lock.json) 校验下载：
 
   ```bash
-  python3 .workbench/scripts/fetch-locked-checkpoint.py --lock engines/image/anima/config/models.lock.json --destination workspace/data/video/minimax-h3/models
+  python3 .workbench/scripts/fetch-locked-checkpoint.py --lock engines/image/anima/config/models.lock.json --destination workspace/data/comfy/models
   ```
 
 - 模板复测：`python3 .workbench/scripts/check-anima.py`，会取得 `anima` 租约，报告写到 `workspace/reports/image/anima/`。
-- 许可：CircleStone Labs 非商用许可。模型不得用于付费托管服务，生成的图像可以商用。经公网 API 对外提供 Anima 之前，先确认用途符合许可。
+- 许可：CircleStone Labs 非商用许可。模型不得用于付费托管服务，生成的图像可以商用。本项目的公网 API 只供本人免费使用，符合许可；如果以后对外收费，需要先从路由里移除 Anima。

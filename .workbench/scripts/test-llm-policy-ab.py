@@ -42,7 +42,7 @@ def correctness():
     if not all(r['passed'] for r in rows):raise RuntimeError('Correctness smoke failed')
 def start_policy(policy):
     controller.model_env('llm-fast');os.environ.update(controller.ENV)
-    args=list(controller.PROFILES['llm-fast']['args']);i=args.index('--image');args[i+1]=controller.RUNTIMES['llm']['target']
+    args=list(controller.PROFILES['llm-fast']['args']);i=args.index('--image');args[i+1]=controller.images.active('llm')
     command=launcher.command(controller.PAITON/'models/Qwen3.8-MXFP4-DFlash2/launch-rocm10.py',args,policy)
     report['restored']=False;save()
     subprocess.run([str(ROOT/'lab'),'pation-model-qwen38-27b-w3a4','stop','w3a4'],check=True,timeout=90)

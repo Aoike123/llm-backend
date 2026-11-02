@@ -3,9 +3,11 @@
   "entrypoint": "engines/shared/paiton/controller.py",
   "status": "统一引擎：256K技术上限、最多八路、固定8GiB KV；网关热更新额度，CPU视觉与medium思考",
   "upstream": "engines/shared/paiton/upstream",
-  "cache": "workspace/data/llm/paiton",
-  "outputs": "workspace/outputs/llm/paiton",
-  "reports": "workspace/reports/llm/paiton",
+  "storage": {
+    "data": [
+      "workspace/data/llm/paiton"
+    ]
+  },
   "category": "llm",
   "kind": "model-deployment",
   "backend": "Paiton / vLLM",

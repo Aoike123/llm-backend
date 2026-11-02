@@ -90,9 +90,10 @@ export class Backend {
   }
   async llmMode() {
     try {
-      const runtime=JSON.parse(await readFile(ROOT+'.workbench/runtime/rocm101/active.json','utf8')).llm;
+      // A worker from another image than the activated one (./lab runtime activate) is not reused.
+      const runtime=JSON.parse(await readFile(this.runtimeImagesPath??ROOT+'workspace/config/runtime-images.json','utf8')).llm;
       const image=await this.run('docker',['inspect','--format','{{.Config.Image}}','paiton-qwen38']);
-      if(runtime?.target&&image!==runtime.target){this.loadedLlmMode=null;return null;}
+      if(runtime?.image&&image!==runtime.image){this.loadedLlmMode=null;return null;}
       const args=JSON.parse(await this.run('docker',['inspect','--format','{{json .Config.Cmd}}','paiton-qwen38']));
       const context=args[args.indexOf('--max-model-len')+1],seqs=args[args.indexOf('--max-num-seqs')+1];
       const kv=args[args.indexOf('--kv-cache-memory-bytes')+1];

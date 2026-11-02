@@ -1,11 +1,11 @@
 // Client for the shared native ComfyUI runtime. Engine packages that run graphs on it (H3, Anima)
 // submit native /prompt graphs, follow /history and fetch outputs through these helpers.
 import {createHash,randomUUID} from 'node:crypto';
-import {readFile,readlink,mkdir,rename,open} from 'node:fs/promises';
-import {dirname,resolve} from 'node:path';
+import {readFile,readdir,mkdir,rename,open,rm,stat} from 'node:fs/promises';
+import {join} from 'node:path';
 import {createWriteStream} from 'node:fs';
 import {pipeline} from 'node:stream/promises';
-import {call,pause,ARTIFACTS,beforeSubmission} from '../../../platforms/workbench/lib/engine-sdk.mjs';
+import {call,pause,artifactsDirectory,beforeSubmission,canvasRoot,requireArtifacts} from '../../../platforms/workbench/lib/engine-sdk.mjs';
 export {beforeSubmission};
 const WORKFLOWS=new URL('./workflows/',import.meta.url);
 const id=()=>randomUUID().replaceAll('-','');
@@ -76,21 +76,33 @@ export async function imageOutput(base,entry){
   const files=outputFiles(entry,'.png',['output','temp']);if(!files.length)throw Object.assign(new Error('Image backend returned no PNG'),{code:'BACKEND_FAILED'});
   return Buffer.from(await (await view(base,files[0],60000)).arrayBuffer());
 }
-// workspace/outputs/* are links to external storage; a link whose target was removed is recreated
-// as its target directory instead of failing the save after the video was already generated.
-async function linkTarget(directory){
-  const path=directory.replace(/\/$/,'');
-  try{return resolve(dirname(path),await readlink(path));}catch{return directory;}
+// The container's /outputs is the canvas directory on the same disk as the job directories, so an
+// API result is moved, not copied: one file, and nothing left behind in the canvas. Gateway prompts
+// write under canvas/api/ with a prefix unique to the prompt (api/goldfish-<id>, api/h3-<id>); every
+// other file with that prefix (VHS_VideoCombine's silent mp4 and workflow preview, which history does
+// not list) is removed with it. Without the canvas on this host the file is downloaded as before.
+async function take(base,entry,row,file){
+  const folder=join(canvasRoot(),row.subfolder??''),local=join(folder,row.filename);
+  try{await stat(local);}catch{return false;}
+  await rename(local,file);
+  const prefix=row.filename.replace(/_\d+_?(-audio)?\.[^.]+$/,'');
+  if(/^api(\/|$)/.test(row.subfolder??'')&&prefix!==row.filename)
+    for(const name of await readdir(folder))if(name.startsWith(prefix+'_'))await rm(join(folder,name),{force:true});
+  return true;
 }
-export async function saveVideoOutput(base,entry,outputDirectory){
+export async function saveVideoOutput(base,entry,outputDirectory,{move=take}={}){
   if(entry.status?.status_str!=='success')throw new Error('Video generation failed');
   const files=videoOutputFiles(entry);if(!files.length)throw Object.assign(new Error('Video backend returned no MP4'),{code:'BACKEND_FAILED'});
-  const r=await view(base,files[0],90000);
-  const directory=outputDirectory??ARTIFACTS;await mkdir(await linkTarget(directory),{recursive:true});
-  const name=outputDirectory?'output.mp4':id()+'.mp4',file=directory.replace(/\/?$/,'/')+name;
-  // Stream large videos to disk instead of retaining a second full copy in memory.
-  await pipeline(r.body,createWriteStream(file+'.tmp',{mode:0o600}));
-  const fd=await open(file+'.tmp','r');try{await fd.sync();}finally{await fd.close();}await rename(file+'.tmp',file);
+  // Job directories were checked when the job was admitted; a synchronous result needs the disk now.
+  if(!outputDirectory)requireArtifacts();
+  const directory=outputDirectory??artifactsDirectory();await mkdir(directory,{recursive:true});
+  const name=outputDirectory?'output.mp4':id()+'.mp4',file=join(directory,name);
+  if(!await move(base,entry,files[0],file)){
+    // Stream large videos to disk instead of retaining a second full copy in memory.
+    const r=await view(base,files[0],90000);
+    await pipeline(r.body,createWriteStream(file+'.tmp',{mode:0o600}));
+    const fd=await open(file+'.tmp','r');try{await fd.sync();}finally{await fd.close();}await rename(file+'.tmp',file);
+  }
   return outputDirectory?{local_path:file}:{url:'/artifacts/'+name};
 }
 // After a gateway restart: the prompt_id recorded at submission says what ComfyUI did.

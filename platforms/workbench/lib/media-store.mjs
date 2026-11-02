@@ -1,7 +1,7 @@
 import {mkdir,open,rename,readFile,readdir,rm,stat,statfs,chmod} from 'node:fs/promises';
 import {createReadStream,createWriteStream} from 'node:fs';
 import {join,dirname} from 'node:path';
-import {homedir} from 'node:os';
+import {STORAGE,stateRoot,artifactsRoot,artifactsOnline,offline} from './storage.mjs';
 import {randomUUID,createHash} from 'node:crypto';
 import {pipeline} from 'node:stream/promises';
 import {Transform} from 'node:stream';
@@ -14,27 +14,38 @@ export async function atomic(file,value){
   try{await fd.writeFile(JSON.stringify(value,null,2)+'\n');await fd.sync();}finally{await fd.close();}
   await rename(tmp,file);const directory=await open(dirname(file),'r');try{await directory.sync();}finally{await directory.close();}
 }
+// Job records, imported materials and telemetry live in the state root (internal NVMe); generated
+// media in the artifacts root (resource disk) under <kind>/<YYYY-MM>/<job_id>. Both come from the
+// storage block of platforms/platform.json; tests pass `root` to keep everything in one directory.
 export class MediaStore{
-  constructor({home=homedir(),root=process.env.MEDIA_STORAGE_ROOT,assetsRoot=process.env.MEDIA_ASSETS_ROOT,maxBytes=8*2**30,minFreeBytes=2*2**30}={}){
-    this.assetsRoot=assetsRoot??root??process.env.MEDIA_ASSETS_ROOT??'/media/aoike/Resource_Trad/Assets';this.root=this.assetsRoot;
-    this.images=join(this.assetsRoot,'images');this.videos=join(this.assetsRoot,'videos');this.audio=join(this.assetsRoot,'audio');
-    this.assets=join(this.assetsRoot,'materials');this.jobs=join(this.assetsRoot,'records','jobs');this.telemetry=join(this.assetsRoot,'records','telemetry');this.maxBytes=maxBytes;this.minFreeBytes=minFreeBytes;this.assetIndex=new Map();this.uploads=0;this.usedBytes=0;this.mediaSizes=new Map();
+  constructor({root,state=root??stateRoot(),artifacts=root??artifactsRoot(),requireMarker=!root,maxBytes=STORAGE.quota_gib*2**30,minFreeBytes=STORAGE.min_free_gib*2**30}={}){
+    Object.assign(this,{state,artifacts,requireMarker,maxBytes,minFreeBytes});this.root=artifacts;
+    this.images=join(artifacts,'images');this.videos=join(artifacts,'videos');this.audio=join(artifacts,'audio');
+    this.assets=join(state,'materials');this.jobs=join(state,'jobs');this.telemetry=join(state,'telemetry');this.assetIndex=new Map();this.uploads=0;this.usedBytes=0;this.mediaSizes=new Map();
   }
+  online(){return !this.requireMarker||artifactsOnline(this.artifacts);}
   async open(){
-    for(const dir of [this.root,this.assets,this.jobs,this.images,this.videos,this.audio,this.telemetry])await mkdir(dir,{recursive:true,mode:0o700});
+    for(const dir of [this.assets,this.jobs,this.telemetry])await mkdir(dir,{recursive:true,mode:0o700});
     for(const id of await readdir(this.assets)){
       if(!/^asset_[a-f0-9]{32}$/.test(id))continue;
       try{const asset=JSON.parse(await readFile(join(this.assets,id,'asset.json'),'utf8'));this.assetIndex.set(id,asset);}catch(e){if(e.code!=='ENOENT')throw e;}
     }
-    // Include orphaned/staging media after a crash, so incomplete files cannot bypass quota.
-    const size=async directory=>{let total=0;for(const entry of await readdir(directory,{withFileTypes:true})){const path=join(directory,entry.name);if(entry.isDirectory())total+=await size(path);else if(entry.isFile()){const bytes=(await stat(path)).size;this.mediaSizes.set(path,bytes);total+=bytes;}}return total;};
-    this.usedBytes=await size(this.assets)+await size(this.images)+await size(this.videos)+await size(this.audio);
+    // The gateway starts with the resource disk offline; media requests fail until it returns.
+    if(this.online())await this.measure();
     return this;
+  }
+  // Include orphaned/staging media after a crash, so incomplete files cannot bypass quota.
+  async measure(){
+    const size=async directory=>{let total=0;let entries;try{entries=await readdir(directory,{withFileTypes:true});}catch(e){if(e.code==='ENOENT')return 0;throw e;}for(const entry of entries){const path=join(directory,entry.name);if(entry.isDirectory())total+=await size(path);else if(entry.isFile()){const bytes=(await stat(path)).size;this.mediaSizes.set(path,bytes);total+=bytes;}}return total;};
+    for(const dir of [this.images,this.videos,this.audio])await mkdir(dir,{recursive:true,mode:0o700});
+    this.usedBytes=await size(this.assets)+await size(this.images)+await size(this.videos)+await size(this.audio);this.measured=true;
   }
   account(file,bytes){this.usedBytes+=bytes-(this.mediaSizes.get(file)??0);this.mediaSizes.set(file,bytes);}
   async quota(reserve=0){
-    if(this.usedBytes+reserve>this.maxBytes)throw fail('MCP storage quota reached; archive old media before submitting more',507);
-    const fs=await statfs(this.root);if(fs.bavail*fs.bsize<reserve+this.minFreeBytes)throw fail('Insufficient free disk space for media',507);
+    if(!this.online())throw offline();
+    if(!this.measured)await this.measure();
+    if(this.usedBytes+reserve>this.maxBytes)throw fail('Media storage quota reached; archive old media before submitting more',507);
+    for(const root of [this.artifacts,this.state]){const fs=await statfs(root);if(fs.bavail*fs.bsize<reserve+this.minFreeBytes)throw fail('Insufficient free disk space for media',507);}
   }
   getAsset(owner,id,kind){const a=this.assetIndex.get(id);if(!a||a.owner_id!==owner||(kind&&a.kind!==kind))throw fail('Asset not found',404);return a;}
   async import(owner,kind,stream){
@@ -83,5 +94,7 @@ export class MediaStore{
     }catch(e){await rm(directory,{recursive:true,force:true});throw e;}finally{this.uploads--;}
   }
   publicAsset({file,owner_id,...asset}){return asset;}
-  outputDirectory(job){return join(job.kind==='image'?this.images:job.kind==='audio'?this.audio:this.videos,job.job_id);}
+  // One directory per month keeps the resource disk browsable as jobs accumulate.
+  // Transcripts come from the audio tool and sit with its other results.
+  outputDirectory(job){return join(job.kind==='image'?this.images:job.kind==='video'?this.videos:this.audio,(job.created_at??new Date().toISOString()).slice(0,7),job.job_id);}
 }

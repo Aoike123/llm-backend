@@ -108,13 +108,14 @@ test('container logs follow incrementally, coalesce concurrent readers and reset
  id='second';b.logReaders.get('paiton-h3-comfyui-1').updatedAt=0;
  const result=await b.engineLogs('h3');assert.equal(result.container_id,'second');assert.doesNotMatch(result.output,/first generation/);
 });
-test('worker reuse requires prefix caching with aligned recurrent state',async()=>{
- const {readFile}=await import('node:fs/promises');
- const runtime=JSON.parse(await readFile(new URL('../../../.workbench/runtime/rocm101/active.json',import.meta.url),'utf8'));
+test('worker reuse requires prefix caching with aligned recurrent state',async t=>{
+ const {writeFile,mkdtemp,rm}=await import('node:fs/promises'),{tmpdir}=await import('node:os'),{join}=await import('node:path');
+ const dir=await mkdtemp(join(tmpdir(),'runtime-images-'));t.after(()=>rm(dir,{recursive:true,force:true}));
+ const runtime={llm:{image:'local-ai/qwen38:test'}};await writeFile(join(dir,'runtime-images.json'),JSON.stringify(runtime));
  const args=['serve','--max-model-len','196608','--max-num-seqs','2','--kv-cache-memory-bytes','8859648000','--max-num-batched-tokens','1024','--long-prefill-token-threshold','512','--mamba-cache-mode','align','--enable-prefix-caching'];
  const env=['HIP_VISIBLE_DEVICES=0','PAITON_LMHEAD_W8=0','WORKBENCH_ROCM_HIP=1','WORKBENCH_CONFIGURATION_VERSION=2','RADIANCE_GDN_LAZY=0'];
- const b=new Backend();b.readCapacity=async()=>{};b.readStartupBudget=async()=>null;
- b.run=async(_,command)=>command.includes('{{.Config.Image}}')?runtime.llm.target:command.includes('{{json .Config.Cmd}}')?JSON.stringify(args):JSON.stringify(env);
+ const b=new Backend();b.runtimeImagesPath=join(dir,'runtime-images.json');b.readCapacity=async()=>{};b.readStartupBudget=async()=>null;
+ b.run=async(_,command)=>command.includes('{{.Config.Image}}')?runtime.llm.image:command.includes('{{json .Config.Cmd}}')?JSON.stringify(args):JSON.stringify(env);
  assert.equal(await b.llmMode(),'196608:2:bf16:8859648000:graph');assert.equal(b.llmConfiguration.prefix_caching,true);
  args[args.indexOf('--enable-prefix-caching')]='--no-enable-prefix-caching';assert.equal(await b.llmMode(),null);
  args[args.indexOf('--no-enable-prefix-caching')]='--enable-prefix-caching';args[args.indexOf('--mamba-cache-mode')+1]='none';assert.equal(await b.llmMode(),null);

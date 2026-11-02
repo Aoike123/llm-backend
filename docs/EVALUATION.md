@@ -38,13 +38,13 @@ docker exec paiton-qwen38 python3 -c \
 
 ## 图像／视频性能
 
-`./lab bench video-audio --engine stock|paiton` 调用 Paiton 官方 H3 benchmark，计时包含提示处理、去噪、解码、编码和写 MP4。按相同 prompt/seed/分辨率/帧数/步数分别运行 stock 和 paiton；原始结果保存在 `workspace/outputs/video/*/benchmarks/`。
+`./lab bench video-audio --engine stock|paiton` 调用 Paiton 官方 H3 benchmark，计时包含提示处理、去噪、解码、编码和写 MP4。按相同 prompt/seed/分辨率/帧数/步数分别运行 stock 和 paiton；原始结果保存在作品盘 `canvas/benchmarks/`。
 
 H3 使用 turbo8、124 帧短片。下载／模型准备发生在计时外。正式比较前检查原始结果是否确实具有同样的设置与成功输出，不能拿不同步数或不同分辨率的耗时直接比。
 
 ## 图像能力：GenEval
 
-官方 prompts、检测器评分程序与源码已锁定下载。两条官方提示词、每条一张1024图片的真实 API 导出已通过（`workspace/outputs/geneval/20261011T164912595014Z`），参数与回执齐全；尚未执行检测器评分。样本导出接到本机 Qwen-Image API：
+官方 prompts、检测器评分程序与源码已锁定下载。两条官方提示词、每条一张1024图片的真实 API 导出已通过（作品盘 `manual/geneval/20261011T164912595014Z`），参数与回执齐全；尚未执行检测器评分。样本导出接到本机 Qwen-Image API：
 
 ```bash
 ./lab pation-model-qwen-image-21 start  # 空闲维护窗口，手动启动图像后端
@@ -54,7 +54,7 @@ H3 使用 turbo8、124 帧短片。下载／模型准备发生在计时外。正
 ./lab geneval-export
 ```
 
-样本位于 `workspace/outputs/geneval/时间/00000/metadata.jsonl` 和 `samples/00000.png`；保存每次请求参数、服务回执和 HTTP 耗时，不复写旧结果。GenEval 衡量对象、计数、颜色、位置和属性组合对齐，不是纯审美分数。完整样本导出会产生数千张图片，应先完成冒烟检查。
+样本位于作品盘 `manual/geneval/时间/00000/metadata.jsonl` 和 `samples/00000.png`；保存每次请求参数、服务回执和 HTTP 耗时，不复写旧结果。GenEval 衡量对象、计数、颜色、位置和属性组合对齐，不是纯审美分数。完整样本导出会产生数千张图片，应先完成冒烟检查。
 
 **兼容性限制：评分环境未构建。** 上游 `environment.yml` 固定 Python 3.9、CUDA 11.3、PyTorch 1.12 和 MMDetection 2.x；评测程序明确要求 GPU。不能将该 CUDA 环境直接安装到本机 AMD 推理环境。需要独立验证 ROCm + MMCV 编译兼容性，或将导出样本交给兼容的评分设备。源码和模型下载脚本都已保留。
 
@@ -63,7 +63,7 @@ H3 使用 turbo8、124 帧短片。下载／模型准备发生在计时外。正
 ```bash
 export GENEVAL_PYTHON=/absolute/path/to/geneval-env/bin/python
 export GENEVAL_MODEL_DIR=/absolute/path/to/detector-checkpoints
-./lab evaluate-media geneval workspace/outputs/geneval/某次生成目录
+./lab evaluate-media geneval workspace/outputs/manual/geneval/某次生成目录
 ```
 
 ## 视频能力：VBench
@@ -75,7 +75,8 @@ export GENEVAL_MODEL_DIR=/absolute/path/to/detector-checkpoints
 ./lab stop
 ./lab evaluate-media vbench workspace/data/vbench/validation-videos
 # 离线重建已验证评测环境
-python3 .workbench/scripts/build-vbench.py
+./lab runtime build vbench   # 配方：.workbench/evaluation/vbench/image.json
+./lab runtime activate vbench <tag>
 ```
 
 | 当前测试片段 | 主体一致性 | 背景一致性 | 防闪烁 | 运动平滑度 |

@@ -54,7 +54,7 @@ llm-backend/
 └── .workbench/   内部工具、依赖源码、测试与版本锁
 ```
 
-模型和运行缓存位于 `workspace/data/`。生成物已迁出项目：图片在 `/home/aoike/图片/llm-backend/`，视频在 `/home/aoike/视频/llm-backend/`，报告、混合工作流产物、研究资料、设计稿和归档在 `/home/aoike/文档/llm-backend/`。`workspace/outputs/` 下的各子目录及 `workspace/reports/` 等旧入口通过符号链接指向外部目录，现有命令和文档路径继续可用；新增输出也直接写入外部目录。完整映射见 [开发与整理](docs/DEVELOPMENT.md)。
+模型和运行缓存位于 `workspace/data/`，任务记录与素材在 `workspace/data/media/`；生成的图片、视频、音频在作品盘 `/media/aoike/Resource_Trad/Assets/`（`workspace/outputs` 指向这里）；报告、研究资料和归档在 `~/文档/llm-backend/`。路径只在 `platforms/platform.json` 定义一次，见 [存储](docs/STORAGE.md)；运行时镜像与共享 ROCm SDK 见 [运行时镜像](docs/RUNTIME_IMAGES.md)。
 
 部署目录和命名见 [引擎目录](docs/ENGINES.md)，本地文本权重来源见 [模型资源](docs/MODELS.md)。
 

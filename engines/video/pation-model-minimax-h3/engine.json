@@ -5,9 +5,11 @@
   "delegate_profile": "video-audio",
   "models_available_locally": true,
   "category": "video",
-  "cache": "workspace/data/video/minimax-h3",
-  "outputs": "workspace/outputs/video/minimax-h3",
-  "reports": "workspace/reports/video/minimax-h3",
+  "storage": {
+    "data": [
+      "workspace/data/comfy"
+    ]
+  },
   "deployment_id": "pation-model-minimax-h3",
   "backend": "Paiton / ComfyUI",
   "platform": {

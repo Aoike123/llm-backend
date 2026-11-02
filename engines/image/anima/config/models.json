@@ -3,7 +3,7 @@
     "id": "anima-v1.1",
     "format": "BF16 diffusion (Turbo + Aesthetic) + Qwen3 0.6B text encoder + Qwen-Image VAE",
     "paths": [
-      "/mnt/Code/llm-backend/workspace/data/video/minimax-h3/models"
+      "/mnt/Code/llm-backend/workspace/data/comfy/models"
     ]
   }
 ]

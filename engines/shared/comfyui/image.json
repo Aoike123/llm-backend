@@ -1,0 +1,14 @@
+{
+  "runtime": "comfy",
+  "repository": "local-ai/comfy-h3",
+  "base": "ghcr.nju.edu.cn/eliovp/paiton-vllm-plugin@sha256:56c405453d21fd405ab0bb3f7eb0e0a2d6069ab672d617c319528e210ff2dd19",
+  "prepare": "engines/shared/comfyui/image/prepare.py",
+  "steps": [
+    {"script": "attach-sdk.py"},
+    {"copy": {"runtime": "llm", "from": "/usr/local/lib/python3.12/dist-packages", "names": ["torch", "torch-2.12.0+rocm10.0.0.dist-info"],
+              "into": "/opt/paiton/site-packages", "replace": ["torch", "torch-*.dist-info"]}},
+    {"script": "patch-torch-init.py"},
+    {"script": "engines/shared/comfyui/image/assemble.sh"},
+    {"remove": ["/opt/rocm"]}
+  ]
+}
