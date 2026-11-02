@@ -19,6 +19,7 @@ const shapes={
   tasks:[['rect',{x:5,y:4,width:14,height:17,rx:2}],['path',{d:'M9 4V2h6v2M9 10h6M9 15h6'}]],
   up:[['path',{d:'m6 15 6-6 6 6'}]],
   down:[['path',{d:'m6 9 6 6 6-6'}]],
+  download:[['path',{d:'M12 4v11m-5-5 5 5 5-5M5 20h14'}]],
   play:[['path',{d:'M8 5v14l11-7z'}]],
   wave:[['path',{d:'M3 12h2M7 8v8M11 5v14M15 9v6M19 7v10M21 12h0'}]],
   text:[['path',{d:'M5 6h14M5 11h14M5 16h9'}]],
