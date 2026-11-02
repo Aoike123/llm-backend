@@ -34,7 +34,7 @@
       "symbol": "D",
       "panel": "media",
       "log_name": "audio.cpp · Drama 3",
-      "summary": "文本转语音；参考音频克隆音色，最多 4 个角色；行内标签如 [laughing]、[sighs]"
+      "summary": "文本转语音；参考音频克隆音色，最多 4 个角色；音色存为 voice 作品可复用，take 作品可续写；行内标签如 [laughing]、[sighs]"
     },
     "models": [
       {
@@ -48,11 +48,15 @@
             "text-to-speech",
             "voice-clone",
             "multi-speaker",
-            "inline-tags"
+            "inline-tags",
+            "voice-preset",
+            "continuation"
           ],
           "sample_rate": 44100,
           "max_references": 4,
           "max_reference_seconds": 30,
+          "max_previous_takes": 4,
+          "context_frames": 2048,
           "languages": "auto"
         }
       }
