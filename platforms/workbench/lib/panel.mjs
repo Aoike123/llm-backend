@@ -5,6 +5,8 @@ export function setServices(list){if(Array.isArray(list))SERVICES=list;return SE
 export const serviceOf=id=>SERVICES.find(s=>s.id===id)??null;
 // Section labels by engine category, for headings and empty states.
 export const TYPE_LABEL={language:{eyebrow:'LANGUAGE',noun:'对话'},image:{eyebrow:'IMAGE',noun:'图像'},video:{eyebrow:'VIDEO',noun:'视频'},audio:{eyebrow:'AUDIO',noun:'音频'}};
+// Jobs outlive engines: a removed engine's work stays listed under its id.
+export const engineLabel=id=>id==null?'—':SERVICES.find(s=>s.id===id)?.name??id+'（已移除）';
 export const serviceName=id=>SERVICES.find(s=>s.id===id)?.name??'待机';
 export const cleanLogOutput=text=>(text??'').replace(/\x1b\[[0-?]*[ -/]*[@-~]/g,'').replace(/\r\n?/g,'\n');
 export const fmt=(v,d=1)=>v==null||!Number.isFinite(v)?'—':v.toLocaleString('zh-CN',{maximumFractionDigits:d});
@@ -46,8 +48,4 @@ export function engineLogText(logs,startup=false){
 
 export function followedEngine(data){
  return data?.pending_llm_mode?'llm':data?.switching_target??data?.current_model??null;
-}
-export function engineFollowChanged(previous,data){
- const next=followedEngine(data);
- return previous!==undefined&&next!==null&&next!==previous;
 }

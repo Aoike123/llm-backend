@@ -28,7 +28,7 @@
 - 旧 `workspace/data/public-api/api.keys` 仅在权威库不存在的首次启动导入。保留原密钥兼容；修改旧文件不会改变正在运行的配置，删除/停用的密钥不会重启复活。
 - 原统一服务：`ai-workbench-gateway.service`，UI 13000 / API 18982 / 控制端口 18990。
 - 唯一公网附加服务：`ai-workbench-public-tunnel.service`，环境文件 `~/.config/ai-workbench/public-tunnel.env`。模板为 `platforms/public-api/tunnel.env.example`。
-- 当前生产构建为 `.next-h3-reference`，通过网关用户服务 drop-in `h3-reference.conf` 设置 `WORKBENCH_NEXT_DIST`（覆盖已有 `access-keys.conf` 的旧构建目录）；构建命令在 `platforms/workbench` 执行 `WORKBENCH_NEXT_DIST=.next-h3-reference npm run build`。
+- 控制台构建只有一个目录（`platform.json` 的 `next_dist`），用 `./lab services deploy` 发布，见 [开发](DEVELOPMENT.md)。
 - 独立公网 guard 服务、18985 端口和其启动代码已移除。
 
 管理接口 `/api/access-keys` 仅存在于本机 UI 端口，校验本机 Host 与同源请求；不通过公网开放。控制台没有公网登录入口。

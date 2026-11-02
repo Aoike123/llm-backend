@@ -1,5 +1,5 @@
 """Install or control the user systemd workbench services."""
-import argparse,os,subprocess,sys
+import argparse,os,shutil,subprocess,sys
 from pathlib import Path
 import json
 from urllib.request import urlopen
@@ -53,6 +53,9 @@ else:
   run('systemctl','--user','restart',*UNITS)
  elif a.action=='deploy':
   run('systemctl','--user','restart',UNITS[0]);print('网关已重启：控制台使用 '+served_dist())
+  # One build directory only: staged or abandoned builds are what made the served UI drift.
+  for old in (ROOT/'platforms/workbench').glob('.next*'):
+   if old.is_dir() and old.name!=dist:shutil.rmtree(old);print('删除旧构建 '+old.name)
  else:
   run('systemctl','--user','daemon-reload')
   run('systemctl','--user','start','ai-workbench.target',*UNITS)

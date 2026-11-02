@@ -158,7 +158,11 @@ export class Backend {
         const cursor=reader.buffer.cursor;
         const {stdout,stderr}=await this.capture('bash',['-c',cursor?'exec docker logs --timestamps --tail 10000 --since "$2" "$1" 2>&1':'exec docker logs --timestamps --tail 10000 "$1" 2>&1','engine-logs',container,...(cursor?[cursor]:[])],{timeout:4000,maxBuffer:8*1024*1024});
         reader.buffer.ingest(stdout+stderr);reader.available=true;reader.error=null;
-      }catch{reader.available=false;reader.error='日志读取暂时失败，已保留上次输出；正在重试。';}
+      }catch{
+        // A container that does not exist yet (engine never started, or removed) is not a read failure.
+        const exists=await this.run('docker',['container','ls','-aq','--filter','name=^/'+container+'$'],{timeout:4000}).then(Boolean,()=>true);
+        reader.available=false;reader.error=exists?'日志读取暂时失败，已保留上次输出；正在重试。':null;
+      }
       finally{reader.updatedAt=Date.now();}
     })();
     try{await reader.pending;}finally{reader.pending=null;}

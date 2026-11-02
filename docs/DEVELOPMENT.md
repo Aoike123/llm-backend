@@ -63,7 +63,7 @@ HTTP 测试使用临时目录及本机临时端口；执行环境必须允许创
 
 ## 页面构建
 
-在 `platforms/workbench/` 执行 `npm run build`。检查构建时设置独立的 `WORKBENCH_NEXT_DIST`，避免覆盖正在使用的目录；实际生产目录以 systemd 配置为准，见 [公网 API](PUBLIC_API.md)。所有 `.next/`、`.next-*/` 和 `node_modules/` 都属于本地产物，已从 Git 与根目录 Docker 构建上下文排除。
+发布控制台只用 `./lab services deploy`：构建到 `platforms/platform.json` 的 `next_dist`（网关唯一读取的目录），重启空闲网关，并删除其他 `.next*` 目录。只想检查能否构建时，可设置独立的 `WORKBENCH_NEXT_DIST` 执行 `npm run build`，下次发布会清掉它。网关 unit 不再带 `WORKBENCH_NEXT_DIST` 覆盖。所有 `.next/`、`.next-*/` 和 `node_modules/` 都属于本地产物，已从 Git 与根目录 Docker 构建上下文排除。
 
 ## 整理与恢复
 

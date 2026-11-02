@@ -112,39 +112,54 @@ MCP 客户端 ──stdio──> platforms/mcp/server.mjs ──HTTP 18982 + Bea
 
 ## 四、控制台
 
-单页应用，**没有 URL 路由**：`app/page.jsx` 用 React state 切换区块。刷新会回到总览。
+所在位置写在地址栏的 hash 里（`app/use-route.mjs`）：刷新、前进后退和复制链接都会回到同一页；页面只会因为点击而切换，引擎切换不会把页面带走。
+
+```text
+#/overview                      总览
+#/library                       作品库
+#/tasks                         任务中心
+#/services/<引擎>/<视图>        模型服务；视图为 runtime / works / tasks / config
+#/engines  #/api  #/mcp  #/keys
+任意页面 + ?job=<job_id>        在当前页上打开任务详情抽屉
+```
 
 | 区块 | 内容 | 数据源 |
 | --- | --- | --- |
-| 总览 | 指标卡、模型服务目录、设备状态 | `/status`、`/data` |
-| 任务中心 | 媒体任务与作品 | `/api/mcp/jobs`、`/data` |
-| 模型服务 | 每个服务的运行监控 / 模型配置 / 任务记录三个 tab | `/status`、`/data`、ComfyUI 队列 |
-| API | 生成类 4 个端点 + 素材/任务/作品表 | 静态表 + `/v1/media/models` |
-| MCP | 工具分组、调用规范、调用记录 | `/api/mcp/*` |
-| 访问管理 | 密钥与额度 | `/api/access-keys` |
+| 总览 | 调度指标、模型服务卡（含各引擎持久任务数）、最近作品、设备状态 | `/data`、`/api/mcp/overview`、`/api/mcp/jobs`、`/api/mcp/artifacts` |
+| 作品库 | 全部持久任务的作品，按类型和引擎筛选、分页；已移除引擎的作品标为“（已移除）” | `/api/mcp/artifacts` |
+| 任务中心 | 持久媒体任务（按状态、引擎、类型筛选）、网关请求记录、ComfyUI 原生队列 | `/api/mcp/jobs`、`/data`、`/api/mcp/runtime` |
+| 模型服务 | 运行监控 / 作品 / 任务 / 模型配置（语言模型没有作品页，任务页显示网关请求记录） | `/data`、`/api/mcp/*`、`/api/engine-logs` |
+| 引擎 | 引擎包启停与能力路由 | `/api/platform` |
+| API / MCP / 访问管理 | 接口表、工具与调用记录、密钥与额度 | 静态表、`/api/mcp/*`、`/api/access-keys` |
 
-跳转关系：
+任务详情是右侧抽屉，打开和关闭都不改变下面列表的滚动位置。抽屉显示作品、完整输入（提示词或合成文本、参考音频原文、语气、反向提示词等请求里的全部字段）、执行信息和生效参数。
 
-```text
-总览 ─ 模型卡 ───────────→ 模型服务（并选中该模型）
-总览 ─ 查看任务中心 ─────→ 任务中心
-侧边栏 ──────────────────→ 六个区块互切
-模型服务 ─ 顶部 tab ─────→ 运行监控 / 模型配置 / 任务记录
-模型服务(H3) / 侧边栏 ───→ http://127.0.0.1:8188（新窗口）
-MCP 页 ─ 任务行 ─────────→ 同页任务详情
-MCP 页 ─ 作品 ───────────→ /api/mcp/artifacts/{id}（预览 / 下载）
-```
+控制台专用接口（只接受本机同源请求）：
 
-服务选中逻辑：`selected ?? followedEngine(data) ?? data.model ?? 'llm'`，手动点选优先，否则跟随当前运行后端。
+| 路径 | 用途 |
+| --- | --- |
+| `GET /api/mcp/jobs?state=&engine=&kind=&offset=&limit=` | 任务列表；`state` 取 `active`/`succeeded`/`failed`/`cancelled`；`facets` 给出每个维度在其他筛选条件下的计数 |
+| `GET /api/mcp/jobs/{job_id}` | 任务详情，含完整请求 `input` |
+| `GET /api/mcp/artifacts?kind=&engine=&offset=&limit=` | 作品列表（成功任务的全部作品，新的在前） |
+| `GET /api/mcp/artifacts/{artifact_id}` | 作品原文件，支持 `Range` |
+| `GET /api/mcp/artifacts/{artifact_id}?thumb=320\|640` | 图像或视频（0.5 秒处一帧）的 WebP 预览，缓存在 `workspace/data/media/thumbs/` |
+
+部署：`./lab services deploy` 构建到 `platform.json` 的 `next_dist` 并重启网关，同时删除其他 `.next*` 构建目录。直接 `npm run build` 不会被正在运行的网关加载。
 
 ## 五、兼容与约定
 
 - **旧工具名**：`run_goldfish_workflow` 仍被 HTTP 与 MCP 接受，内部归一化为 `generate_video`，不出现在工具清单；历史任务的 `tool` 字段在控制台展示时映射为新名；
 - **端口归属**：13000 是页面与代理，18982 是推理 API，18990 是控制面，三者同进程不同职责；
-- **状态不落盘的部分**：控制台区块切换、服务选中不进入 URL；任务与作品以 job_id / artifact_id 为准；
+- **控制台位置在 URL hash 中**；任务与作品以 job_id / artifact_id 为准；
 - **MCP 进程不热更新**：修改工具清单后需要客户端重连。
 
 ## 六、变更记录
+
+2026-11-02：
+
+- 控制台改为 hash 路由，新增作品库、任务筛选与详情抽屉；服务页拆成运行监控 / 作品 / 任务 / 配置；
+- 作品预览改用服务端 WebP 缩略图（图像与视频），原文件支持 Range；
+- 删除网关 unit 里指向旧构建目录的覆盖设置：此前控制台一直在用旧构建，新改动没有上线。
 
 2026-10-23：
 

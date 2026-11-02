@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {serviceRecords,serviceState,newLogLines,logSummary,cleanLogOutput,engineLogText,followedEngine,engineFollowChanged} from '../lib/panel.mjs';
+import {serviceRecords,serviceState,newLogLines,logSummary,cleanLogOutput,engineLogText,followedEngine,engineLabel,setServices} from '../lib/panel.mjs';
 
 test('browsing services isolates records and distinguishes loading, active and target engines',()=>{
   const d={model:'anima',current_model:'llm',timestamp:2000,active:0,recent:[
@@ -33,15 +33,12 @@ test('startup log rendering combines actual progress and media output without ol
  assert.match(engineLogText({model:'wan',available:false,engine_switch:progress},true),/download weights/);
 });
 
-test('engine following resumes on a real engine change while ordinary polling preserves browsing',()=>{
+test('the followed engine is the one switching in, else the one running; removed engines keep a label',()=>{
  const running={model:'llm',current_model:'qwen-image'};
  assert.equal(followedEngine(running),'qwen-image');
- assert.equal(engineFollowChanged(undefined,running),false);
- assert.equal(engineFollowChanged('qwen-image',running),false);
- assert.equal(engineFollowChanged('qwen-image',{...running,switching_target:'wan'}),true);
  assert.equal(followedEngine({...running,switching_target:'wan'}),'wan');
  assert.equal(followedEngine({...running,pending_llm_mode:'custom'}),'llm');
- assert.equal(engineFollowChanged('wan',{model:'llm',current_model:'wan'}),false);
- assert.equal(engineFollowChanged('wan',{current_model:null}),false);
- assert.equal(engineFollowChanged(null,{current_model:'anima'}),true);
+ setServices([{id:'h3',name:'MiniMax H3'}]);
+ assert.equal(engineLabel('h3'),'MiniMax H3');assert.equal(engineLabel('tts'),'tts（已移除）');assert.equal(engineLabel(null),'—');
+ setServices([]);
 });

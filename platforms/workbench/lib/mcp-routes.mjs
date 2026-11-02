@@ -1,8 +1,7 @@
 import {readFile} from 'node:fs/promises';
-import {createReadStream} from 'node:fs';
 import {createHmac,randomBytes,timingSafeEqual} from 'node:crypto';
 import {join} from 'node:path';
-import {ID,CAPABILITIES,TOOL_GROUPS,COMMON_TOOLS,capabilityForTool,isGenerationTool,catalog,validateToolInput} from './capabilities.mjs';
+import {ID,CAPABILITIES,TOOL_GROUPS,COMMON_TOOLS,isGenerationTool,catalog,validateToolInput} from './capabilities.mjs';
 import {LEGACY_TOOLS} from './media-tools.mjs';
 const KNOWN_TOOLS=new Set([...COMMON_TOOLS.map(t=>t.name),...Object.keys(LEGACY_TOOLS),...Object.keys(TOOL_GROUPS),...Object.values(CAPABILITIES).flatMap(c=>[c.tool,...(c.aliases??[])])]);
 const validateCommon=(name,input)=>validateToolInput(COMMON_TOOLS,name,input);
@@ -12,6 +11,7 @@ import {comfyRuntime} from './comfy-runtime.mjs';
 import {send} from './http.mjs';
 import {atomic,fail} from './media-store.mjs';
 import {pause} from './core.mjs';
+import {jobRow,listJobs,listArtifacts,streamFile,thumbnail} from './media-library.mjs';
 const LINK_SECRET=process.env.WORKBENCH_LINK_SECRET?Buffer.from(process.env.WORKBENCH_LINK_SECRET):randomBytes(32);
 const LINK_BASE=process.env.WORKBENCH_LINK_BASE??'http://127.0.0.1:18982';
 const linkSignature=(owner,id,exp)=>createHmac('sha256',LINK_SECRET).update(owner+'|'+id+'|'+exp).digest('base64url');
@@ -82,14 +82,8 @@ export function mcpRoutes(jobs,info,keys,lifecycle){
         const native=await comfyRuntime();
         return send(res,200,{runtime_topology:runtimeTopology(jobs.coordinator?.status?.()??{}),native_queue:{...native,available:native.queue_available}});
       }
-      if(path==='/api/mcp/jobs'){
-        const offset=Number(url.searchParams.get('offset')??0),limit=Number(url.searchParams.get('limit')??30);
-        if(!Number.isInteger(offset)||offset<0||!Number.isInteger(limit)||limit<1||limit>100)throw fail('Invalid pagination');
-        // Engine panels list the work one engine served; jobs that fell back count for the engine that ran them.
-        const engine=url.searchParams.get('engine'),capability=url.searchParams.get('capability');
-        const rows=[...jobs.jobs.values()].filter(job=>(!engine||job.engine===engine)&&(!capability||(job.capability??capabilityForTool(job.tool))===capability)).sort((a,b)=>(b.created_at??b.updated_at??'').localeCompare(a.created_at??a.updated_at??''));
-        return send(res,200,{jobs:rows.slice(offset,offset+limit).map(job=>jobs.public(job)),total:rows.length,offset,has_more:offset+limit<rows.length});
-      }
+      if(path==='/api/mcp/jobs')return send(res,200,listJobs(jobs,url));
+      if(path==='/api/mcp/artifacts')return send(res,200,listArtifacts(jobs,url));
       if(path==='/api/mcp/calls'){
         const offset=Number(url.searchParams.get('offset')??0),limit=Number(url.searchParams.get('limit')??30);
         if(!Number.isInteger(offset)||offset<0||!Number.isInteger(limit)||limit<1||limit>100)throw fail('Invalid pagination');
@@ -97,9 +91,13 @@ export function mcpRoutes(jobs,info,keys,lifecycle){
         return send(res,200,{calls:rows.slice(offset,offset+limit),offset,has_more:offset+limit<rows.length,total:rows.length,observed_at:new Date().toISOString(),retention_days:30,truncated:rows.length===5000});
       }
       const match=/^\/api\/mcp\/jobs\/(job_[a-f0-9]{32})$/.exec(path);
-      if(match){const job=jobs.jobs.get(match[1]);if(!job)throw fail('Job not found',404);return send(res,200,jobs.public(job));}
+      if(match){const job=jobs.jobs.get(match[1]);if(!job)throw fail('Job not found',404);return send(res,200,jobRow(jobs,job,{full:true}));}
       const artifactMatch=/^\/api\/mcp\/artifacts\/(artifact_[a-f0-9]{32})$/.exec(path);
-      if(artifactMatch){for(const job of jobs.jobs.values()){const artifact=job.artifacts?.find(a=>a.artifact_id===artifactMatch[1]);if(job.state==='succeeded'&&artifact)return streamArtifact(res,artifact);}throw fail('Artifact not found',404);}
+      if(artifactMatch){
+        const found=jobs.findArtifact(artifactMatch[1]);if(!found)throw fail('Artifact not found',404);
+        const width=url.searchParams.get('thumb');
+        return width?streamFile(req,res,await thumbnail(jobs.store,found.artifact,Number(width))):streamArtifact(req,res,found.artifact);
+      }
       return send(res,404,{error:'Unknown MCP info endpoint'});
     }catch(e){return send(res,e.status??400,{error:e.message});}
   }
@@ -113,7 +111,7 @@ export function mcpRoutes(jobs,info,keys,lifecycle){
       const found=jobs.findArtifact(signedMatch[1]);
       const exp=Number(url.searchParams.get('exp'));
       if(!found||!validSignature(found.owner_id,signedMatch[1],exp,url.searchParams.get('sig')))return send(res,403,{error:'Invalid or expired link'});
-      return streamArtifact(res,found.artifact);
+      return streamArtifact(req,res,found.artifact);
     }
     const key=keys.authenticate(req.headers.authorization);if(!key)return send(res,401,{error:'Valid API key required'});
     try{
@@ -130,7 +128,7 @@ export function mcpRoutes(jobs,info,keys,lifecycle){
         return send(res,201,await jobs.store.import(key.id,url.searchParams.get('kind'),req));
       }
       const artifactMatch=/^\/v1\/media\/artifacts\/(artifact_[a-f0-9]{32})(\/content)?$/.exec(path);
-      if(artifactMatch&&req.method==='GET'){const artifact=jobs.artifact(key.id,artifactMatch[1]);return artifactMatch[2]?streamArtifact(res,artifact):send(res,200,{...artifact,content_url:signedContentUrl(key.id,artifactMatch[1])});}
+      if(artifactMatch&&req.method==='GET'){const artifact=jobs.artifact(key.id,artifactMatch[1]);return artifactMatch[2]?streamArtifact(req,res,artifact):send(res,200,{...artifact,content_url:signedContentUrl(key.id,artifactMatch[1])});}
       // The MCP server reads its tool list from here, so enabling an engine reaches clients at once.
       if(path==='/v1/media/catalog'&&req.method==='GET')return send(res,200,await catalog());
       if(path==='/v1/media/jobs'&&req.method==='GET'){
@@ -156,4 +154,4 @@ export function mcpRoutes(jobs,info,keys,lifecycle){
   }
   return {admin,media};
 }
-function streamArtifact(res,artifact){res.writeHead(200,{'Content-Type':artifact.mime_type,'Content-Length':artifact.bytes,'Cache-Control':'private, no-store','X-Content-Type-Options':'nosniff'});const stream=createReadStream(artifact.local_path);stream.on('error',()=>res.destroy());res.on('close',()=>stream.destroy());stream.pipe(res);}
+const streamArtifact=(req,res,artifact)=>streamFile(req,res,{path:artifact.local_path,mime_type:artifact.mime_type,bytes:artifact.bytes});

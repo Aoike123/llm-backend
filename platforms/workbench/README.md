@@ -42,4 +42,4 @@ LLM 使用统一引擎（256K 技术上限、最多八路），面板编辑上�
 
 吞吐曲线支持 5 / 15 / 30 / 60 秒统计窗口，默认 30 秒；近一分钟的 5 秒采样峰值卡片独立于曲线窗口。输入展示一分钟计数量，采集缺失保留断点。CPU 图像计算使用独立卡片，数据来自视觉服务原生指标，显示编码耗时、缓存、排队、CPU 和容器内存。
 
-生产构建目录由 `~/.config/systemd/user/ai-workbench-gateway.service.d/runtime.conf` 的 `WORKBENCH_NEXT_DIST` 指定。发布时先在独立目录构建，再更新该单一覆盖项并重启空闲网关；不要叠加多个版本覆盖文件。
+生产构建目录只有一个，即 `platforms/platform.json` 的 `next_dist`。发布用 `./lab services deploy`：构建、重启空闲网关、删除其他 `.next*` 目录。不要给网关 unit 加 `WORKBENCH_NEXT_DIST` 覆盖，否则新构建不会被加载。

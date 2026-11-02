@@ -1,48 +1,51 @@
 'use client';
-import {useEffect,useState} from 'react';
+import {useState} from 'react';
 import {SERVICES,serviceName,fmt,clock} from '../lib/panel.mjs';
 import RuntimeSummary from './runtime-summary';
-import {ActionButton} from './ui-controls.mjs';
+import {ActionButton,Icon} from './ui-controls.mjs';
 import {useRead} from './use-read.mjs';
-import {ArtifactView} from './artifact-view';
-const states={queued:'排队',preparing:'准备素材',waiting_for_admission:'等待准入',waiting_for_engine:'等待引擎',dispatching:'派发',running:'生成中',saving:'保存',succeeded:'完成',failed:'失败',cancelled:'取消',recovering:'恢复检查',unknown:'结果未知'};
-const canvasUrl=data=>data?.runtime_topology?.comfyui_port?'http://127.0.0.1:'+data.runtime_topology.comfyui_port:undefined;
+import {Gallery,JobTable,STATE} from './media-library';
 const time=value=>value?new Date(value).toLocaleString('zh-CN',{timeZone:'Asia/Shanghai'}):'—';
-export function Overview({data,onService,onTasks}){
+export function Overview({data,onService,onLibrary,onOpen}){
  const {value:media,error}=useRead('/api/mcp/overview');
- const cards=[['当前后端',data?.runtime_topology?.current_runtime_name??(data?'待机':'读取中'),'单卡按需启动'],['GPU 租约',data?data.runtime_topology?.leased?'占用中':'空闲':'—','API / MCP 共用'],['网关等待',data?.queued??'—','等待 GPU 的请求'],['持久媒体任务',media?.pending_jobs??'—','API / MCP 提交的未完成任务']];
+ // Counts per engine come from the job facets; one row is enough to read them.
+ const {value:counts}=useRead('/api/mcp/jobs?limit=1');
+ const cards=[['当前后端',data?.runtime_topology?.current_runtime_name??(data?'待机':'读取中'),'单卡按需启动'],['GPU 租约',data?data.runtime_topology?.leased?'占用中':'空闲':'—','API / MCP 共用'],['网关等待',data?.queued??'—','等待 GPU 的请求'],['进行中的媒体任务',media?.pending_jobs??'—','API / MCP 提交的未完成任务']];
+ const state=service=>data?.switching_target===service.id?['preparing','正在切换']:data?.current_model===service.id?['live','运行中']:['muted','按需启动'];
  return <div className="control-center">
   {error&&<p className="error-banner" role="alert">媒体任务状态暂不可读：{error}</p>}
   <section className="stage-kpis">{cards.map(([title,value,note])=><div className="stage-kpi" key={title}><span className="label">{title}</span><div className="stage-value overview-value">{value}</div><p className="note">{note}</p></div>)}</section>
-  <section className="mcp-card"><div className="charthead"><h2>模型服务</h2><ActionButton onClick={onTasks}>查看任务中心</ActionButton></div><div className="service-catalog">{SERVICES.map(service=><button key={service.id} onClick={()=>onService(service.id)}><span className="catalog-symbol" style={{color:service.accent}}>{service.symbol}</span><strong>{service.name}<small>{service.version}</small></strong><p>{service.description}</p><span className={data?.current_model===service.id?'live':'muted'}>{data?.switching_target===service.id?'正在切换':data?.current_model===service.id?'后端运行中':'按需启动'}</span></button>)}</div></section>
+  <section className="mcp-card"><div className="charthead"><h2>模型服务</h2><span className="muted tiny">点击查看监控、作品与任务</span></div><div className="service-catalog">{SERVICES.map(service=>{const [tone,label]=state(service),jobs=counts?.facets?.engine?.[service.id];return <button key={service.id} onClick={()=>onService(service.id)}>
+   <span className="catalog-head"><span className="catalog-symbol" style={{color:service.accent}}>{service.symbol}</span><span className={'catalog-state '+tone}>● {label}</span></span>
+   <strong>{service.name}<small>{service.version}</small></strong><p>{service.description}</p>
+   <span className="catalog-foot">{service.panel==='llm'?'对话 · 同步接口':jobs?jobs+' 个持久任务':'暂无持久任务'}{service.runtime&&SERVICES.filter(s=>s.runtime===service.runtime).length>1&&<span>共用 {service.runtime}</span>}</span>
+  </button>;})}</div></section>
+  <Gallery compact limit={6} onOpen={onOpen} title={<div className="charthead"><h2>最近作品</h2><ActionButton onClick={onLibrary}>打开作品库</ActionButton></div>}/>
   <RuntimeSummary topology={data?.runtime_topology}/>
-  <section className="mcp-card"><h2>两种接入，共用执行</h2><div className="connection-grid"><div><h3>API</h3><p>聊天与同步媒体接口；持久媒体任务接口供程序提交、轮询和取回作品。</p><code>127.0.0.1:18982</code></div><div><h3>MCP</h3><p>按能力提供生成工具（主推 + 降级），统一查询持久任务和作品。</p><code>local-media · 工具随启用的引擎变化</code></div><div><h3>ComfyUI</h3><p>原生工作流执行与编辑。所有原生工作流统一查看服务队列和执行历史。</p><a href={canvasUrl(data)} target="_blank" rel="noreferrer">打开 ComfyUI 画布 ↗</a></div></div></section>
  </div>;
 }
 export function NativeHistory({runtime:r}){
  if(!r)return <div className="empty">正在读取执行历史…</div>;
  if(!r.history_available)return <div className="empty">执行历史暂不可读</div>;
- return <><div className="task-table-wrap"><table className="task-table"><thead><tr><th>完成时间</th><th>结果</th><th>执行耗时</th><th>工作流任务</th></tr></thead><tbody>{r.history.map(row=><tr key={row.prompt_id}><td>{row.finished_at?time(row.finished_at*1000):'—'}</td><td className={row.state==='succeeded'?'live':row.state==='failed'?'bad':'muted'}>{states[row.state]??row.state}</td><td>{row.seconds==null?'—':fmt(row.seconds)+' 秒'}</td><td><code>{row.prompt_id}</code></td></tr>)}</tbody></table>{!r.history.length&&<div className="empty">暂无原生执行历史</div>}</div><p className="note">最近 {r.history_limit} 条服务原生历史，包含所有工作流；后端重启或清除历史后可能为空。耗时为执行时间，不含网关等待。</p></>;
+ return <><div className="task-table-wrap"><table className="task-table"><thead><tr><th>完成时间</th><th>结果</th><th>执行耗时</th><th>工作流任务</th></tr></thead><tbody>{r.history.map(row=><tr key={row.prompt_id}><td>{row.finished_at?time(row.finished_at*1000):'—'}</td><td className={row.state==='succeeded'?'live':row.state==='failed'?'bad':'muted'}>{STATE[row.state]??row.state}</td><td>{row.seconds==null?'—':fmt(row.seconds)+' 秒'}</td><td><code>{row.prompt_id}</code></td></tr>)}</tbody></table>{!r.history.length&&<div className="empty">暂无原生执行历史</div>}</div><p className="note">最近 {r.history_limit} 条 ComfyUI 原生历史，包含画布上直接运行的工作流；后端重启后可能为空。耗时为执行时间，不含网关等待。</p></>;
 }
-// Two-step: the first click arms, the second sends. Running video jobs end as cancelled once ComfyUI stops.
-function CancelJob({job,compact=false}){
- const [armed,setArmed]=useState(false),[busy,setBusy]=useState(false),[error,setError]=useState('');
- useEffect(()=>{if(!armed)return;const timer=setTimeout(()=>setArmed(false),8000);return()=>clearTimeout(timer);},[armed]);
- if(job.cancel_requested_at&&!['succeeded','failed','cancelled','unknown'].includes(job.state))return <span className="muted">正在取消…</span>;
- if(!job.cancellable)return null;
- async function send(){setBusy(true);setError('');try{const response=await fetch('/api/mcp/jobs/'+job.job_id+'/cancel',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});const result=await response.json();if(!response.ok)throw Error(result.error??'取消失败（'+response.status+'）');setArmed(false);}catch(e){setError(e.message);}finally{setBusy(false);}}
- return <>{armed?<ActionButton variant="danger" disabled={busy} onClick={send}>{busy?'正在取消…':'确认取消'}</ActionButton>:<ActionButton variant={compact?'quiet':'danger'} onClick={()=>setArmed(true)}>取消任务</ActionButton>}{error&&<span className="bad" role="alert"> {error}</span>}</>;
+// Gateway completions, all services or one: the only record of synchronous calls and chat.
+export function GatewayRecords({records,service=null}){
+ const rows=(records??[]).filter(r=>!service||r.model===service);
+ return <><div className="task-table-wrap"><table className="task-table"><thead><tr><th>完成时间</th>{!service&&<th>服务</th>}<th>结果</th><th>完整耗时</th><th>等待与切换</th><th>处理与返回</th></tr></thead><tbody>{rows.map((r,i)=><tr key={r.finished_at+'-'+i}><td><time>{new Date(r.finished_at*1000).toLocaleDateString('zh-CN',{timeZone:'Asia/Shanghai'})} {clock(r.finished_at)}</time></td>{!service&&<td>{serviceName(r.model)}</td>}<td className={r.outcome==='success'?'live':'bad'}>{r.outcome==='success'?'完成':r.outcome==='disconnected'?'断开':'异常'}</td><td>{fmt(r.seconds)} 秒</td><td>{fmt(r.queue_seconds)} 秒</td><td>{fmt(Math.max(0,r.seconds-r.queue_seconds))} 秒</td></tr>)}</tbody></table>{!rows.length&&<div className="empty">暂无网关记录</div>}</div><p className="note">网关保留最近 30 条跨服务完成记录（同步调用、聊天和持久任务的执行），重启后清空；作品见持久任务。</p></>;
 }
-export function TaskCenter({data}){
- const [scope,setScope]=useState('durable'),[offset,setOffset]=useState(0),[selected,setSelected]=useState(null);
- const {value,error}=useRead(scope==='native'?'/api/mcp/runtime':'/api/mcp/jobs?offset='+offset+'&limit=30');
- const {value:job,error:jobError}=useRead(selected?'/api/mcp/jobs/'+selected:'/api/mcp/overview');
- return <div className="control-center"><div className="workspace-toolbar"><div className="workspace-tabs" role="group" aria-label="任务来源">{[['durable','媒体持久任务'],['requests','网关请求记录'],['native','ComfyUI 原生队列']].map(([id,name])=><button key={id} aria-pressed={scope===id} onClick={()=>{setScope(id);setSelected(null);setOffset(0);}}>{name}</button>)}</div></div>
-  {error&&scope!=='requests'&&<p className="error-banner" role="alert">{error}，保留最近读取结果。</p>}
-  {scope==='durable'&&<section className="mcp-card"><h2>API / MCP 媒体任务</h2><p className="note">持久任务按 job_id 追踪。接受任务不代表已完成；客户端断开后仍继续。此处为本机管理视图，作品可预览和下载。</p><div className="task-table-wrap"><table className="task-table"><thead><tr><th>创建时间</th><th>模型 / 来源工具</th><th>状态</th><th>任务</th><th>操作</th></tr></thead><tbody>{value?.jobs?.map(row=><tr key={row.job_id}><td>{time(row.created_at)}</td><td>{row.served_by??row.model}<small className="mcp-sub">{row.tool==='run_goldfish_workflow'?'generate_video':row.tool}{row.fallback_from?.length?' · 降级':''}</small></td><td>{states[row.state]??row.state}</td><td><button className="mcp-link" onClick={()=>setSelected(row.job_id)}>{row.job_id.slice(0,18)}…</button></td><td><CancelJob job={row} compact/></td></tr>)}</tbody></table>{!value?.jobs?.length&&<div className="empty">{value?'暂无持久媒体任务':'正在读取任务…'}</div>}</div><div className="mcp-pagination"><ActionButton disabled={!offset} onClick={()=>setOffset(Math.max(0,offset-30))}>上一页</ActionButton><span>{value?.total??'—'} 个任务</span><ActionButton disabled={!value?.has_more} onClick={()=>setOffset(offset+30)}>下一页</ActionButton></div></section>}
-  {scope==='requests'&&<section className="mcp-card"><h2>网关请求记录</h2><p className="note">最近 30 条跨服务完成记录，包含同步调用和媒体执行统计。此处不是持久任务全集，也不代表 ComfyUI 全部原生历史。</p><div className="task-table-wrap"><table className="task-table"><thead><tr><th>完成时间</th><th>服务</th><th>结果</th><th>完整 / 等待耗时</th></tr></thead><tbody>{(data?.recent??[]).map((r,i)=><tr key={i}><td>{clock(r.finished_at)}</td><td>{serviceName(r.model)}</td><td>{r.outcome==='success'?'完成':r.outcome}</td><td>{fmt(r.seconds)} / {fmt(r.queue_seconds)} 秒</td></tr>)}</tbody></table>{!data?.recent?.length&&<div className="empty">暂无网关记录</div>}</div></section>}
-  {scope==='native'&&<section className="mcp-card"><h2>ComfyUI 原生执行队列</h2><p className="note">API 视频任务也会进入该执行队列，不能与持久任务数量相加。直接画布任务没有网关 job_id，完整历史与输出请在 ComfyUI 查看。</p>{!value?<div className="empty">正在读取原生队列…</div>:!value.native_queue.available?<div className="empty">ComfyUI 当前未连接，可能处于按需停止状态；此查询不会启动后端。</div>:<div className="task-table-wrap"><table className="task-table"><thead><tr><th>状态</th><th>序号</th><th>prompt_id</th></tr></thead><tbody>{[['running','执行中'],['pending','等待执行']].flatMap(([key,name])=>value.native_queue[key].map(row=><tr key={row.prompt_id}><td>{name}</td><td>{row.number}</td><td><code>{row.prompt_id}</code></td></tr>))}</tbody></table>{!value.native_queue.running.length&&!value.native_queue.pending.length&&<div className="empty">原生队列空闲</div>}</div>}<h3>原生执行历史</h3><NativeHistory runtime={value?.native_queue}/></section>}
-  {scope==='durable'&&selected&&<section className="mcp-card"><div className="charthead"><h2>任务详情</h2><ActionButton onClick={()=>setSelected(null)}>关闭</ActionButton></div>{jobError?<p role="alert">{jobError}</p>:job?.job_id===selected?<><p><code>{job.job_id}</code> · {states[job.state]??job.state}</p>{job.error&&<p className="error-banner">{job.error.code} · {job.error.message}</p>}<div className="mcp-job-actions"><CancelJob job={job}/></div><p className="note">{job.cancellable?(['queued','preparing','waiting_for_admission','waiting_for_engine'].includes(job.state)?'尚未派发，取消后立即结束。':'正在 ComfyUI 中运行，取消会中断当前生成，ComfyUI 停止后状态变为“取消”。'):job.cancel_requested_at&&!['succeeded','failed','cancelled','unknown'].includes(job.state)?'已发送中断，等待 ComfyUI 停止。':['succeeded','failed','cancelled','unknown'].includes(job.state)?'任务已结束。':'该引擎的请求开始后无法中断，会自行完成。'}</p>{job.fallback_from?.length>0&&<p className="note">降级记录：{job.fallback_from.map(f=>f.model+'（'+f.code+'）').join(' → ')} → {job.served_by??job.model}</p>}<div className="mcp-artifact">{job.artifacts?.map(a=><ArtifactView key={a.artifact_id} artifact={a}/>)}</div></>:<div className="empty">正在读取任务详情…</div>}</section>}
+function NativeQueue(){
+ const {value,error}=useRead('/api/mcp/runtime');
+ return <section className="mcp-card">{error&&<p className="error-banner" role="alert">{error}</p>}<p className="note">API 发往 ComfyUI 的任务也会出现在这里，不能与持久任务数量相加。画布上直接运行的工作流没有 job_id，完整输出请在 ComfyUI 查看。</p>{!value?<div className="empty">正在读取原生队列…</div>:!value.native_queue.available?<div className="empty">ComfyUI 当前未运行（按需启动），读取队列不会启动它。</div>:<div className="task-table-wrap"><table className="task-table"><thead><tr><th>状态</th><th>序号</th><th>prompt_id</th></tr></thead><tbody>{[['running','执行中'],['pending','等待执行']].flatMap(([key,name])=>value.native_queue[key].map(row=><tr key={row.prompt_id}><td>{name}</td><td>{row.number}</td><td><code>{row.prompt_id}</code></td></tr>))}</tbody></table>{!value.native_queue.running.length&&!value.native_queue.pending.length&&<div className="empty">原生队列空闲</div>}</div>}<h3>原生执行历史</h3><NativeHistory runtime={value?.native_queue}/></section>;
+}
+export function TaskCenter({data,onOpen,openId}){
+ const [scope,setScope]=useState('durable');
+ const comfy=SERVICES.some(s=>s.native_ui);
+ const tabs=[['durable','持久媒体任务'],['requests','网关请求记录'],...(comfy?[['native','ComfyUI 原生队列']]:[])];
+ return <div className="control-center"><div className="workspace-toolbar"><div className="workspace-tabs" role="tablist" aria-label="任务来源">{tabs.map(([id,name])=><button key={id} role="tab" aria-selected={scope===id} onClick={()=>setScope(id)}>{name}</button>)}</div></div>
+  {scope==='durable'&&<JobTable onOpen={onOpen} openId={openId}/>}
+  {scope==='requests'&&<section className="mcp-card"><GatewayRecords records={data?.recent}/></section>}
+  {scope==='native'&&<NativeQueue/>}
  </div>;
 }
 export function ApiPanel(){

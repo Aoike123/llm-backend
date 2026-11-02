@@ -17,6 +17,10 @@ const shapes={
   activity:[['path',{d:'M3 12h4l3-7 4 14 3-7h4'}]],
   settings:[['path',{d:'M4 7h16M4 17h16'}],['circle',{cx:9,cy:7,r:3}],['circle',{cx:15,cy:17,r:3}]],
   tasks:[['rect',{x:5,y:4,width:14,height:17,rx:2}],['path',{d:'M9 4V2h6v2M9 10h6M9 15h6'}]],
+  play:[['path',{d:'M8 5v14l11-7z'}]],
+  wave:[['path',{d:'M3 12h2M7 8v8M11 5v14M15 9v6M19 7v10M21 12h0'}]],
+  text:[['path',{d:'M5 6h14M5 11h14M5 16h9'}]],
+  image:[['rect',{x:3,y:4,width:18,height:16,rx:2}],['circle',{cx:9,cy:10,r:2}],['path',{d:'m21 16-5-5-9 9'}]],
   restart:[['path',{d:'M20 11a8 8 0 1 0-2.3 6M20 4v7h-7'}]],
 };
 export function Icon({name,className=''}){
