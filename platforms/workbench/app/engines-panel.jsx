@@ -1,7 +1,7 @@
 'use client';
 import {useEffect,useState} from 'react';
 import {useRead} from './use-read.mjs';
-import {ActionButton} from './ui-controls.mjs';
+import {ActionButton,Switch} from './ui-controls.mjs';
 const CATEGORY={llm:'语言',image:'图像',video:'视频',audio:'音频'};
 async function post(path,body){
   const r=await fetch(path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
@@ -20,9 +20,10 @@ function PackageRow({pkg,onChange}){
       <p className="muted tiny">{CATEGORY[pkg.category]??pkg.category} · <code>{pkg.path}</code> · 端口 {pkg.runtime.port}{pkg.status?' · '+pkg.status:''}</p>
       <p className="engine-models">{pkg.models.length?pkg.models.map(m=><span key={m.id}><code>{m.id}</code>{m.capabilities.join(' / ')}</span>):<span>对话（/v1/chat/completions）</span>}</p>
       {error&&<p className="bad" role="alert">{error}</p>}</div>
-    <div className="engine-toggle"><span className={pkg.enabled?'live':'muted'}>{pkg.enabled?'● 已启用':'○ 已停用'}</span>
-      <ActionButton disabled={busy} onClick={toggle}>{busy?'处理中…':pkg.enabled?(armed?'确认停用（会停止运行中的容器）':'停用'):'启用'}</ActionButton>
-      {armed&&<ActionButton onClick={()=>setArmed(false)}>取消</ActionButton>}</div>
+    <div className="engine-toggle">
+      <Switch checked={pkg.enabled} busy={busy} onChange={toggle} label={busy?'处理中…':pkg.enabled?'已启用':'已停用'}/>
+      {armed&&<div className="engine-confirm" role="alert"><span>停用会停止它正在运行的容器</span><ActionButton variant="danger" onClick={toggle}>确认停用</ActionButton><ActionButton variant="quiet" onClick={()=>setArmed(false)}>取消</ActionButton></div>}
+    </div>
   </div>;
 }
 function RouteEditor({route,label,onChange}){
@@ -36,9 +37,9 @@ function RouteEditor({route,label,onChange}){
     <ol>{chain.map((id,i)=><li key={id}><span className={i?'muted':'live'}>{i?'降级 '+i:'主推'}</span><code>{id}</code>
       <span className="route-actions" role="group" aria-label={'调整 '+id}><ActionButton variant="quiet" icon="up" aria-label="上移" title="上移" disabled={!i} onClick={()=>move(i,-1)}/><ActionButton variant="quiet" icon="down" aria-label="下移" title="下移" disabled={i===chain.length-1} onClick={()=>move(i,1)}/>{chain.length>1&&<ActionButton variant="quiet" icon="close" className="route-remove" aria-label="移出降级链" title="移出降级链" onClick={()=>setChain(chain.filter(x=>x!==id))}/>}</span></li>)}</ol>
     {outside.length>0&&<p className="note">未纳入降级链（只能点名使用）：{outside.map(id=><button key={id} className="mcp-link" onClick={()=>setChain([...chain,id])}>+ {id}</button>)}</p>}
-    <label className="route-backend"><input type="checkbox" checked={backend} onChange={e=>setBackend(e.target.checked)}/>后端明确报错时也降级（默认关闭：同一个坏输入不应把每个引擎都试一遍）</label>
+    <Switch className="route-backend" checked={backend} onChange={setBackend} label="后端明确报错时也降级" description="默认关闭：同一个坏输入不应把每个引擎都试一遍"/>
     {error&&<p className="bad" role="alert">{error}</p>}
-    <div className="route-save"><ActionButton disabled={!dirty||saving} onClick={save}>{saving?'保存中…':'保存路由'}</ActionButton>{dirty&&<ActionButton onClick={()=>{setChain(initial());setBackend(route.fallback_on_backend_error);}}>还原</ActionButton>}</div>
+    {(dirty||saving)&&<div className="route-save"><ActionButton variant="primary" disabled={saving} onClick={save}>{saving?'保存中…':'保存路由'}</ActionButton><ActionButton variant="quiet" onClick={()=>{setChain(initial());setBackend(route.fallback_on_backend_error);}}>还原</ActionButton><span className="muted tiny">有未保存的修改</span></div>}
   </div>;
 }
 export default function EnginesPanel(){

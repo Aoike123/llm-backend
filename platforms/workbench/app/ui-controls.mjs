@@ -32,3 +32,10 @@ export function ActionButton({variant='secondary',icon,className='',children,...
   // Without a label the button is a round icon button; give it aria-label and title.
   return h('button',{type:'button',...props,className:`ui-action ui-action-${variant}${icon&&!children?' is-icon':''} ${className}`},icon&&h(Icon,{name:icon}),children);
 }
+
+// An on/off switch. The visible label sits beside the track; busy dims it while a change is saved.
+export function Switch({checked,onChange,label,description,disabled=false,busy=false,className=''}){
+  return h('button',{type:'button',role:'switch','aria-checked':!!checked,disabled:disabled||busy,onClick:()=>onChange(!checked),className:`ui-switch${busy?' is-busy':''} ${className}`},
+    h('span',{className:'ui-switch-track','aria-hidden':true},h('i')),
+    (label||description)&&h('span',{className:'ui-switch-text'},label,description&&h('small',null,description)));
+}
