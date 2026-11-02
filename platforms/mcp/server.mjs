@@ -9,8 +9,8 @@ export async function start(){
   // A short cache keeps one tool call from fetching the catalog twice; console changes still
   // reach the client within seconds.
   let cached={at:0,value:null};
-  async function catalog(){
-    if(cached.value&&Date.now()-cached.at<5000)return cached.value;
+  async function catalog(fresh=false){
+    if(!fresh&&cached.value&&Date.now()-cached.at<5000)return cached.value;
     cached={at:Date.now(),value:await request(config,'/v1/media/catalog',{timeout:10000})};return cached.value;
   }
   const toolList=async()=>{try{return (await catalog()).tools;}catch{return COMMON_TOOLS;}};
@@ -20,8 +20,17 @@ export async function start(){
     const input={...event,instance_id,sequence:sequence++};
     reporting=reporting.then(()=>request(config,'/internal/mcp/events',{method:'POST',headers:{'x-media-telemetry-token':config.telemetry_token},body:JSON.stringify(input),timeout:2000})).catch(()=>{});return reporting;
   }
-  const server=new Server(ID,{capabilities:{tools:{},resources:{}},instructions:INSTRUCTIONS});
-  server.setRequestHandler(ListToolsRequestSchema,async()=>({tools:listedTools(await toolList())}));
+  const server=new Server(ID,{capabilities:{tools:{listChanged:true},resources:{}},instructions:INSTRUCTIONS});
+  // What the client was last told; a different catalog sends tools/list_changed so a running session
+  // picks up enabled, disabled or changed engines without reconnecting.
+  let listed=null;
+  server.setRequestHandler(ListToolsRequestSchema,async()=>{const tools=listedTools(await toolList());listed=JSON.stringify(tools);return {tools};});
+  let watching=false;
+  async function watchTools(){
+    if(watching||closing||listed===null)return;watching=true;
+    try{const current=JSON.stringify(listedTools((await catalog(true)).tools));if(current!==listed){listed=current;await server.sendToolListChanged();}}
+    catch{}finally{watching=false;}
+  }
   async function invoke(name,input){
     validateToolInput(await toolList(),name,input);
     if(name==='list_media_models')return modelsView(await catalog(),input.model);
@@ -64,7 +73,8 @@ export async function start(){
   server.onerror=()=>console.error('MCP protocol error');
   await server.connect(transport);void report({type:'heartbeat'});
   const heartbeat=setInterval(()=>void report({type:'heartbeat'}),15000);heartbeat.unref();
-  async function close(){if(closing)return;closing=true;clearInterval(heartbeat);await report({type:'closed'});await server.close();}
+  const watcher=setInterval(()=>void watchTools(),Number(process.env.MEDIA_TOOLS_WATCH_MS)||5000);watcher.unref();
+  async function close(){if(closing)return;closing=true;clearInterval(heartbeat);clearInterval(watcher);await report({type:'closed'});await server.close();}
   process.stdin.once('end',()=>void close());process.once('SIGTERM',()=>void close());process.once('SIGINT',()=>void close());
   return {server,close};
 }

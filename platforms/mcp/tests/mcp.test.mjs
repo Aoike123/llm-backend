@@ -6,6 +6,7 @@ import {join} from 'node:path';
 import http from 'node:http';
 import {Client} from '@modelcontextprotocol/sdk/client/index.js';
 import {StdioClientTransport} from '@modelcontextprotocol/sdk/client/stdio.js';
+import {ToolListChangedNotificationSchema} from '@modelcontextprotocol/sdk/types.js';
 import {validateToolInput} from '../manifest.mjs';
 import {tools,catalog,validateGeneration} from '../../workbench/lib/capabilities.mjs';
 // The gateway serves this catalog to the MCP server; validate against exactly what it sends.
@@ -68,4 +69,19 @@ test('official SDK stdio initializes, discovers gateway tools and Goldfish workf
   const resource=await client.readResource({uri:artifact.uri});assert.equal(resource.contents[0].mimeType,'application/json');
   const invalid=await client.callTool({name:'generate_image',arguments:{prompt:'x'}});assert.equal(invalid.isError,true);
   await client.close();assert.ok(events.some(e=>e.type==='initialized'&&e.client_name==='integration-test'&&e.protocol_version));assert.equal(events.filter(e=>e.type==='call'&&e.tool==='generate_image').length,2);assert.equal(errors,'');
+});
+test('a running session is told when the gateway catalog changes',async t=>{
+  let catalogBody=CATALOG;
+  const gateway=http.createServer((req,res)=>{res.setHeader('Content-Type','application/json');if(req.url==='/v1/media/catalog')res.end(JSON.stringify(catalogBody));else res.end('{}');});
+  await new Promise(r=>gateway.listen(0,'127.0.0.1',r));t.after(()=>new Promise(r=>gateway.close(r)));
+  const transport=new StdioClientTransport({command:process.execPath,args:[new URL('../cli.mjs',import.meta.url).pathname,'stdio'],env:{...process.env,MEDIA_GATEWAY_URL:'http://127.0.0.1:'+gateway.address().port,MEDIA_API_KEY:'test-key',MEDIA_TOOLS_WATCH_MS:'100'},stderr:'pipe'});
+  const client=new Client({name:'watch-test',version:'1.0'});t.after(()=>client.close());
+  let changed=0;client.setNotificationHandler(ToolListChangedNotificationSchema,()=>{changed++;});
+  await client.connect(transport);assert.ok(client.getServerCapabilities().tools.listChanged);
+  assert.equal((await client.listTools()).tools.length,7);
+  await new Promise(r=>setTimeout(r,400));assert.equal(changed,0,'an unchanged catalog sends nothing');
+  catalogBody={...CATALOG,tools:CATALOG.tools.filter(tool=>tool.name!=='generate_video')};
+  for(let i=0;i<50&&!changed;i++)await new Promise(r=>setTimeout(r,100));
+  assert.equal(changed,1);assert.equal((await client.listTools()).tools.length,6);
+  await new Promise(r=>setTimeout(r,400));assert.equal(changed,1,'one change is announced once');
 });

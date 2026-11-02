@@ -11,32 +11,33 @@ function Code({value}){
   const [copied,setCopied]=useState(false),[error,setError]=useState('');const text=typeof value==='string'?value:JSON.stringify(value,null,2);
   return <div className="mcp-code"><pre>{text}</pre><ActionButton onClick={async()=>{try{await navigator.clipboard.writeText(text);setCopied(true);setError('');setTimeout(()=>setCopied(false),1500);}catch{setError('复制失败，请手动选择文本');}}}>{copied?'已复制':'复制'}</ActionButton>{error&&<p role="alert">{error}</p>}</div>;
 }
-function useMcpResource(path,poll=true){
+function useMcpResource(path){
   const [snapshots,setSnapshots]=useState({}),[failure,setFailure]=useState(null);
   const cached=path?snapshots[path]:null;
   useEffect(()=>{
-    if(!path||(!poll&&cached))return;
-    const controller=new AbortController();let timer,disposed=false,busy=false,loaded=Boolean(cached);
+    if(!path)return;
+    const controller=new AbortController();let timer,disposed=false,busy=false;
     async function read(){
-      if(disposed||document.hidden||busy||(!poll&&loaded))return;busy=true;let retry=poll;
+      if(disposed||document.hidden||busy)return;busy=true;
       try{
         const response=await fetch('/api/mcp/'+path,{cache:'no-store',signal:controller.signal});
         if(!response.ok)throw new Error('MCP 信息读取失败（'+response.status+'）');
-        const value=await response.json();
-        if(!disposed){loaded=true;setSnapshots(previous=>({...previous,[path]:value}));setFailure(null);}
-      }catch(error){retry=true;if(!disposed&&error.name!=='AbortError')setFailure({path,message:error.message+'，正在重试。保留上次读取结果。'});}
-      finally{busy=false;if(!disposed&&retry){clearTimeout(timer);timer=setTimeout(read,5000);}}
+        // Unchanged text keeps the old object, so open details and selections survive each poll.
+        const text=await response.text();
+        if(!disposed){setSnapshots(previous=>previous[path]?.text===text?previous:{...previous,[path]:{text,value:JSON.parse(text)}});setFailure(null);}
+      }catch(error){if(!disposed&&error.name!=='AbortError')setFailure({path,message:error.message+'，正在重试。保留上次读取结果。'});}
+      finally{busy=false;if(!disposed){clearTimeout(timer);timer=setTimeout(read,5000);}}
     }
     const visibility=()=>{clearTimeout(timer);if(!document.hidden)void read();};
     document.addEventListener('visibilitychange',visibility);void read();
     return()=>{disposed=true;controller.abort();clearTimeout(timer);document.removeEventListener('visibilitychange',visibility);};
-  },[path,poll]);
-  return {value:cached??null,error:failure?.path===path?failure.message:''};
+  },[path]);
+  return {value:cached?.value??null,error:failure?.path===path?failure.message:''};
 }
 export default function McpPanel(){
   const [tab,setTab]=useState('overview'),[offset,setOffset]=useState(0),[jobId,setJobId]=useState(null);
   const overviewResource=useMcpResource('overview');
-  const contentResource=useMcpResource(tab==='overview'?null:tab==='model'||tab==='tools'?'model-view':tab+(tab==='calls'?'?offset='+offset+'&limit=30':''),tab==='calls');
+  const contentResource=useMcpResource(tab==='overview'?null:tab==='model'||tab==='tools'?'model-view':tab+(tab==='calls'?'?offset='+offset+'&limit=30':''));
   const jobResource=useMcpResource(jobId?'jobs/'+jobId:null);
   const overview=overviewResource.value,content=contentResource.value,job=jobResource.value,error=overviewResource.error||contentResource.error||jobResource.error;
   useEffect(()=>{if(job?.job_id){const panel=document.getElementById('mcp-job-detail');panel?.scrollIntoView({behavior:'smooth',block:'start'});panel?.focus({preventScroll:true});}},[job?.job_id]);
