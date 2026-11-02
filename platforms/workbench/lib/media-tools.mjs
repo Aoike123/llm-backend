@@ -103,3 +103,13 @@ export function validateToolInput(toolList,name,input){
   const tool=toolList.find(t=>t.name===canonical);if(!tool)throw new Error('Unknown media tool: '+name);
   return validateSchema(tool.inputSchema,input);
 }
+
+// What a model reads from this server, shared by the MCP process and the console's model view so
+// the two can never differ: the server instructions, the listed tools and list_media_models.
+export const INSTRUCTIONS='Local media generation through the workbench gateway: the available tools follow the engines enabled there. Generation tools return durable jobs, not completed media: poll get_job and inspect unknown outcomes before retrying; get_artifact with download=true saves results into the workspace. Omit model to use the primary model of each capability; advanced parameters shown collapsed are listed in full by list_media_models with model. Prefer the engine that is already running: check list_media_models first (it names the primary and fallback model of every capability), batch work on the same engine, and avoid switching engines between jobs because a switch drains the queue and cold-starts the backend.';
+export const listedTools=tools=>tools.map(tool=>({name:tool.name,description:tool.description,inputSchema:tool.inputSchema,annotations:{readOnlyHint:['list_media_models','get_job'].includes(tool.name),destructiveHint:false,openWorldHint:false}}));
+// The overview stays small; one model's full schemas (advanced fields included) on request.
+export function modelsView(media,model){
+  if(model){const found=media.models.find(m=>m.id===model);if(!found)throw new Error('Unknown model '+model+'; omit model to list them');return {model:found,capabilities:media.capabilities.filter(c=>c.providers.includes(found.id))};}
+  return {models:media.models.map(({parameter_schemas,...m})=>m),capabilities:media.capabilities,workflows:media.workflows};
+}

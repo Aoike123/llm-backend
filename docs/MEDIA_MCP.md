@@ -59,6 +59,8 @@
 - **高级参数折叠**：引擎可以在 adapter 里把专家参数标为 `advanced`。工具列表里它们只剩一行说明（省略即用默认值），完整字段用 `list_media_models {"model": "<id>"}` 查看。网关创建任务时仍按完整定义严格校验，写错照样在提交前被拒绝。目前 H3 的 `reference_slots`、`loras`、`resolution`、`sampling`、`optimizations`、`output` 是折叠的。
 - **只给 MCP 能用的信息**：只属于同步 API 的内容（H3 的首帧、首尾帧和图预设，各能力的同步路径）放在 `sync_api` 里，不进入 MCP 目录。
 
+控制台 MCP 页的「模型视角」按模型读到的顺序画出这些内容：会话开始就在上下文里的服务说明和工具定义（必填、可选、折叠参数分别标出），调用 `list_media_models` 后才读到的概览和各模型详情，以及任务回路；每个节点标出字符数，点开是模型读到的原文。「工具参数」页把每个工具列成参数表，折叠参数可就地展开。两页的数据与 MCP 进程共用同一段代码生成（`media-tools.mjs` 的 `listedTools`、`modelsView`、`INSTRUCTIONS`）。
+
 2026-11-02 实测（`tools/list` 的 JSON 字符数）：合计 18,184 → 12,992（−29%），其中 `generate_video` 9,227 → 3,693（−60%）；`list_media_models` 概览约 3,900，查看 H3 完整参数约 8,000。
 
 ## 调用规范

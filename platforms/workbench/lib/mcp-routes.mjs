@@ -2,7 +2,7 @@ import {readFile} from 'node:fs/promises';
 import {createHmac,randomBytes,timingSafeEqual} from 'node:crypto';
 import {join} from 'node:path';
 import {ID,CAPABILITIES,TOOL_GROUPS,COMMON_TOOLS,isGenerationTool,catalog,routes,validateToolInput} from './capabilities.mjs';
-import {LEGACY_TOOLS} from './media-tools.mjs';
+import {LEGACY_TOOLS,INSTRUCTIONS,listedTools,modelsView} from './media-tools.mjs';
 const KNOWN_TOOLS=new Set([...COMMON_TOOLS.map(t=>t.name),...Object.keys(LEGACY_TOOLS),...Object.keys(TOOL_GROUPS),...Object.values(CAPABILITIES).flatMap(c=>[c.tool,...(c.aliases??[])])]);
 const validateCommon=(name,input)=>validateToolInput(COMMON_TOOLS,name,input);
 import {ROOT} from './backend.mjs';
@@ -78,6 +78,11 @@ export function mcpRoutes(jobs,info,keys,lifecycle){
       if(path==='/api/mcp/overview')return send(res,200,{...await info.overview(jobs,lifecycle),runtime_topology:runtimeTopology(jobs.coordinator?.status?.()??{})});
       if(path==='/api/mcp/config')return send(res,200,info.config());
       if(path==='/api/mcp/tools'){const media=await catalog();return send(res,200,{...ID,tools:media.tools});}
+      // The model's view: what enters a client model's context at session start and on each call.
+      if(path==='/api/mcp/model-view'){
+        const media=await catalog(),tools=listedTools(media.tools);
+        return send(res,200,{instructions:INSTRUCTIONS,tools,list_media_models:{overview:modelsView(media),models:Object.fromEntries(media.models.map(m=>[m.id,modelsView(media,m.id)]))},models:media.models});
+      }
       if(path==='/api/mcp/runtime'){
         const native=await comfyRuntime();
         return send(res,200,{runtime_topology:runtimeTopology(jobs.coordinator?.status?.()??{}),native_queue:{...native,available:native.queue_available}});

@@ -2,7 +2,7 @@ import {Server} from '@modelcontextprotocol/sdk/server/index.js';
 import {StdioServerTransport} from '@modelcontextprotocol/sdk/server/stdio.js';
 import {ListToolsRequestSchema,CallToolRequestSchema,ListResourcesRequestSchema,ReadResourceRequestSchema} from '@modelcontextprotocol/sdk/types.js';
 import {randomUUID} from 'node:crypto';
-import {ID,COMMON_TOOLS,LEGACY_TOOLS,isGenerationTool,validateToolInput} from './manifest.mjs';
+import {ID,COMMON_TOOLS,LEGACY_TOOLS,INSTRUCTIONS,isGenerationTool,validateToolInput,listedTools,modelsView} from './manifest.mjs';
 import {configuration,request,openImport,importRoots,downloadArtifact} from './client.mjs';
 export async function start(){
   const config=await configuration(),instance_id='instance_'+randomUUID().replaceAll('-','');let sequence=0,protocol_version,reporting=Promise.resolve(),closing=false;
@@ -20,16 +20,11 @@ export async function start(){
     const input={...event,instance_id,sequence:sequence++};
     reporting=reporting.then(()=>request(config,'/internal/mcp/events',{method:'POST',headers:{'x-media-telemetry-token':config.telemetry_token},body:JSON.stringify(input),timeout:2000})).catch(()=>{});return reporting;
   }
-  const server=new Server(ID,{capabilities:{tools:{},resources:{}},instructions:'Local media generation through the workbench gateway: the available tools follow the engines enabled there. Generation tools return durable jobs, not completed media: poll get_job and inspect unknown outcomes before retrying; download_artifact writes results into the workspace. Prefer the engine that is already running: check list_media_models first (it names the primary and fallback model of every capability), batch work on the same engine, and avoid switching engines between jobs because a switch drains the queue and cold-starts the backend.'});
-  server.setRequestHandler(ListToolsRequestSchema,async()=>({tools:(await toolList()).map(({example,...tool})=>({name:tool.name,description:tool.description,inputSchema:tool.inputSchema,annotations:{readOnlyHint:['list_media_models','get_job'].includes(tool.name),destructiveHint:false,openWorldHint:false}}))}));
+  const server=new Server(ID,{capabilities:{tools:{},resources:{}},instructions:INSTRUCTIONS});
+  server.setRequestHandler(ListToolsRequestSchema,async()=>({tools:listedTools(await toolList())}));
   async function invoke(name,input){
     validateToolInput(await toolList(),name,input);
-    if(name==='list_media_models'){
-      const media=await catalog();
-      // The overview stays small; one model's full schemas (advanced fields included) on request.
-      if(input.model){const model=media.models.find(m=>m.id===input.model);if(!model)throw new Error('Unknown model '+input.model+'; omit model to list them');return {model,capabilities:media.capabilities.filter(c=>c.providers.includes(model.id))};}
-      return {models:media.models.map(({parameter_schemas,...model})=>model),capabilities:media.capabilities,workflows:media.workflows};
-    }
+    if(name==='list_media_models')return modelsView(await catalog(),input.model);
     if(name==='import_media'){
       const fd=await openImport(input.path,importRoots(config));
       try{return await request(config,'/v1/media/assets?kind='+input.kind,{method:'POST',headers:{'Content-Type':'application/octet-stream'},body:fd.createReadStream({autoClose:false}),timeout:120000});}finally{await fd.close();}
