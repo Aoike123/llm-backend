@@ -37,7 +37,7 @@
 | --- | --- |
 | `generate_image` | 生图；带 `reference_asset_ids` 时为图片编辑（1–4 张参考图）。默认主推 Qwen-Image，Anima 降级 |
 | `generate_video` | H3 视频生成（原版工作流），可选图像/视频/音频参考，原生 ComfyUI 执行。首帧、首尾帧和图预设只在同步 API `/v1/videos/generations` 上提供 |
-| `generate_audio` | `task=speech` 语音合成与声音克隆（Drama 3，最多 4 个参考音色，参考文本可自动识别）；`task=separate` 人声分离（BS-RoFormer，产出 vocals / instrumental）；`task=transcribe` 语音识别（Qwen3-ASR） |
+| `generate_audio` | `task=speech` 语音合成与声音克隆（Drama 3，最多 4 个参考音色，参考文本可自动识别）。每个音频参考另存为 `voice-N` 作品，之后用 `voice_artifact_id` 复用同一组声学 token，配合固定 `seed` 可逐字节复现；每次合成另存 `take` 作品，可经 `previous_take_artifact_ids` 续写；`task=separate` 人声分离（BS-RoFormer，产出 vocals / instrumental）；`task=transcribe` 语音识别（Qwen3-ASR） |
 | `list_media_models` | 列出已启用的能力、每种能力的主推与降级，以及各模型参数名；带 `model` 时返回该模型每个参数的完整定义（含工具里折叠的高级参数）。不启动模型 |
 | `import_media` | 导入工作区或允许目录内的图像 / 视频 / 音频（音频最长 30 分钟，可直接给视频取音轨），返回 asset_id |
 | `get_job` | 查询自己的任务，可短等待最多 20 秒；不带 `job_id` 时按 `offset` / `limit` 列出任务 |
