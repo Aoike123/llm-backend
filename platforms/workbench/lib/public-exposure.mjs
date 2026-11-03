@@ -22,15 +22,17 @@ export class PublicExposure {
     this.startedAt=new Date().toISOString();this.stats=new Map();this.lastProbe=null;this.pending=Promise.resolve();
   }
   static async open(file,options){
-    let state={version:1,master:true,off:[]};
+    let state={version:1,master:true,off:[],on:[]};
     try{state={...state,...JSON.parse(await readFile(file,'utf8'))};}catch(e){if(e.code!=='ENOENT')throw e;}
-    if(state.version!==1||typeof state.master!=='boolean'||!Array.isArray(state.off))throw new Error('Invalid public exposure store');
+    if(state.version!==1||typeof state.master!=='boolean'||!Array.isArray(state.off)||!Array.isArray(state.on))throw new Error('Invalid public exposure store');
     return new PublicExposure(file,state,options);
   }
   // Every route that could be public, with whether it is, now.
   catalog(){
     const all=apiCatalog(this.routes(),this.categories()).groups.flatMap(g=>g.routes.map(r=>({...r,group:g.id})));
-    return all.filter(r=>r.access==='public').map(r=>({...r,id:routeId(r),exposed:this.state.master&&!this.state.off.includes(routeId(r))}));
+    // A route is public unless switched off; one declared sync_public: false is private until switched on.
+    const on=r=>this.state.off.includes(routeId(r))?false:this.state.on.includes(routeId(r))?true:r.default!==false;
+    return all.filter(r=>r.access==='public').map(r=>({...r,id:routeId(r),exposed:this.state.master&&on(r)}));
   }
   // The gate the gateway applies to a request that came through the proxy.
   allows(path){
@@ -55,6 +57,7 @@ export class PublicExposure {
         const route=this.catalog().find(r=>r.id===input.id);if(!route)throw new Error('这个接口不能对公网放行');
         if(typeof input.exposed!=='boolean')throw new Error('Invalid exposed');
         next.off=input.exposed?next.off.filter(id=>id!==input.id):[...new Set([...next.off,input.id])];
+        next.on=input.exposed?[...new Set([...next.on,input.id])]:next.on.filter(id=>id!==input.id);
       }else throw new Error('未知操作');
       await atomic(this.file,next);this.state=next;return this.snapshot();
     };

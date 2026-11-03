@@ -19,10 +19,11 @@ async function body(req,limit){
 }
 const releaseLease=async(coordinator,token)=>{for(let i=0;i<20;i++){try{await coordinator.release(token);return;}catch(e){if(e.message==='Invalid lease token')return;await pause(500);}}};
 export function handlers(coordinator,metrics,lifecycle,{llmBase='http://127.0.0.1:18983'}={}) {
-  const status=async()=>({...coordinator.status(),...metrics.snapshot(),draining:lifecycle.draining,residency:await coordinator.backend.residency()});
+  // /status feeds the exporter and the controller every few seconds; the KV forecast table (half a megabyte) is only sent on ?full=1.
+  const status=async(full=false)=>{const s=coordinator.status();return {...(full?s:{...s,kv_forecast:null}),...metrics.snapshot(),draining:lifecycle.draining,residency:await coordinator.backend.residency()};};
   async function control(req,res) {
-    const path=new URL(req.url,'http://localhost').pathname;
-    if(req.method==='GET'&&path==='/status')return send(res,200,await status());
+    const url=new URL(req.url,'http://localhost'),path=url.pathname;
+    if(req.method==='GET'&&path==='/status')return send(res,200,await status(url.searchParams.get('full')==='1'));
     if(req.method!=='POST')return send(res,404,{error:'Not found'});
     if(req.headers.origin)return send(res,403,{error:'Local JSON clients only'});
     try {if(process.env.WORKBENCH_READ_ONLY==='1')return send(res,403,{error:'Preview is read-only'});
@@ -41,7 +42,7 @@ export function handlers(coordinator,metrics,lifecycle,{llmBase='http://127.0.0.
     if(origin){res.setHeader('Access-Control-Allow-Origin',origin);res.setHeader('Vary','Origin');}
     if(req.method==='OPTIONS'){res.writeHead(204,{'Access-Control-Allow-Headers':'Content-Type, Authorization','Access-Control-Allow-Methods':'GET, POST, OPTIONS'});return res.end();}
     if(req.method==='GET'){
-      if(path==='/status')return send(res,200,await status());
+      if(path==='/status')return send(res,200,await status(url.searchParams.get('full')==='1'));
       if(path==='/api/engine-logs'||path==='/api/llm-mode/logs'){
         const requested=url.searchParams.get('model');
         if(requested!==null&&!registry.enginePackage(requested))return send(res,400,{error:'Invalid model'});
@@ -64,7 +65,7 @@ export function handlers(coordinator,metrics,lifecycle,{llmBase='http://127.0.0.
         if(![5,15,30,60].includes(windowSeconds))return send(res,400,{error:'Invalid sampling window'});
         const model=url.searchParams.get('model');
         if(model!==null&&!registry.enginePackage(model))return send(res,400,{error:'Invalid model'});
-        return send(res,200,await monitoring(coordinator,metrics,minutes,windowSeconds,model??undefined));
+        return send(res,200,await monitoring(coordinator,metrics,minutes,windowSeconds,model??undefined,{full:url.searchParams.get('full')==='1'}));
       }
       if(path==='/v1/models'){
         const policy=coordinator.policy,id=activeModelId(policy),profile=coordinator.requestProfile(id);

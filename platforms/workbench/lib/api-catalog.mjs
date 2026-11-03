@@ -44,7 +44,7 @@ export const publicPaths=()=>new Set([...FIXED.filter(r=>r.access==='public'&&!r
 export function apiCatalog(routes,categories=[]){
   const enabled=new Map(routes.map(r=>[r.capability,r]));
   const sync=Object.entries(CAPABILITIES).filter(([capability,c])=>c.sync&&enabled.has(capability)).map(([capability,c])=>{
-    const r=enabled.get(capability);return {group:'sync',method:'POST',path:c.sync,purpose:c.label+'，同步返回',access:'public',models:{primary:r.primary,providers:r.providers}};
+    const r=enabled.get(capability);return {group:'sync',method:'POST',path:c.sync,purpose:c.sync_via==='job'?c.label+'，同步等待任务完成并返回作品（需要密钥）':c.label+'，同步返回',access:'public',default:c.sync_public!==false,models:{primary:r.primary,providers:r.providers}};
   });
   const all=[...FIXED,...sync];
   const owner=new Map(categories.flatMap(c=>c.tools.map(name=>[name,c])));

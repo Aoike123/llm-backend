@@ -43,6 +43,9 @@
     "surface": {
       "speech.synthesize": {
         "order": 30,
+        "sync": "/v1/audio/speech",
+        "sync_via": "job",
+        "sync_public": false,
         "group": "generate_speech",
         "task": "speech",
         "tool": "generate_speech",
@@ -93,6 +96,9 @@
       },
       "speech.voice": {
         "order": 31,
+        "sync": "/v1/audio/voices",
+        "sync_via": "job",
+        "sync_public": false,
         "library": "voices",
         "group": "register_voice",
         "task": "voice",

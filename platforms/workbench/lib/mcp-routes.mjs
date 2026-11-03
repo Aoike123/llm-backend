@@ -12,6 +12,7 @@ import {runtimeTopology} from './runtime-topology.mjs';
 import {comfyRuntime} from './comfy-runtime.mjs';
 import {send} from './http.mjs';
 import {atomic,fail} from './media-store.mjs';
+import {capabilityForSync} from './media-tools.mjs';
 import {pause} from './core.mjs';
 import {jobRow,listJobs,listArtifacts,listVoices,searchVoices,streamFile,thumbnail} from './media-library.mjs';
 const LINK_SECRET=process.env.WORKBENCH_LINK_SECRET?Buffer.from(process.env.WORKBENCH_LINK_SECRET):randomBytes(32);
@@ -65,7 +66,12 @@ export class McpInfo{
       this.trim();await atomic(join(this.store.telemetry,'events.json'),this.state);
     });this.pending=work.catch(()=>{});return work;
   }
-  async overview(jobs,lifecycle){const media=await catalog();return {...ID,deployed:true,observed_at:new Date().toISOString(),gateway:{status:lifecycle.draining?'draining':'ready',recovery_pending:jobs.recoveryPending},tools_count:media.tools.length,models:media.models,workflows:media.workflows,capabilities:routes(),instances:[...this.state.instances].sort((a,b)=>Date.parse(b.last_reported_at)-Date.parse(a.last_reported_at)).map(i=>({...i,stale:Date.now()-Date.parse(i.last_reported_at)>45000})),last_reported_at:this.state.instances.reduce((last,i)=>!last||i.last_reported_at>last?i.last_reported_at:last,null),pending_jobs:[...jobs.jobs.values()].filter(j=>!['succeeded','failed','cancelled','unknown'].includes(j.state)).length,storage:{used_bytes:this.store.usedBytes,quota_bytes:this.store.maxBytes},note:'实例上报与协议初始化是历史观察；心跳不代表宿主当前仍保持协议连接。'};}
+  // Every MCP process start leaves a record for 30 days; the list shows the live ones and the latest dozen past ones.
+  #shownInstances(){
+    const rows=[...this.state.instances].sort((a,b)=>Date.parse(b.last_reported_at)-Date.parse(a.last_reported_at)).map(i=>({...i,stale:Date.now()-Date.parse(i.last_reported_at)>45000}));
+    let past=0;return rows.filter(i=>!i.stale||past++<12);
+  }
+  async overview(jobs,lifecycle){const media=await catalog();return {...ID,deployed:true,observed_at:new Date().toISOString(),gateway:{status:lifecycle.draining?'draining':'ready',recovery_pending:jobs.recoveryPending},tools_count:media.tools.length,models:media.models,workflows:media.workflows,capabilities:routes(),instances:this.#shownInstances(),instances_total:this.state.instances.length,last_reported_at:this.state.instances.reduce((last,i)=>!last||i.last_reported_at>last?i.last_reported_at:last,null),pending_jobs:[...jobs.jobs.values()].filter(j=>!['succeeded','failed','cancelled','unknown'].includes(j.state)).length,storage:{used_bytes:this.store.usedBytes,quota_bytes:this.store.maxBytes},note:'实例上报与协议初始化是历史观察；心跳不代表宿主当前仍保持协议连接。'};}
   config(){return {transport:'stdio',command:ROOT+'lab',args:['mcp','stdio'],cwd:ROOT,config_file:'~/.config/llm-backend/media-mcp.json',setup_command:ROOT+'lab mcp setup',client_config:{mcpServers:{'local-media':{command:ROOT+'lab',args:['mcp','stdio']}}},credential_note:'先运行 setup，密钥仅保存在权限为 0600 的本机配置文件；此模板不含密钥。',remote_http:{deployed:false}};}
 }
 export function mcpRoutes(jobs,info,keys,lifecycle){
@@ -179,6 +185,32 @@ export function mcpRoutes(jobs,info,keys,lifecycle){
       return send(res,404,{error:'Unknown media endpoint'});
     }catch(e){if(e.retryAfterSeconds)res.setHeader('Retry-After',String(e.retryAfterSeconds));return send(res,e.status??400,{error:e.code??e.message});}
   }
-  return {admin,media};
+  // A job-backed sync route: submit the capability's job for the caller's key, wait for it, answer.
+  // The client may ask for the audio itself (Accept: audio/*) instead of the JSON description.
+  async function syncJob(req,res){
+    const path=new URL(req.url,'http://localhost').pathname,capability=capabilityForSync(path),c=CAPABILITIES[capability];
+    if(!c||c.sync_via!=='job')return send(res,404,{error:'Unknown API endpoint'});
+    if(req.method!=='POST')return send(res,405,{error:'Method not allowed'});
+    if(req.headers.origin)return send(res,403,{error:'Non-browser API only'});
+    const key=keys.authenticate(req.headers.authorization);if(!key)return send(res,401,{error:'Valid API key required'});
+    try{
+      const body=await jsonBody(req,131072);
+      const created=await jobs.create(key.id,c.group,{...body,request_id:body.request_id??'sync-'+randomBytes(12).toString('hex'),...(c.task!==undefined?{task:c.task}:{})});
+      const deadline=Date.now()+Number(process.env.WORKBENCH_SYNC_WAIT_SECONDS??900)*1000;let job=jobs.get(key.id,created.job_id);
+      while(Date.now()<deadline&&!['succeeded','failed','unknown','cancelled'].includes(job.state)&&!res.destroyed){await pause(200);job=jobs.get(key.id,created.job_id);}
+      if(res.destroyed)return;
+      const view=jobs.public(job);res.setHeader('X-Job-Id',job.job_id);
+      if(job.state==='succeeded'){
+        const artifacts=(job.artifacts??[]).map(a=>({artifact_id:a.artifact_id,name:a.name??null,kind:a.kind,mime_type:a.mime_type,bytes:a.bytes,media:a.media??null}));
+        const wanted=/^audio\//.test((req.headers.accept??'').split(',')[0].trim())?job.artifacts?.find(a=>a.kind==='audio'):null;
+        if(wanted)return streamArtifact(req,res,wanted);
+        return send(res,200,{job_id:job.job_id,state:job.state,capability,served_by:job.served_by??job.model,artifacts,metrics:job.metrics??null});
+      }
+      if(['failed','unknown','cancelled'].includes(job.state))return send(res,502,{error:view.error??{code:job.state},job_id:job.job_id,state:job.state});
+      // Still running at the deadline: the job continues; the caller polls it where it can.
+      return send(res,202,{job_id:job.job_id,state:view.state,poll_after_seconds:view.poll_after_seconds});
+    }catch(e){if(e.retryAfterSeconds)res.setHeader('Retry-After',String(e.retryAfterSeconds));return send(res,e.status??400,{error:e.code??e.message});}
+  }
+  return {admin,media,syncJob};
 }
 const streamArtifact=(req,res,artifact)=>streamFile(req,res,{path:artifact.local_path,mime_type:artifact.mime_type,bytes:artifact.bytes});

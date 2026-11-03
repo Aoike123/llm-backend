@@ -1,6 +1,8 @@
-import test from 'node:test';
+import test,{beforeEach} from 'node:test';
 import assert from 'node:assert/strict';
-import {monitoring} from '../lib/monitoring.mjs';
+import {monitoring,resetSharedQueries} from '../lib/monitoring.mjs';
+// Prometheus answers are shared for a few seconds; each test stubs its own and starts from none.
+beforeEach(resetSharedQueries);
 test('declared rate windows preserve missing samples as chart gaps',async()=>{
  const saved=globalThis.fetch,queries=[],now=Math.floor(Date.now()/5000)*5;
  globalThis.fetch=async url=>{const u=new URL(url),q=u.searchParams.get('query');queries.push(q);return {json:async()=>({status:'success',data:{result:u.pathname.endsWith('query_range')?[{values:[[now-10,'12'],[now,'0']]}]:[{value:[now,q.includes('up{job="cpu_vision"}')?'NaN':'0']}]}})};};
@@ -43,4 +45,17 @@ test('requested service metrics remain separate from the actual and switching en
   assert.equal(llm.values.output,null);assert.equal(llm.values.kv,null);assert.equal(llm.values.running,null);
   assert.equal(llm.values.gpu,42);
  }finally{globalThis.fetch=saved;}
+});
+
+test('readers within a few seconds share one round of Prometheus queries; the KV tables ride only on full requests',async()=>{
+  const saved=globalThis.fetch;let calls=0;
+  globalThis.fetch=async()=>{calls++;return {json:async()=>({status:'success',data:{result:[]}})};};
+  try{
+    const coordinator={status:()=>({current:'llm',kv_forecast:{big:true}}),backend:{residency:async()=>({}),previewPlan:async()=>({plan:true})}},metrics={active:{},state:{recent:[]}};
+    const lite=await monitoring(coordinator,metrics,15,30,undefined,{full:false}),first=calls;
+    await monitoring(coordinator,metrics,15,30,undefined,{full:false});assert.equal(calls,first,'a second reader reuses the answers');
+    assert.deepEqual([lite.kv_forecast,lite.kv_preview_plan],[null,null]);
+    const full=await monitoring(coordinator,metrics,15,30);assert.deepEqual([full.kv_forecast,full.kv_preview_plan],[{big:true},{plan:true}]);assert.equal(calls,first,'full still shares the queries');
+    await monitoring(coordinator,metrics,30,30,undefined,{full:false});assert.ok(calls>first,'another range is a different question');
+  }finally{globalThis.fetch=saved;}
 });

@@ -5,6 +5,7 @@ import {ApiError} from './api-errors.mjs';
 
 const hash=value=>createHash('sha256').update(value).digest('hex');
 import {publicPaths} from './api-catalog.mjs';
+import {syncViaJob} from './media-tools.mjs';
 const integer=(n,min,max,label)=>{if(!Number.isInteger(n)||n<min||n>max)throw new Error(`${label}应为 ${min}–${max} 的整数`);return n;};
 const name=value=>{if(typeof value!=='string'||!value.trim()||value.trim().length>80)throw new Error('名称需要 1–80 个字符');return value.trim();};
 const requestLimits=value=>({maxConcurrent:integer(value.maxConcurrent,1,32,'并发'),requestsPerMinute:integer(value.requestsPerMinute,1,60000,'每分钟请求数')});
@@ -168,7 +169,8 @@ export function secureApi(api,store,{coordinator,exposure}={}){
       if(!key){count('denied');throw new ApiError(auth?'API_KEY_INVALID':'API_KEY_REQUIRED');}
       count('served');
       const discovery=req.method==='GET'&&['/v1/models','/v1/media/models'].includes(path);
-      const inference=coordinator&&req.method==='POST'&&publicPaths().has(path)&&!discovery;
+      // Routes that wrap a durable job queue in the job system, not on the GPU lease, so they hold no preparation slot while waiting.
+      const inference=coordinator&&req.method==='POST'&&publicPaths().has(path)&&!discovery&&!syncViaJob(path);
       if(inference){
         releasePreparation=store.reservePreparation(key,req.headers['content-length']);
         // handlers validates and identifies the engine before queueing on the

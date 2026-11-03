@@ -12,6 +12,7 @@ import VoiceLibrary from './voice-library';
 import {Gallery,JobTable,JobDrawer} from './media-library';
 import {useDisclosureAnimation} from './use-disclosure-animation.mjs';
 import {useRoute} from './use-route.mjs';
+import {useSettled} from './use-settled.mjs';
 import {SERVICES,setServices,TYPE_LABEL,serviceName,serviceState,serviceRecords,fmt,clock,followedEngine} from '../lib/panel.mjs';
 // Shown until the gateway's first snapshot names the real services.
 const PENDING={id:null,name:'读取中',version:'',description:'',type:'language',panel:null,accent:'#b8a3ff',symbol:'·',models:[]};
@@ -36,7 +37,7 @@ function RequestChart({records}){
   return <ResponsiveContainer width="100%" height="100%"><BarChart data={tasks} maxBarSize={26} margin={{top:8,right:8,bottom:0,left:0}} barCategoryGap="30%"><CartesianGrid stroke="#262b35" vertical={false}/><XAxis dataKey="time" tick={{fill:'#8993a4',fontSize:11}} axisLine={false} tickLine={false} tickMargin={10} interval="preserveStartEnd" minTickGap={24}/><YAxis tick={{fill:'#8993a4',fontSize:11}} axisLine={false} tickLine={false} tickMargin={8} width={40} unit="s"/><Tooltip cursor={{fill:'#ffffff',fillOpacity:0.03}} contentStyle={{background:'#191e28',border:'1px solid #373e4b',borderRadius:10,padding:'10px 14px',boxShadow:'0 10px 32px #0005',fontSize:12}} labelStyle={{color:'#d8dee9',marginBottom:4}} itemStyle={{padding:'2px 0'}} formatter={(n,name)=>[fmt(n)+' 秒',name]} labelFormatter={(label,rows)=>label+(rows?.[0]?.payload?.failed?' · 异常':'')}/><Bar dataKey="wait" name="等待与切换" stackId="task" fill="var(--wait-color)" isAnimationActive={false}/><Bar dataKey="work" name="处理与返回" stackId="task" fill="var(--service-accent)" radius={[4,4,0,0]} isAnimationActive={false}>{tasks.map((t,i)=><Cell key={i} fill={t.failed?'var(--failed-color)':'var(--service-accent)'}/>)}</Bar></BarChart></ResponsiveContainer>;
 }
 function Runtime({data,service,minutes,windowSeconds,setWindowSeconds}){
-  const d=data??{},v=d.values??{},llm=service.panel==='llm',state=serviceState(data,service.id),live=state==='ready'||state==='busy';
+  const d=data??{},v=d.values??{},llm=service.panel==='llm',state=useSettled(serviceState(data,service.id)),live=state==='ready'||state==='busy';
   const records=serviceRecords(data,service.id),rangeRecords=serviceRecords(data,service.id,minutes),engine=live?d.llm_engine:null;
   const last=records[0]??(Number.isFinite(v.last)&&Number.isFinite(v.wait)?{seconds:v.last,queue_seconds:v.wait,finished_at:v.last_completed}:null);
   const cards=llm?[
@@ -81,11 +82,12 @@ export default function Page(){
   const FOLLOW='auto',pinned=route.service&&route.service!==FOLLOW?route.service:null,follow=!pinned;
   const model=pinned??followedEngine(data)??data?.model??SERVICES[0]?.id??null,routeService=follow?FOLLOW:model;
   const refresh=useCallback(()=>setRevision(n=>n+1),[]);
+  const wantsPlans=route.view==='config';
   useEffect(()=>{
     const controller=new AbortController();let disposed=false,timer;setError('');
-    async function poll(){try{const params=new URLSearchParams({minutes,window:windowSeconds});if(pinned)params.set('model',pinned);const r=await fetch('/data?'+params,{cache:'no-store',signal:controller.signal});if(!r.ok)throw new Error();const d=await r.json();if(!disposed){setData(d);setError('');}}catch{if(!disposed)setError('网关连接中断');}finally{if(!disposed)timer=setTimeout(poll,5000);}}
+    async function poll(){try{const params=new URLSearchParams({minutes,window:windowSeconds});if(pinned)params.set('model',pinned);if(wantsPlans)params.set('full','1');const r=await fetch('/data?'+params,{cache:'no-store',signal:controller.signal});if(!r.ok)throw new Error();const d=await r.json();if(!disposed){setData(d);setError('');}}catch{if(!disposed)setError('网关连接中断');}finally{if(!disposed)timer=setTimeout(poll,5000);}}
     poll();return()=>{disposed=true;controller.abort();clearTimeout(timer);};
-  },[minutes,windowSeconds,pinned,revision]);
+  },[minutes,windowSeconds,pinned,revision,wantsPlans]);
   const service=SERVICES.find(s=>s.id===model)??PENDING,matched=!!data&&(data.model===model||(follow&&!data.model));
   const media=service.panel==='media';
   // Work tabs come from the package (ui.works); an engine that declares none has one 作品 tab.
@@ -95,7 +97,7 @@ export default function Page(){
   const view=views.some(([id])=>id===route.view)?route.view:'runtime';
   useEffect(()=>{if(view==='config')setConfigMounted(true);},[view]);
   const effective=data?{...data,pending_llm_mode:applying?(data.pending_llm_mode??'custom'):data.pending_llm_mode}:null;
-  const shown=matched?effective:null,state=serviceState(shown,model),live=state==='ready'||state==='busy';
+  const shown=matched?effective:null,state=useSettled(serviceState(shown,model)),live=state==='ready'||state==='busy';
   const status=error?'连接中断':state==='loading'?'正在读取':state==='switching'?'正在准备引擎':state==='busy'?'正在处理任务':state==='ready'?'就绪 · 等待任务':'未加载 · 按需启动';
   const phase={draining:'等待当前任务结束',loading:'加载目标配置',saving:'保存配置',ready:'引擎已生效',error:'应用失败'}[effective?.mode_switch?.phase];
   const canvas=data?.runtime_topology?.comfyui_port?'http://127.0.0.1:'+data.runtime_topology.comfyui_port:null;

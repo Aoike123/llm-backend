@@ -13,6 +13,9 @@ test('browsing services isolates records and distinguishes loading, active and t
   assert.equal(serviceState({...d,switching:true,switching_target:'anima'},'anima'),'switching');
   assert.equal(serviceState({...d,switching:true,switching_target:'anima'},'llm'),'inactive');
   assert.equal(serviceState({...d,pending_llm_mode:'custom'},'llm'),'switching');
+  // A lease cycle that targets the engine already loaded is no switch: it must not flash "preparing".
+  assert.equal(serviceState({...d,current_model:'llm',switching:true,switching_target:'llm',active:1},'llm'),'busy');
+  assert.equal(serviceState({...d,current_model:'llm',switching:true,switching_target:'llm',active:0},'llm'),'ready');
 });
 test('log tails count new lines across rolling windows and repeated output',()=>{
   assert.equal(cleanLogOutput('\x1b[32mINFO\x1b[0m progress\rcomplete'),'INFO progress\ncomplete');

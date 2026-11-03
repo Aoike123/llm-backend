@@ -13,8 +13,9 @@ export const fmt=(v,d=1)=>v==null||!Number.isFinite(v)?'—':v.toLocaleString('z
 export const clock=t=>Number.isFinite(t)?new Date(t*1000).toLocaleTimeString('zh-CN',{hour12:false,hour:'2-digit',minute:'2-digit',second:'2-digit',timeZone:'Asia/Shanghai'}):'—';
 export function serviceState(data,model){
   if(!data)return 'loading';
-  if(data.switching_target===model||(model==='llm'&&data.pending_llm_mode))return 'switching';
-  if(data.current_model===model&&!data.switching)return data.active>0?'busy':'ready';
+  // A scheduler lease cycle that targets the engine already loaded is not a switch: the page would flash "preparing" between two requests.
+  if((data.switching_target===model&&data.current_model!==model)||(model==='llm'&&data.pending_llm_mode))return 'switching';
+  if(data.current_model===model&&(!data.switching||data.switching_target===model))return data.active>0?'busy':'ready';
   return 'inactive';
 }
 export function serviceRecords(data,model,minutes){

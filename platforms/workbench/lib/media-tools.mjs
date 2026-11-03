@@ -72,6 +72,8 @@ export function checkDefinitions(definitions){
     for(const key of d.required??[])if(!Object.hasOwn(d.base??{},key))problems.push(at+'required field '+key+' is not in base');
     const slot=d.group+'/'+(d.task??''),prior=slots.get(slot);if(prior)problems.push(at+'task '+(d.task??'(none)')+' of '+d.group+' is also declared by '+prior);slots.set(slot,capability);
     for(const name of [d.tool??d.group,...(d.aliases??[])]){const other=tools.get(name);if(other&&other!==capability&&name!==d.group)problems.push(at+'tool name '+name+' is also used by '+other);tools.set(name,capability);}
+    if(d.sync_via!==undefined&&!['engine','job'].includes(d.sync_via))problems.push(at+'sync_via must be engine or job');
+    if(d.sync_public!==undefined&&typeof d.sync_public!=='boolean')problems.push(at+'sync_public must be true or false');
     if(d.sync!==undefined){if(!/^\/v1\/[a-z0-9/_-]+$/.test(d.sync))problems.push(at+'sync must be a /v1/ path');const other=syncs.get(d.sync);if(other)problems.push(at+'sync path '+d.sync+' is also '+other);syncs.set(d.sync,capability);}
   }
   // Capabilities sharing one tool must agree on how it is described and where it is filed.
@@ -118,6 +120,9 @@ export const isGenerationTool=tool=>!!TOOL_GROUPS[tool]||!!LEGACY_GROUPS[tool]||
 // Kept for stored jobs and checks that have no input to look at.
 export const capabilityForTool=tool=>resolveCapability(tool);
 export const capabilityForSync=path=>Object.entries(CAPABILITIES).find(([,c])=>c.sync===path)?.[0]??null;
+// A sync route can run on the engine's own synchronous call (images, video), or wrap a durable job:
+// submit, wait, answer with the artifacts. Engines whose work is job-based declare sync_via: job.
+export const syncViaJob=path=>CAPABILITIES[capabilityForSync(path)]?.sync_via==='job';
 
 const page={offset:{type:'integer',minimum:0,maximum:100000},limit:{type:'integer',minimum:1,maximum:100}};
 // Gateway-level tools that exist whatever engines are installed.

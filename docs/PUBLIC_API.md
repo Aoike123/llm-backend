@@ -41,6 +41,7 @@
 - 每个接口一个开关，另有总开关。**网关是最终裁决者**：公网请求（带 `X-Workbench-Public`）访问已关闭的接口，网关直接返回 404，不依赖 Caddy 是否更新，所以关闭立即生效。
 - Caddy 把 `/v1/*` 和 `/artifacts/*` 整体转给网关（`platforms/public-api/Caddyfile.*`），不再维护路径清单；开关、新增或停用引擎都不需要改 Caddy。
 - 「检查外网」从外部请求公网地址，不带密钥：401 表示能到达网关，网关自己的 404（JSON）表示被网关拒绝，其他 404 表示被 Caddy 挡住（服务器上的 Caddyfile 还是旧的路径清单）。结果与设置不一致时给出原因。检查请求带 `X-Workbench-Probe`，不计入统计。
+- 声明了 `sync_via: job` 的同步路径（音频：`/v1/audio/speech`、`/voices`、`/separations`、`/transcriptions`）由网关包装持久任务：必须带有效密钥，等任务完成后返回作品描述，`Accept: audio/*` 时直接返回音频；默认不对公网放行（`sync_public: false`），在页面里手动打开。需要素材的接口（分离、识别）要先用 `/v1/media/assets`（仅本机）上传素材，所以对公网意义不大。
 - 页面还显示反向隧道服务状态（运行中/已停止、重连次数、目标主机与远端端口，不含密钥路径）和自网关启动以来的公网请求计数（放行、密钥无效、访问已关闭接口）。
 - 公网地址取自 `WORKBENCH_PUBLIC_BASE`，未设置时取 `platforms/public-api/Caddyfile.<域名>` 里的站点地址。
 

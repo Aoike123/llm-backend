@@ -39,6 +39,9 @@
     "surface": {
       "audio.separate": {
         "order": 40,
+        "sync": "/v1/audio/separations",
+        "sync_via": "job",
+        "sync_public": false,
         "group": "process_audio",
         "task": "separate",
         "tool": "separate_audio",

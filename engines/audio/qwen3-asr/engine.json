@@ -39,6 +39,9 @@
     "surface": {
       "audio.transcribe": {
         "order": 41,
+        "sync": "/v1/audio/transcriptions",
+        "sync_via": "job",
+        "sync_public": false,
         "group": "process_audio",
         "task": "transcribe",
         "tool": "transcribe_audio",

@@ -9,7 +9,19 @@ const input=`sum(increase(vllm:prompt_tokens_total${selector}[1m])) and on() ${l
 const visionUp='(min(up{job="cpu_vision"}) == 1)';
 const visionMetric=expr=>`${expr} and on() ${visionUp}`;
 export const SAMPLING={scrape_seconds:5,refresh_seconds:5,output_window_seconds:30,input_window_seconds:60,latency_window_seconds:300};
-export async function monitoring(coordinator,metrics,minutes,windowSeconds=30,requestedModel) {
+// Prometheus scrapes every 5 s, so answers are shared for 3 s: several console tabs, the sidebar and
+// any other reader cost one round of queries, and a slow Prometheus is asked once, not once per reader.
+const SHARE_MS=3000,shared=new Map();
+export const resetSharedQueries=()=>shared.clear();
+const shareFor=(key,compute)=>{
+  const hit=shared.get(key);if(hit&&Date.now()-hit.at<SHARE_MS)return hit.value;
+  const value=compute();shared.set(key,{at:Date.now(),value});
+  value.catch(()=>{if(shared.get(key)?.value===value)shared.delete(key);});
+  for(const [k,v] of shared)if(Date.now()-v.at>SHARE_MS*4)shared.delete(k);
+  return value;
+};
+// full: include the KV forecast tables (half a megabyte each), which only the LLM configuration page reads.
+export async function monitoring(coordinator,metrics,minutes,windowSeconds=30,requestedModel,{full=true}={}) {
   const fast=`sum(irate(vllm:generation_tokens_total${selector}[30s])) and on() ${llmUp}`;
   const chartUp=`(min(min_over_time(up{job="llm"}[${Math.max(30,windowSeconds)}s])) == 1)`;
   const chartOutput=windowSeconds===5?fast:`sum(rate(vllm:generation_tokens_total${selector}[${windowSeconds}s])) and on() ${chartUp}`;
@@ -37,9 +49,9 @@ export async function monitoring(coordinator,metrics,minutes,windowSeconds=30,re
   const query=async(expr,range)=>{
     try{const params=new URLSearchParams({query:expr,...(range?{start:now-minutes*60,end:now,step:5}:{})});const r=await fetch('http://127.0.0.1:19090/api/v1/'+(range?'query_range':'query')+'?'+params,{signal:AbortSignal.timeout(3000)});const d=await r.json();if(d.status!=='success')return null;const row=d.data.result[0];const n=v=>Number.isFinite(Number(v))?Number(v):null;if(range){const byTime=new Map((row?.values??[]).map(([t,v])=>[t,n(v)]));return Array.from({length:minutes*12+1},(_,i)=>{const t=now-minutes*60+i*5;return [t,byTime.get(t)??null];});}return row?n(row.value[1]):null;}catch{return null;}
   };
-  const [values,series]=await Promise.all([Promise.all(Object.entries(queries).map(async([k,v])=>[k,await query(v,false)])),Promise.all(Object.entries(trends).map(async([k,v])=>[k,await query(v,true)]))]);
+  const [values,series]=await shareFor(model+'|'+minutes+'|'+windowSeconds,()=>Promise.all([Promise.all(Object.entries(queries).map(async([k,v])=>[k,await query(v,false)])),Promise.all(Object.entries(trends).map(async([k,v])=>[k,await query(v,true)]))]));
   const currentValues=Object.fromEntries(values);
   // A sleeping or unloading LLM can still be scraped. Never label its samples as live.
   if(model==='llm'&&(s.current!=='llm'||s.switching))for(const key of ['output','peak','input','ttft','kv','running','waiting'])currentValues[key]=null;
-  return {runtime_topology:runtimeTopology(s),model,current_model:s.current??null,switching_target:s.switching_target??null,name:fullName(model)??'待机',services:registry.services(),capabilities:routes(),llm_mode:s.llm_mode,selected_llm_mode:s.selected_llm_mode,pending_llm_mode:s.pending_llm_mode,mode_switch:s.mode_switch,engine_switch:s.engine_switch,llm_policy:s.llm_policy,llm_engine:s.llm_engine,kv_forecast:s.kv_forecast,kv_preview_plan:model==='llm'?await coordinator.backend.previewPlan?.()??null:null,kv_budget:s.kv_budget,llm_slots:s.llm_slots,switching:s.switching,queued:s.queued,active:metrics.active[model]??0,error:s.last_error,recent:[...metrics.state.recent].reverse(),values:currentValues,trends:Object.fromEntries(series),timestamp:now,minutes,sampling:{...SAMPLING,output_window_seconds:windowSeconds,peak_window_seconds:60,peak_interval_seconds:5},kv_calibration:KV_CALIBRATION,vram_defaults:VRAM_DEFAULTS,residency:await coordinator.backend.residency()};
+  return {runtime_topology:runtimeTopology(s),model,current_model:s.current??null,switching_target:s.switching_target??null,name:fullName(model)??'待机',services:registry.services(),capabilities:routes(),llm_mode:s.llm_mode,selected_llm_mode:s.selected_llm_mode,pending_llm_mode:s.pending_llm_mode,mode_switch:s.mode_switch,engine_switch:s.engine_switch,llm_policy:s.llm_policy,llm_engine:s.llm_engine,kv_forecast:full?s.kv_forecast:null,kv_preview_plan:full&&model==='llm'?await coordinator.backend.previewPlan?.()??null:null,kv_budget:s.kv_budget,llm_slots:s.llm_slots,switching:s.switching,queued:s.queued,active:metrics.active[model]??0,error:s.last_error,recent:[...metrics.state.recent].reverse(),values:currentValues,trends:Object.fromEntries(series),timestamp:now,minutes,sampling:{...SAMPLING,output_window_seconds:windowSeconds,peak_window_seconds:60,peak_interval_seconds:5},kv_calibration:KV_CALIBRATION,vram_defaults:VRAM_DEFAULTS,residency:await coordinator.backend.residency()};
 }

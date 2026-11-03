@@ -114,6 +114,8 @@ ama3/
 | `base` / `required` / `example` | 是 | 所有模型共有的参数、必填项、示例。参数是 JSON Schema，常用形状可写 `{"$use":"request_id"}`、`seed`、`prompt`（可带 `note`）、`id`、`id_list`（`max`、`min`） |
 | `infer` | 否 | `{"present":"<字段>"}`：没给 `task` 时，输入里有该字段就选这个能力（图像编辑靠它） |
 | `sync` | 否 | 同步 API 路径，如 `/v1/images/generations`；声明后自动出现在 API 页、可被公网放行开关控制 |
+| `sync_via` | 否 | `engine`（默认）：用引擎自己的同步调用，请求体需有 `prompt`（图像、视频）；`job`：网关把请求包成持久任务——提交、等完成、返回作品描述（`Accept: audio/*` 时直接返回音频；超时返回 202 与 `job_id`）。任务型引擎（音频）用 `job`，不需要适配器额外实现 |
+| `sync_public` | 否 | `false`：这条同步路径默认不对公网放行，要在控制台「公网放行」里手动打开。需要先上传素材的接口建议关闭 |
 | `legacy_groups` | 否 | `{"<旧工具名>": {"default"?: true}}`：旧的合并工具（如 `generate_audio`）仍按 `task` 分派到本能力，不再出现在列表里 |
 | `library` | 否 | `"voices"`：本能力的作品进入控制台的音色库 |
 | `order` | 否 | 工具与分类的排列顺序，小的在前，默认 100 |
