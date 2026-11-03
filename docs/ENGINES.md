@@ -87,6 +87,7 @@ ama3/
 | `ui.name` / `version` / `description` / `symbol` / `accent` | 是 | 控制台卡片 |
 | `ui.panel` | 是 | `media`（通用媒体面板）或 `llm`（对话引擎配置）。运行时不单独成卡；共用 ComfyUI 的引擎在配置页显示运行时与画布入口 |
 | `ui.full_name` / `log_name` / `summary` | 否 | 监控标题、日志标题、配置页的任务说明 |
+| `ui.works` | 否 | 作品分类，仅 `media` 面板：每项 `{id, label, icon?, view?, capabilities, kinds?}` 在服务页「运行监控」后成为一个标签。`capabilities` 必须是本包提供的能力，`kinds` 限定作品类型（image/video/audio/text），`view` 为 `gallery`（默认，作品墙）或 `voices`（音色库：分组、试听、改名）。不声明时只有一个「作品」标签 |
 | `models[].id` | 是 | 对外模型 id，API/MCP 的 `model` 参数 |
 | `models[].capabilities` | 是 | 提供的能力，如 `image.generate`、`speech.synthesize` |
 | `models[].priority` | 否 | 没有保存路由时的默认顺序，小的优先 |

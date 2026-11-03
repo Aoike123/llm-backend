@@ -95,3 +95,11 @@ test('the console route lives in the hash and round-trips',()=>{
   // Only the services page carries a service in its path.
   assert.equal(formatRoute({section:'library',service:'h3',job:'job_2'}),'#/library?job=job_2');
 });
+test('a work category narrows artifacts and their facets to its capabilities and kinds',()=>{
+  const jobs=fixture(),drama=(n,capability,artifacts)=>({job_id:id(n),engine:'fish-drama3',kind:'audio',tool:'generate_audio',capability,state:'succeeded',created_at:'2026-11-0'+n+'T00:00:00Z',request:{text:'句'+n},artifacts});
+  for(const job of [drama(6,'speech.synthesize',[art(60,'audio'),{...art(61,'text'),name:'take'}]),drama(7,'speech.voice',[{...art(70,'text'),name:'voice'},{...art(71,'audio'),name:'clip'}])])jobs.jobs.set(job.job_id,job);
+  const works=listArtifacts(jobs,url('engine=fish-drama3&capability=speech.synthesize&kinds=audio'));
+  assert.deepEqual(works.artifacts.map(a=>a.artifact_id),[art(60).artifact_id]);assert.deepEqual(works.facets.kind,{audio:1});
+  assert.equal(listArtifacts(jobs,url('engine=fish-drama3')).total,4);
+  assert.throws(()=>listArtifacts(jobs,url('kinds=audio,bogus')),/Invalid kind/);
+});

@@ -39,6 +39,23 @@ export function validatePackage(pkg){
     if(!/^[a-z0-9.-]+$/.test(model.id??''))fail(where,'model id is invalid');
     if(!Array.isArray(model.capabilities)||!model.capabilities.length)fail(where,model.id+' declares no capabilities');
   }
+  if(p.ui.works!==undefined)validateWorks(p,where);
+}
+// Work categories: each becomes a tab beside 运行监控 on the engine's service page.
+export const WORK_VIEWS=['gallery','voices'],WORK_KINDS=['image','video','audio','text'];
+const RESERVED_VIEWS=['runtime','tasks','config'];
+function validateWorks(p,where){
+  if(p.ui.panel!=='media')fail(where,'platform.ui.works is only for media engines');
+  if(!Array.isArray(p.ui.works)||!p.ui.works.length)fail(where,'platform.ui.works must be a non-empty array');
+  const provided=new Set(p.models.flatMap(m=>m.capabilities)),seen=new Set();
+  for(const work of p.ui.works){
+    const at='platform.ui.works['+(work?.id??'?')+']';
+    if(!/^[a-z][a-z0-9-]*$/.test(work?.id??'')||RESERVED_VIEWS.includes(work.id)||seen.has(work.id))fail(where,at+'.id must be a unique lowercase id other than '+RESERVED_VIEWS.join('/'));seen.add(work.id);
+    if(typeof work.label!=='string'||!work.label)fail(where,at+'.label is required');
+    if(work.view!==undefined&&!WORK_VIEWS.includes(work.view))fail(where,at+'.view must be one of '+WORK_VIEWS.join(', '));
+    if(!Array.isArray(work.capabilities)||!work.capabilities.length||work.capabilities.some(c=>!provided.has(c)))fail(where,at+'.capabilities must list capabilities this engine provides');
+    if(work.kinds!==undefined&&(!Array.isArray(work.kinds)||!work.kinds.length||work.kinds.some(k=>!WORK_KINDS.includes(k))))fail(where,at+'.kinds must list '+WORK_KINDS.join('/'));
+  }
 }
 
 export class Registry{

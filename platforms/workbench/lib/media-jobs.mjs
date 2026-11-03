@@ -66,7 +66,8 @@ export class MediaJobs{
   }
   get(owner,id){const job=this.jobs.get(id);if(!job||job.owner_id!==owner)throw fail('Job not found',404);return job;}
   public(job){const {request,owner_id,fingerprint,backend,...value}=job;return {...value,cancellable:preDispatch.has(job.state)||interruptible(job),poll_after_seconds:terminal.has(job.state)?0:5};}
-  list(owner,{offset=0,limit=20}={}){const rows=[...this.jobs.values()].filter(j=>j.owner_id===owner).reverse();return {jobs:rows.slice(offset,offset+limit).map(j=>this.public(j)),offset,has_more:offset+limit<rows.length,total:rows.length};}
+  // Newest first by creation time: after a restart jobs are reloaded in directory order, not submission order.
+  list(owner,{offset=0,limit=20}={}){const rows=[...this.jobs.values()].filter(j=>j.owner_id===owner).sort((a,b)=>String(b.created_at).localeCompare(String(a.created_at)));return {jobs:rows.slice(offset,offset+limit).map(j=>this.public(j)),offset,has_more:offset+limit<rows.length,total:rows.length};}
   // Engine-specific reference checks; returns the bytes preparation may hold in memory.
   async validateAssets(owner,capability,input,model){
     const asset=(id,kind)=>this.store.getAsset(owner,id,kind),artifact=id=>this.artifact(owner,id),adapter=await registry.adapter(model.engine);
@@ -237,6 +238,15 @@ export class MediaJobs{
     Object.assign(effective,(await registry.adapter(job.engine).catch(()=>null))?.effective?.(capability,input,media,job)??{});
     if(job.kind==='video')Object.assign(effective,{width:media.width,height:media.height,fps:media.fps,effective_frames:media.frames??effective.effective_frames??effective.frames});
     await this.change(job,'succeeded',{artifacts,served_by:job.model,effective_parameters:effective,metrics:{...result.metrics,...timing},finished_at:new Date().toISOString()});
+  }
+  // Rename or regroup a registered voice; only the label changes, never its tokens.
+  // owner is given for API callers, who may only rename their own voices; the console passes none.
+  async labelVoice(id,{name,group},owner=null){
+    return this.serial(async()=>{
+      const job=[...this.jobs.values()].find(j=>j.state==='succeeded'&&j.artifacts?.some(a=>a.artifact_id===id&&a.name==='voice'));if(!job||owner&&job.owner_id!==owner)throw fail('Voice not found',404);
+      const artifacts=job.artifacts.map(a=>a.artifact_id!==id?a:{...a,media:{...a.media,...(name!==undefined?{name}:{}),...(group!==undefined?{group:group||null}:{}),renamed_at:new Date().toISOString()}});
+      const next={...job,artifacts};await this.persist(next);Object.assign(job,next);return artifacts.find(a=>a.artifact_id===id);
+    });
   }
   findArtifact(id){for(const job of this.jobs.values())if(job.state==='succeeded'){const artifact=job.artifacts?.find(a=>a.artifact_id===id);if(artifact)return {owner_id:job.owner_id,artifact};}return null;}
   artifact(owner,id){for(const job of this.jobs.values())if(job.owner_id===owner&&job.state==='succeeded'){const artifact=job.artifacts.find(a=>a.artifact_id===id);if(artifact)return artifact;}throw fail('Artifact not found',404);}

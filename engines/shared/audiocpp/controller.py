@@ -30,7 +30,8 @@ ROCM = Path(sdk.TARGET) / "_rocm_sdk_devel"
 # Every model the server can load; the gateway routes only to enabled packages.
 MODELS = [
     {"id": "fish-drama3", "family": "fish_drama3", "path": "models/Drama-3-GGUF/drama-3-backbone-8bit-F32-routers-experts-Q4_K_S.gguf", "task": "clon",
-     "session_options": {"fish_drama3.cpu_expert_layers": "0", "fish_drama3.perf_mode": "cuda_perf"}},
+     "session_options": {"fish_drama3.cpu_expert_layers": "0", "fish_drama3.perf_mode": "cuda_perf",
+                         "fish_drama3.context_length": "8192"}},
     {"id": "bs-roformer", "family": "bs_roformer", "path": "models/bs-roformer-ep368-q8_0.gguf", "task": "sep"},
     {"id": "qwen3-asr", "family": "qwen3_asr", "path": "models/qwen3-asr-1.7b-q8_0.gguf", "task": "asr"},
 ]

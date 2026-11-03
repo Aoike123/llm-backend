@@ -40,14 +40,14 @@ export function ArtifactThumb({artifact,size=640}){
 }
 
 // The asset library: every saved artifact, filterable by kind and engine, opening its job.
-export function Gallery({engine:fixedEngine=null,onOpen,limit=24,compact=false,title}){
+export function Gallery({engine:fixedEngine=null,capabilities=null,kinds=null,onOpen,limit=24,compact=false,title}){
   const [kind,setKind]=useState(null),[engine,setEngine]=useState(null),[offset,setOffset]=useState(0);
   useEffect(()=>setOffset(0),[kind,engine,fixedEngine]);
-  const {value,stale,error}=useRead('/api/mcp/artifacts'+query({kind,engine:fixedEngine??engine,offset,limit}),{keep:true});
+  const {value,stale,error}=useRead('/api/mcp/artifacts'+query({kind,engine:fixedEngine??engine,capability:capabilities?.join(','),kinds:kinds?.join(','),offset,limit}),{keep:true});
   const items=value?.artifacts??[];
   return <section className={'media-gallery'+(compact?' compact':'')+(stale?' is-stale':'')} aria-busy={stale}>
     {title}
-    {!compact&&<div className="filter-bar"><Chips label="类型" value={kind} options={KINDS} counts={value?.facets?.kind} onChange={setKind}/>{!fixedEngine&&<Chips label="引擎" value={engine} options={engineOptions(value?.facets?.engine)} counts={value?.facets?.engine} onChange={setEngine}/>}</div>}
+    {!compact&&!(kinds?.length===1&&fixedEngine)&&<div className="filter-bar">{kinds?.length!==1&&<Chips label="类型" value={kind} options={KINDS} counts={value?.facets?.kind} onChange={setKind}/>}{!fixedEngine&&<Chips label="引擎" value={engine} options={engineOptions(value?.facets?.engine)} counts={value?.facets?.engine} onChange={setEngine}/>}</div>}
     {error&&<p className="error-banner" role="alert">{error}，保留最近读取结果。</p>}
     {!value?<div className="empty">正在读取作品…</div>:!items.length?<div className="empty">{kind||engine?'没有符合筛选的作品':'还没有保存的作品'}</div>:
       <ul className="gallery-grid">{items.map(a=><li key={a.artifact_id}><button className={'gallery-tile tile-'+a.kind} onClick={()=>onOpen(a.job_id)} aria-label={'查看任务 '+a.job_id}>
@@ -80,7 +80,7 @@ export function JobTable({engine:fixedEngine=null,onOpen,openId,limit=25}){
     <div className="task-table-wrap"><table className="task-table jobs"><thead><tr><th aria-label="预览"/><th>内容</th>{!fixedEngine&&<th>引擎</th>}<th>状态</th><th className="col-duration">耗时</th><th>创建时间</th><th aria-label="操作"/></tr></thead>
       <tbody>{jobs.map(job=>{const first=job.artifacts?.[0];return <tr key={job.job_id} className={'clickable-row'+(openId===job.job_id?' is-open':'')} onClick={()=>onOpen(job.job_id)} tabIndex={0} onKeyDown={e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();onOpen(job.job_id);}}}>
         <td className="job-thumb">{first?<ArtifactThumb artifact={first} size={320}/>:<span className="thumb-empty"/>}</td>
-        <td className="job-prompt"><span>{job.prompt??<i className="muted">{{'audio.transcribe':'语音转写','audio.separate':'人声分离'}[job.capability]??job.capability??job.tool}</i>}</span><small className="mcp-sub">{job.capability??job.tool}{fixedEngine&&(job.served_by??job.model)?' · '+(job.served_by??job.model):''}{job.fallback_from?.length?' · 降级接手':''}{job.artifacts?.length>1?' · '+job.artifacts.length+' 个作品':''}</small></td>
+        <td className="job-prompt"><span>{job.prompt??<i className="muted">{{'audio.transcribe':'语音转写','audio.separate':'人声分离','speech.voice':'音色注册'}[job.capability]??job.capability??job.tool}</i>}</span><small className="mcp-sub">{job.capability??job.tool}{fixedEngine&&(job.served_by??job.model)?' · '+(job.served_by??job.model):''}{job.fallback_from?.length?' · 降级接手':''}{job.artifacts?.length>1?' · '+job.artifacts.length+' 个作品':''}</small></td>
         {!fixedEngine&&<td>{engineLabel(job.engine)}<small className="mcp-sub">{job.served_by??job.model}{job.fallback_from?.length?' · 降级接手':''}</small></td>}
         <td className={stateTone(job.state)}>{STATE[job.state]??job.state}</td>
         <td className="col-duration">{job.metrics?.total_seconds!=null?fmt(job.metrics.total_seconds)+' 秒':'—'}<small className="mcp-sub">{job.metrics?.queue_seconds!=null?'等待 '+fmt(job.metrics.queue_seconds)+' 秒':''}</small></td>

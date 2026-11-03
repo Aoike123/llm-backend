@@ -2,7 +2,7 @@ import {readFile} from 'node:fs/promises';
 import {createHmac,randomBytes,timingSafeEqual} from 'node:crypto';
 import {join} from 'node:path';
 import {ID,CAPABILITIES,TOOL_GROUPS,COMMON_TOOLS,isGenerationTool,catalog,routes,validateToolInput} from './capabilities.mjs';
-import {LEGACY_TOOLS,INSTRUCTIONS,listedTools,modelsView} from './media-tools.mjs';
+import {LEGACY_TOOLS,INSTRUCTIONS,listedTools,modelsView,categoriesOf,categoryTools,visibleTools,scopeMedia,TASK_TOOLS} from './media-tools.mjs';
 const KNOWN_TOOLS=new Set([...COMMON_TOOLS.map(t=>t.name),...Object.keys(LEGACY_TOOLS),...Object.keys(TOOL_GROUPS),...Object.values(CAPABILITIES).flatMap(c=>[c.tool,...(c.aliases??[])])]);
 const validateCommon=(name,input)=>validateToolInput(COMMON_TOOLS,name,input);
 import {ROOT} from './backend.mjs';
@@ -11,7 +11,7 @@ import {comfyRuntime} from './comfy-runtime.mjs';
 import {send} from './http.mjs';
 import {atomic,fail} from './media-store.mjs';
 import {pause} from './core.mjs';
-import {jobRow,listJobs,listArtifacts,streamFile,thumbnail} from './media-library.mjs';
+import {jobRow,listJobs,listArtifacts,listVoices,searchVoices,streamFile,thumbnail} from './media-library.mjs';
 const LINK_SECRET=process.env.WORKBENCH_LINK_SECRET?Buffer.from(process.env.WORKBENCH_LINK_SECRET):randomBytes(32);
 const LINK_BASE=process.env.WORKBENCH_LINK_BASE??'http://127.0.0.1:18982';
 const linkSignature=(owner,id,exp)=>createHmac('sha256',LINK_SECRET).update(owner+'|'+id+'|'+exp).digest('base64url');
@@ -70,18 +70,26 @@ export function mcpRoutes(jobs,info,keys,lifecycle){
   async function admin(req,res){
     if(!localManagement(req))return send(res,403,{error:'Local same-origin console only'});
     const url=new URL(req.url,'http://localhost'),path=url.pathname;
-    const cancel=/^\/api\/mcp\/jobs\/(job_[a-f0-9]{32})\/cancel$/.exec(path);
-    if(req.method!=='GET'&&!(cancel&&req.method==='POST'))return send(res,405,{error:'Read only'});
+    const cancel=/^\/api\/mcp\/jobs\/(job_[a-f0-9]{32})\/cancel$/.exec(path),voice=/^\/api\/mcp\/voices\/(artifact_[a-f0-9]{32})$/.exec(path);
+    if(req.method!=='GET'&&!(cancel&&req.method==='POST')&&!(voice&&req.method==='PATCH'))return send(res,405,{error:'Read only'});
     try{
       // The only console write: JSON content type keeps it out of simple cross-site forms.
       if(cancel){await jsonBody(req);return send(res,200,await jobs.cancelAny(cancel[1]));}
+      if(voice){
+        const body=await jsonBody(req),label=v=>v===undefined?undefined:typeof v==='string'&&v.trim().length<=80?v.trim():(()=>{throw fail('Names and groups are text up to 80 characters');})();
+        const name=label(body.name),group=label(body.group);if(name==='')throw fail('A voice needs a name');if(name===undefined&&group===undefined)throw fail('Give name or group');
+        return send(res,200,await jobs.labelVoice(voice[1],{name,group}));
+      }
+      if(path==='/api/mcp/voices')return send(res,200,listVoices(jobs,url));
       if(path==='/api/mcp/overview')return send(res,200,{...await info.overview(jobs,lifecycle),runtime_topology:runtimeTopology(jobs.coordinator?.status?.()??{})});
       if(path==='/api/mcp/config')return send(res,200,info.config());
       if(path==='/api/mcp/tools'){const media=await catalog();return send(res,200,{...ID,tools:media.tools});}
       // The model's view: what enters a client model's context at session start and on each call.
       if(path==='/api/mcp/model-view'){
         const media=await catalog(),tools=listedTools(media.tools);
-        return send(res,200,{instructions:INSTRUCTIONS,tools,list_media_models:{overview:modelsView(media),models:Object.fromEntries(media.models.map(m=>[m.id,modelsView(media,m.id)]))},models:media.models});
+        // Staged: browse_media alone at first, then the tools each category opens.
+        const initial=visibleTools(media.tools).map(t=>t.name),categories=categoriesOf(media.tools).map(c=>({id:c.id,label:c.label,summary:c.summary,tools:categoryTools(media.tools,c).map(t=>t.name),models:scopeMedia(media,[c]).models.map(m=>m.id)}));
+        return send(res,200,{instructions:INSTRUCTIONS,tools,initial,categories,task_tools:TASK_TOOLS.filter(name=>media.tools.some(t=>t.name===name)),list_media_models:{overview:modelsView(media),by_category:Object.fromEntries(categoriesOf(media.tools).map(c=>[c.id,modelsView(scopeMedia(media,[c]))])),models:Object.fromEntries(media.models.map(m=>[m.id,modelsView(media,m.id)]))},models:media.models});
       }
       if(path==='/api/mcp/runtime'){
         const native=await comfyRuntime();
@@ -136,6 +144,16 @@ export function mcpRoutes(jobs,info,keys,lifecycle){
       if(artifactMatch&&req.method==='GET'){const artifact=jobs.artifact(key.id,artifactMatch[1]);return artifactMatch[2]?streamArtifact(req,res,artifact):send(res,200,{...artifact,content_url:signedContentUrl(key.id,artifactMatch[1])});}
       // The MCP server reads its tool list from here, so enabling an engine reaches clients at once.
       if(path==='/v1/media/catalog'&&req.method==='GET')return send(res,200,await catalog());
+      if(path==='/v1/media/voices'&&req.method==='GET'){
+        const q=url.searchParams,input={};for(const k of ['query','group'])if(q.has(k))input[k]=q.get(k);for(const k of ['offset','limit'])if(q.has(k))input[k]=Number(q.get(k));
+        validateCommon('search_voices',input);return send(res,200,searchVoices(jobs,key.id,input));
+      }
+      const voiceMatch=/^\/v1\/media\/voices\/(artifact_[a-f0-9]{32})$/.exec(path);
+      if(voiceMatch&&req.method==='PATCH'){
+        const body=await jsonBody(req);validateCommon('update_voice',{voice_artifact_id:voiceMatch[1],...body});
+        if(body.name===undefined&&body.group===undefined)throw fail('Give name or group');
+        return send(res,200,await jobs.labelVoice(voiceMatch[1],{name:body.name,group:body.group},key.id));
+      }
       if(path==='/v1/media/jobs'&&req.method==='GET'){
         const input={offset:Number(url.searchParams.get('offset')??0),limit:Number(url.searchParams.get('limit')??20)};validateCommon('list_jobs',input);return send(res,200,jobs.list(key.id,input));
       }

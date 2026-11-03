@@ -34,14 +34,19 @@
       "symbol": "D",
       "panel": "media",
       "log_name": "audio.cpp · Drama 3",
-      "summary": "文本转语音；参考音频克隆音色，最多 4 个角色；音色存为 voice 作品可复用，take 作品可续写；行内标签如 [laughing]、[sighs]"
+      "works": [
+        {"id": "works", "label": "作品", "icon": "image", "capabilities": ["speech.synthesize"], "kinds": ["audio"]},
+        {"id": "voices", "label": "音色", "icon": "wave", "view": "voices", "capabilities": ["speech.voice"]}
+      ],
+      "summary": "文本转语音；注册命名音色后反复复用，或参考音频直接克隆，最多 4 个角色；take 作品可续写；行内标签如 [laughing]、[sighs]"
     },
     "models": [
       {
         "id": "fish-drama3",
         "priority": 10,
         "capabilities": [
-          "speech.synthesize"
+          "speech.synthesize",
+          "speech.voice"
         ],
         "info": {
           "tasks": [
@@ -56,7 +61,7 @@
           "max_references": 4,
           "max_reference_seconds": 30,
           "max_previous_takes": 4,
-          "context_frames": 2048,
+          "context_frames": 8192,
           "languages": "auto"
         }
       }

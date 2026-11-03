@@ -37,16 +37,39 @@
 | --- | --- |
 | `generate_image` | 生图；带 `reference_asset_ids` 时为图片编辑（1–4 张参考图）。默认主推 Qwen-Image，Anima 降级 |
 | `generate_video` | H3 视频生成（原版工作流），可选图像/视频/音频参考，原生 ComfyUI 执行。首帧、首尾帧和图预设只在同步 API `/v1/videos/generations` 上提供 |
-| `generate_audio` | `task=speech` 语音合成与声音克隆（Drama 3，最多 4 个参考音色，参考文本可自动识别）。每个音频参考另存为 `voice-N` 作品，之后用 `voice_artifact_id` 复用同一组声学 token，配合固定 `seed` 可逐字节复现；每次合成另存 `take` 作品，可经 `previous_take_artifact_ids` 续写；`task=separate` 人声分离（BS-RoFormer，产出 vocals / instrumental）；`task=transcribe` 语音识别（Qwen3-ASR） |
+| `generate_speech` | 语音合成与声音克隆（Drama 3，最多 4 个参考音色，参考文本可自动识别）。每个音频参考另存为 `voice-N` 作品，之后用 `voice_artifact_id` 复用同一组声学 token，配合固定 `seed` 可逐字节复现；每次合成另存 `take` 作品，可经 `previous_take_artifact_ids` 续写 |
+| `register_voice` | 注册音色：一段 1–30 秒人声（导入素材或人声分离的 vocals）加 `name`、可选 `group`，只转写和编码不合成，产出命名的 `voice` 作品 |
+| `process_audio` | `task=separate` 人声分离（BS-RoFormer，产出 vocals / instrumental）；`task=transcribe` 语音识别（Qwen3-ASR） |
+| `search_voices` | 模糊搜索音色库：按名称、分组、转写文本匹配（容忍错字与简称），按相关度排序；不给 `query` 则列出全部，可用 `group` 限定分组。返回的 `artifact_id` 即 `references[].voice_artifact_id`，`clip_artifact_id` 可经 `get_artifact` 试听 |
+| `update_voice` | 给自己的音色改名或换分组，`artifact_id` 不变 |
 | `list_media_models` | 列出已启用的能力、每种能力的主推与降级，以及各模型参数名；带 `model` 时返回该模型每个参数的完整定义（含工具里折叠的高级参数）。不启动模型 |
 | `import_media` | 导入工作区或允许目录内的图像 / 视频 / 音频（音频最长 30 分钟，可直接给视频取音轨），返回 asset_id |
-| `get_job` | 查询自己的任务，可短等待最多 20 秒；不带 `job_id` 时按 `offset` / `limit` 列出任务 |
+| `get_job` | 查询一个任务，可短等待最多 20 秒 |
+| `list_jobs` | 按 `offset` / `limit` 列出自己的任务，新的在前 |
 | `cancel_job` | 排队中立即取消；可中断的后端（ComfyUI）运行中也能中断，其他后端开始后自行完成 |
 | `get_artifact` | 获取作品本机路径与资源元数据；`download=true` 或给 `path` 时同时下载到工作区，返回路径、大小与 sha256 |
 
-旧名 `edit_image`、`run_goldfish_workflow`、`generate_speech`、`separate_audio`、`transcribe_audio`、`list_jobs`、`download_artifact` 仍可调用，但不再出现在工具列表中。
+旧名 `edit_image`、`run_goldfish_workflow`、`separate_audio`、`transcribe_audio`、`download_artifact`，以及合并时代的 `generate_audio`（用 `task` 选择音频工作）仍可调用，但不再出现在工具列表中。
 
-当前共 **8 个工具**（3 个生成、5 个公共）。生成工具按类别分组（图像、视频、音频），每组内的能力用 `task` 区分，组内能力全部停用时该工具不出现。
+## 分阶段暴露
+
+客户端连上后 `tools/list` 只有 **`browse_media`** 一个工具（加约 600 字符的服务说明）。它按功能分类列出可做的事：图像、视频、语音与音色、音频处理（没有启用引擎的分类不出现）。调用 `browse_media {"category":"video"}` 才会打开该分类：服务端发出 `tools/list_changed`，之后 `tools/list` 包含该分类的工具，外加每个分类都附带的任务工具（`list_media_models`、`get_job`、`list_jobs`、`cancel_job`、`get_artifact`）。做视频的会话看不到图像、语音的工具。
+
+- 打开的分类在本次会话内累积；`schemas=true` 会在返回里附带这些工具的完整定义，给不刷新工具列表的客户端用；
+- 任何已启用的工具始终可以按名字直接调用，不受是否已打开限制；
+- 实测：一次列出全部约 13k 字符，现在进来约 1.1k，打开单个分类后约 5–8k。
+
+当前共 **14 个工具**，按意图分层：
+
+- **入口**：`browse_media`；
+- **生成与处理**（提交后返回任务号）：`generate_image`、`generate_video`、`generate_speech`、`process_audio`；
+- **音色库**：`register_voice`、`search_voices`、`update_voice`；
+- **准备**：`list_media_models`、`import_media`；
+- **任务**：`get_job`、`list_jobs`、`cancel_job`、`get_artifact`。
+
+只有真正含多种工作的工具（`generate_image` 的生成/编辑、`process_audio` 的分离/识别）才有 `task`；组内能力全部停用时该工具不出现。
+
+**减少初始上下文**：工具列表里的参数说明只保留第一句，id 与短名称的格式约束（pattern、长度）不下发，各模型备注截为一行；完整说明与高级参数用 `list_media_models` 带 `model` 查询。网关与 MCP 进程仍按完整 schema 校验。
 
 `prompt` 最长 **32000 字符**（Qwen 图片最长 4000 字符，2.1 管线不做截断），超长在创建任务前拒绝，并返回实际长度；金鱼提示词由原生节点完整编码（本地 tokenizer 未设截断），长度主要影响耗时与显存。任务请求体上限 128 KiB，MCP stdio 帧上限 256 KiB，均按 32000 字符的 UTF-8 体积留有余量。
 

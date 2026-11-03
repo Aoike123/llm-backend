@@ -23,7 +23,7 @@ export async function command(bin, args, options={}) {
 export async function call(base,path,data,timeout=30000) {
   const r = await fetch(base+path,{method:data===undefined?'GET':'POST',body:data===undefined?undefined:JSON.stringify(data),headers:{'Content-Type':'application/json'},signal:AbortSignal.timeout(timeout)});
   const text=await r.text(); let result; try {result=JSON.parse(text);} catch {result={error:`Backend HTTP ${r.status}`};}
-  if (!r.ok) {const e=new Error(typeof result.error==='string'?result.error:`Backend HTTP ${r.status}`);e.status=r.status;e.data=result;throw e;} return result;
+  if (!r.ok) {const reason=typeof result.error==='string'?result.error:typeof result.error?.message==='string'?result.error.message:null;const e=new Error(reason?`Backend HTTP ${r.status}: ${reason}`:`Backend HTTP ${r.status}`);e.status=r.status;e.data=result;throw e;} return result;
 }
 export class Backend {
   run = command;

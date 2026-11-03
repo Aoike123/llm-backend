@@ -26,7 +26,7 @@ test('advanced H3 controls are collapsed in the tool list but still validated in
   assert.equal(CATALOG.capabilities[0].sync,undefined);
 });
 test('strict tool schemas reject unknown fields, bad IDs and unsafe seeds',()=>{
-  assert.deepEqual(TOOLS.map(t=>t.name),['generate_image','generate_video','list_media_models','import_media','get_job','cancel_job','get_artifact']);assert.ok(validateInput('edit_image',{request_id:'e',prompt:'x',reference_asset_ids:['asset_a']}));assert.ok(validateInput('list_jobs',{limit:5}));assert.ok(validateInput('download_artifact',{artifact_id:'artifact_a',path:'x.png'}));assert.throws(()=>validateInput('generate_video_v2',{}),/Unknown media tool/);assert.throws(()=>validateInput('generate_video',{}),/request_id is required/);assert.ok(validateInput('import_media',{path:'/tmp/video.mp4',kind:'video'}));assert.ok(validateInput('import_media',{path:'/tmp/audio.wav',kind:'audio'}));
+  assert.deepEqual(TOOLS.map(t=>t.name),['generate_image','generate_video','browse_media','list_media_models','import_media','search_voices','update_voice','get_job','list_jobs','cancel_job','get_artifact']);assert.ok(validateInput('edit_image',{request_id:'e',prompt:'x',reference_asset_ids:['asset_a']}));assert.ok(validateInput('list_jobs',{limit:5}));assert.ok(validateInput('download_artifact',{artifact_id:'artifact_a',path:'x.png'}));assert.throws(()=>validateInput('generate_video_v2',{}),/Unknown media tool/);assert.throws(()=>validateInput('generate_video',{}),/request_id is required/);assert.ok(validateInput('import_media',{path:'/tmp/video.mp4',kind:'video'}));assert.ok(validateInput('import_media',{path:'/tmp/audio.wav',kind:'audio'}));
   for(const t of TOOLS)assert.ok(!t.name.includes('workbench'));
   assert.throws(()=>validateInput('run_goldfish_workflow',{request_id:'x',prompt:'x',reference_asset_ids:Array(10).fill('a')}),/count/);
   assert.throws(()=>validateInput('generate_image',{request_id:'x',prompt:'x',model:'qwen-image21',seed:2**53}),/seed/);
@@ -58,7 +58,16 @@ test('official SDK stdio initializes, discovers gateway tools and Goldfish workf
   await new Promise(r=>gateway.listen(0,'127.0.0.1',r));t.after(()=>new Promise(r=>gateway.close(r)));
   const transport=new StdioClientTransport({command:process.execPath,args:[new URL('../cli.mjs',import.meta.url).pathname,'stdio'],env:{...process.env,MEDIA_GATEWAY_URL:'http://127.0.0.1:'+gateway.address().port,MEDIA_API_KEY:'test-key',MEDIA_TELEMETRY_TOKEN:'test-token'},stderr:'pipe'});
   let errors='';transport.stderr?.on('data',x=>errors+=x);const client=new Client({name:'integration-test',version:'1.0'});t.after(()=>client.close());await client.connect(transport);
-  const tools=await client.listTools();assert.equal(tools.tools.length,7);assert.equal(tools.tools.find(t=>t.name==='get_artifact').annotations.readOnlyHint,false);const models=await client.callTool({name:'list_media_models',arguments:{}});assert.deepEqual(models.structuredContent.models.map(model=>model.id),['qwen-image21','anima','minimax-h3']);assert.equal(models.structuredContent.capabilities.find(c=>c.capability==='image.generate').primary,'qwen-image21');assert.equal(models.structuredContent.runtime_topology,undefined);assert.equal(models.structuredContent.workflows[0].tool,'generate_video');
+  let tools=await client.listTools();assert.deepEqual(tools.tools.map(t=>t.name),['browse_media'],'a session starts with the browse tool alone');
+  const menu=await client.callTool({name:'browse_media',arguments:{}});assert.deepEqual(menu.structuredContent.categories.map(c=>c.category),['image','video','speech']);assert.equal((await client.listTools()).tools.length,1,'browsing the menu opens nothing');
+  const opened=await client.callTool({name:'browse_media',arguments:{category:'video'}});assert.deepEqual(opened.structuredContent.tools.map(t=>t.name),['generate_video','list_media_models','import_media','get_job','list_jobs','cancel_job','get_artifact']);
+  tools=await client.listTools();assert.ok(!tools.tools.some(t=>t.name==='generate_image'),'a video session does not carry the image tools');assert.equal(tools.tools.find(t=>t.name==='get_artifact').annotations.readOnlyHint,false);
+  const ids=r=>r.structuredContent.models.map(m=>m.id);
+  assert.deepEqual(ids(await client.callTool({name:'list_media_models',arguments:{}})),['minimax-h3'],'a video session reads only the video models');
+  assert.deepEqual(ids(await client.callTool({name:'list_media_models',arguments:{category:'image'}})),['qwen-image21','anima'],'category names another category explicitly');
+  assert.equal((await client.callTool({name:'list_media_models',arguments:{model:'anima'}})).isError,true,'a model outside the opened categories is not found');
+  await client.callTool({name:'browse_media',arguments:{category:'image'}});assert.ok((await client.listTools()).tools.some(t=>t.name==='generate_image'));
+  assert.equal((await client.callTool({name:'browse_media',arguments:{category:'audio'}})).isError,true,'a category with no enabled engine is refused');const models=await client.callTool({name:'list_media_models',arguments:{}});assert.deepEqual(models.structuredContent.models.map(model=>model.id),['qwen-image21','anima','minimax-h3']);assert.equal(models.structuredContent.capabilities.find(c=>c.capability==='image.generate').primary,'qwen-image21');assert.equal(models.structuredContent.runtime_topology,undefined);assert.equal(models.structuredContent.workflows[0].tool,'generate_video');
   assert.equal(models.structuredContent.models[0].parameter_schemas,undefined);
   const h3=await client.callTool({name:'list_media_models',arguments:{model:'minimax-h3'}});assert.ok(h3.structuredContent.model.parameter_schemas['generate_video#generate'].loras.properties);assert.deepEqual(h3.structuredContent.capabilities.map(c=>c.capability),['video.generate']);
   assert.equal((await client.callTool({name:'list_media_models',arguments:{model:'nope'}})).isError,true);
@@ -78,10 +87,14 @@ test('a running session is told when the gateway catalog changes',async t=>{
   const client=new Client({name:'watch-test',version:'1.0'});t.after(()=>client.close());
   let changed=0;client.setNotificationHandler(ToolListChangedNotificationSchema,()=>{changed++;});
   await client.connect(transport);assert.ok(client.getServerCapabilities().tools.listChanged);
-  assert.equal((await client.listTools()).tools.length,7);
+  assert.equal((await client.listTools()).tools.length,1);
   await new Promise(r=>setTimeout(r,400));assert.equal(changed,0,'an unchanged catalog sends nothing');
-  catalogBody={...CATALOG,tools:CATALOG.tools.filter(tool=>tool.name!=='generate_video')};
+  // Opening a category changes the list the client sees, so it is announced once.
+  await client.callTool({name:'browse_media',arguments:{category:'video'}});
   for(let i=0;i<50&&!changed;i++)await new Promise(r=>setTimeout(r,100));
-  assert.equal(changed,1);assert.equal((await client.listTools()).tools.length,6);
-  await new Promise(r=>setTimeout(r,400));assert.equal(changed,1,'one change is announced once');
+  assert.equal(changed,1);assert.equal((await client.listTools()).tools.length,8);
+  catalogBody={...CATALOG,tools:CATALOG.tools.filter(tool=>tool.name!=='generate_video')};
+  for(let i=0;i<50&&changed<2;i++)await new Promise(r=>setTimeout(r,100));
+  assert.equal(changed,2);assert.equal((await client.listTools()).tools.length,1,'the opened category lost its only work tool');
+  await new Promise(r=>setTimeout(r,400));assert.equal(changed,2,'one change is announced once');
 });

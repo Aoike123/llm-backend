@@ -15,7 +15,18 @@ async function advancedOf(model,capability){return new Set((await adapterFor(mod
 // Collapsed form of an advanced object: no fields listed, so clients pay for one line, not the tree.
 function collapse(key,schema,models){
   const text=schema.description?.replace(/[。.]$/,''),what=text?text+(/[\u4e00-\u9fff]$/.test(text)?'。':'. '):'';
-  return {type:'object',description:what+'Advanced, optional; omit for the defaults. Fields: list_media_models {"model":"'+models.join('" / "')+'"}.'};
+  return {type:'object',description:what+'Advanced; fields: list_media_models {"model":"'+models.join('" / "')+'"}.'};
+}
+
+// Listings carry only the first sentence of each parameter description (nested fields too);
+// list_media_models {model} returns the full text.
+function brief(schema){
+  if(!schema||typeof schema!=='object')return schema;
+  const out={...schema};
+  if(out.description){const first=/^(.*?[。.；;])(\s|$)/.exec(out.description)?.[1]??out.description;out.description=first.length>100?first.slice(0,99)+'…':first.replace(/[；;]$/,'。');}
+  if(out.properties)out.properties=Object.fromEntries(Object.entries(out.properties).map(([k,v])=>[k,brief(v)]));
+  if(out.items)out.items=brief(out.items);
+  return out;
 }
 
 // Media models (chat models are listed by /v1/models), each with its extra parameters.
@@ -40,9 +51,9 @@ export async function capabilityTool(capability){
     for(const [key,schema] of Object.entries(params))properties[key]??=schema;
     for(const key of await advancedOf(model,capability))advanced.set(key,[...(advanced.get(key)??[]),modelId]);
     const note=(await adapterFor(model))?.notes?.[capability]?.(model);
-    notes.push(modelId+(modelId===route.primary?' (primary)':'')+(Object.keys(params).length?': '+Object.keys(params).join(', '):'')+(note?' — '+note:''));
+    notes.push(modelId+(modelId===route.primary?' (primary)':'')+(route.providers.length>1&&Object.keys(params).length?': '+Object.keys(params).join(', '):'')+(note?' — '+note:''));
   }
-  properties.model={...choice(['auto',...route.providers],'auto'),description:'auto uses the primary model and, if it cannot start, the fallbacks in order. Naming a model pins it and disables fallback.'};
+  properties.model={...choice(['auto',...route.providers],'auto'),description:'auto = primary, then fallbacks; a name pins it.'};
   return {name:c.tool,description:c.description+'. Models: '+notes.join('; ')+'.',inputSchema:object(properties,c.required),example:c.example,capability,notes,advanced};
 }
 // A group tool merges its enabled capabilities: the union of their fields, the fields all of them
@@ -50,12 +61,15 @@ export async function capabilityTool(capability){
 async function groupTool(group,enabled){
   const members=[];for(const capability of enabled)members.push({capability,c:CAPABILITIES[capability],tool:await capabilityTool(capability)});
   const properties={},models=new Set();
-  for(const {tool} of members)for(const [key,schema] of Object.entries(tool.inputSchema.properties))if(key!=='model')properties[key]??=tool.advanced.has(key)?collapse(key,schema,tool.advanced.get(key)):schema;
+  for(const {tool} of members)for(const [key,schema] of Object.entries(tool.inputSchema.properties))if(key!=='model')properties[key]??=tool.advanced.has(key)?collapse(key,schema,tool.advanced.get(key)):brief(schema);
   for(const {tool} of members)for(const id of tool.inputSchema.properties.model.enum)models.add(id);
-  if(members.length>1)properties.task={...choice(members.map(m=>m.c.task)),description:members.map(m=>m.c.task+': '+m.c.description).join('; ')+(members.some(m=>m.c.infer)?'. Omitted: inferred from the inputs.':'. Omitted: '+members[0].c.task+'.')};
-  properties.model={...choice([...models],'auto'),description:'auto uses the primary model of the task and, if it cannot start, the fallbacks in order. Naming a model pins it and disables fallback.'};
+  // Each task is described in the tool text; the field only needs to say what happens when it is left out.
+  if(members.length>1)properties.task={...choice(members.map(m=>m.c.task)),description:members.some(m=>m.c.infer)?'Omitted: inferred from the inputs.':'Omitted: '+members[0].c.task+'.'};
+  properties.model={...choice([...models],'auto'),description:'auto = primary, then fallbacks; a name pins it.'};
   const required=members.map(m=>m.tool.inputSchema.required).reduce((a,b)=>a.filter(k=>b.includes(k)));
-  const lines=members.map(m=>(members.length>1?'['+m.c.task+'] ':'')+m.c.description+' — '+m.tool.notes.join('; '));
+  // Per-model notes are cut to a line each; list_media_models {model} has the rest.
+  const clip=text=>text.length>140?text.slice(0,139)+'…':text,noteLine=m=>m.tool.notes.map(clip).join('; ');
+  const lines=members.map(m=>members.length>1?'['+m.c.task+'] '+m.c.description+' — '+noteLine(m):'Models: '+noteLine(m));
   return {name:group,description:TOOL_GROUPS[group].description+' '+lines.join(' | '),inputSchema:object(properties,required),example:members[0].c.example};
 }
 export async function tools(){

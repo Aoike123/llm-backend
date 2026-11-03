@@ -4,7 +4,6 @@ import {Icon} from './ui-controls.mjs';
 // A readable view of exactly what MCP clients receive: per tool, every parameter with its type,
 // limits, default and the models that accept it; collapsed advanced parameters open in place.
 const TYPE={string:'文本',integer:'整数',number:'数字',boolean:'开关',array:'列表',object:'对象'};
-const COMMON=['list_media_models','import_media','get_job','cancel_job','get_artifact'];
 const size=value=>JSON.stringify(value).length;
 function typeOf(s){
   if(s.enum)return '选项';
@@ -55,7 +54,7 @@ export function ToolDoc({tool,models,open=false}){
   </details>;
 }
 export default function McpTools({tools,models}){
-  const generation=tools.filter(t=>!COMMON.includes(t.name)),common=tools.filter(t=>COMMON.includes(t.name));
+  const generation=tools.filter(t=>t.name.startsWith('generate_')),common=tools.filter(t=>!t.name.startsWith('generate_'));
   const total=tools.reduce((n,t)=>n+size(t),0);
   const collapsed=generation.reduce((n,t)=>n+Object.values(t.inputSchema.properties??{}).filter(s=>s.type==='object'&&!s.properties).length,0);
   return <>

@@ -55,13 +55,59 @@ export function listJobs(jobs,url){
 }
 
 // Every artifact of every succeeded job, flattened and newest first.
+// Registered voices: the voice artifact of each succeeded voice job, with its clip for listening.
+// Names and groups are the artifact's own metadata, so the console and get_job show the same label.
+function voiceRows(jobs,{engine=null,owner=null}={}){
+  return [...jobs.jobs.values()].filter(job=>job.state==='succeeded'&&(!engine||job.engine===engine)&&(!owner||job.owner_id===owner)&&(job.capability??capabilityForTool(job.tool))==='speech.voice').sort(newestFirst).flatMap(job=>{
+    const voice=job.artifacts?.find(a=>a.name==='voice');if(!voice)return [];
+    const clip=job.artifacts.find(a=>a.name==='clip');
+    return [{artifact_id:voice.artifact_id,name:voice.media?.name??null,group:voice.media?.group??null,transcript:voice.media?.transcript??null,seconds:voice.media?.seconds??null,frames:voice.media?.frames??null,
+      clip_artifact_id:clip?.artifact_id??null,job_id:job.job_id,request_id:job.request_id,engine:job.engine,model:job.served_by??job.model,created_at:job.created_at,renamed_at:voice.media?.renamed_at??null}];
+  });
+}
+const groupsOf=voices=>[...new Set(voices.map(v=>v.group).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'zh-CN'));
+export function listVoices(jobs,url){
+  const voices=voiceRows(jobs,{engine:url?.searchParams.get('engine')||null});
+  return {voices,groups:groupsOf(voices),total:voices.length};
+}
+
+// Fuzzy voice lookup for a client model. Each whitespace-separated word must hit the name, group
+// or transcript, either as a substring or by character-bigram similarity (so "男旁白" still finds
+// "男声旁白"); name hits outrank group hits, which outrank transcript hits.
+const fold=text=>String(text??'').normalize('NFKC').toLowerCase().replace(/\s+/g,' ').trim();
+const bigrams=text=>{const chars=[...text.replaceAll(' ','')];return chars.length<2?new Set(chars):new Set(chars.slice(1).map((c,i)=>chars[i]+c));};
+function similarity(word,field){
+  if(!field)return 0;
+  if(field.includes(word))return 1;
+  const a=bigrams(word),b=bigrams(field);if(!a.size||!b.size)return 0;
+  let shared=0;for(const g of a)if(b.has(g))shared++;
+  return shared/a.size*0.8;
+}
+export function searchVoices(jobs,owner,{query='',group=null,limit=10,offset=0}={}){
+  const words=fold(query).split(' ').filter(Boolean),wanted=group&&fold(group);
+  const scored=voiceRows(jobs,{owner}).filter(v=>!wanted||fold(v.group)===wanted).flatMap(v=>{
+    if(!words.length)return [{voice:v,score:0}];
+    const fields=[[fold(v.name),3],[fold(v.group),2],[fold(v.transcript),1]];let total=0;
+    for(const word of words){
+      const best=Math.max(...fields.map(([text,weight])=>similarity(word,text)*weight));
+      if(best<0.5)return [];total+=best;
+    }
+    return [{voice:v,score:total}];
+  });
+  // Stable sort: equal scores keep the newest-first order of voiceRows.
+  scored.sort((a,b)=>b.score-a.score);
+  return {voices:scored.slice(offset,offset+limit).map(({voice,score})=>({...voice,score:Number(score.toFixed(2))})),total:scored.length,offset,limit,has_more:offset+limit<scored.length,groups:groupsOf(voiceRows(jobs,{owner}))};
+}
 export function listArtifacts(jobs,url){
   const {offset,limit}=page(url);
   const engine=url.searchParams.get('engine')||null,kind=url.searchParams.get('kind')||null;
-  if(kind&&!ARTIFACT_KINDS.includes(kind))throw fail('Invalid kind filter');
+  // A work category narrows the whole listing (and its facets) to its capabilities and kinds.
+  const listParam=key=>url.searchParams.get(key)?.split(',').filter(Boolean)??null,capabilities=listParam('capability'),kinds=listParam('kinds');
+  if(kind&&!ARTIFACT_KINDS.includes(kind)||kinds?.some(k=>!ARTIFACT_KINDS.includes(k)))throw fail('Invalid kind filter');
   const items=[...jobs.jobs.values()].filter(job=>job.state==='succeeded').sort(newestFirst).flatMap(job=>(job.artifacts??[]).map(artifact=>({
     artifact_id:artifact.artifact_id,kind:artifact.kind,mime_type:artifact.mime_type,bytes:artifact.bytes,name:artifact.name??null,media:artifact.media??null,
-    job_id:job.job_id,engine:job.engine,model:job.served_by??job.model,capability:job.capability??capabilityForTool(job.tool),created_at:job.created_at,prompt:promptOf(job)})));
+    job_id:job.job_id,engine:job.engine,model:job.served_by??job.model,capability:job.capability??capabilityForTool(job.tool),created_at:job.created_at,prompt:promptOf(job)})))
+    .filter(a=>(!capabilities||capabilities.includes(a.capability))&&(!kinds||kinds.includes(a.kind)));
   const rows=items.filter(a=>(!engine||a.engine===engine)&&(!kind||a.kind===kind));
   return {artifacts:rows.slice(offset,offset+limit),total:rows.length,offset,limit,has_more:offset+limit<rows.length,
     facets:{engine:count(items.filter(a=>!kind||a.kind===kind),a=>a.engine),kind:count(items.filter(a=>!engine||a.engine===engine),a=>a.kind)}};

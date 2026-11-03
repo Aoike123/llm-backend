@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {mkdtemp,rm,readFile,writeFile,stat} from 'node:fs/promises';
+import {mkdtemp,rm,readFile,writeFile,stat,mkdir} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {Readable} from 'node:stream';
@@ -203,4 +203,33 @@ test('Goldfish imports owned audio, preserves controls and rejects audio-only or
  await assert.rejects(f.jobs.create(f.key.id,'run_goldfish_workflow',{...args,request_id:'bad-steps',sampling:{steps:5}}),/transition_step/);
  await assert.rejects(f.jobs.create('other','run_goldfish_workflow',args),e=>e.status===404);
  await assert.rejects(f.store.import(f.key.id,'audio',Readable.from(Buffer.from('invalid'))),/Invalid audio/);
+});
+test('jobs list newest first by creation time, whatever order they were loaded in',async t=>{
+  const f=await fixture(t),owner=f.key.id,job=(id,created_at)=>({job_id:id,owner_id:owner,created_at,state:'succeeded',request:{},artifacts:[]});
+  for(const [id,at] of [['job_b','2026-11-02T05:10:00.000Z'],['job_c','2026-10-23T17:16:55.000Z'],['job_a','2026-11-02T05:12:00.000Z']])f.jobs.jobs.set(id,job(id,at));
+  assert.deepEqual(f.jobs.list(owner).jobs.map(j=>j.job_id),['job_a','job_b','job_c']);
+});
+test('registered voices are listed by group and renamed in place, persisted with the job',async t=>{
+  const f=await fixture(t),owner=f.key.id,{listVoices,searchVoices}=await import('../lib/media-library.mjs');
+  const voiceJob=(id,name,group,at)=>({job_id:id,owner_id:owner,created_at:at,state:'succeeded',capability:'speech.voice',engine:'fish-drama3',request:{},
+    artifacts:[{artifact_id:'artifact_'+id.slice(-1).repeat(32),kind:'text',name:'voice',media:{schema:'drama3_reference_v1',name,group,transcript:'原文',seconds:12}},{artifact_id:'artifact_c'+id.slice(-1).repeat(31),kind:'audio',name:'clip',media:{}}]});
+  for(const job of [voiceJob('job_a','旁白','解说','2026-11-02T01:00:00Z'),voiceJob('job_b','角色甲',null,'2026-11-02T02:00:00Z')]){f.jobs.jobs.set(job.job_id,job);await mkdir(join(f.store.jobs,job.job_id),{recursive:true});}
+  f.jobs.jobs.set('job_s',{job_id:'job_s',owner_id:owner,created_at:'2026-11-02T03:00:00Z',state:'succeeded',capability:'speech.synthesize',artifacts:[{artifact_id:'artifact_'+'s'.repeat(32),name:'voice-0',media:{}}]});
+  let list=listVoices(f.jobs);
+  assert.deepEqual(list.voices.map(v=>[v.name,v.group]),[['角色甲',null],['旁白','解说']]);assert.deepEqual(list.groups,['解说']);
+  assert.equal(list.voices[1].clip_artifact_id,'artifact_c'+'a'.repeat(31));
+  await f.jobs.labelVoice('artifact_'+'b'.repeat(32),{name:'女声旁白',group:'解说'});
+  list=listVoices(f.jobs);assert.deepEqual(list.voices.map(v=>[v.name,v.group]),[['女声旁白','解说'],['旁白','解说']]);assert.ok(list.voices[0].renamed_at);
+  const saved=JSON.parse(await readFile(join(f.store.jobs,'job_b','job.json'),'utf8'));assert.equal(saved.artifacts[0].media.name,'女声旁白');assert.equal(saved.artifacts[0].media.schema,'drama3_reference_v1');
+  await f.jobs.labelVoice('artifact_'+'b'.repeat(32),{group:''});assert.equal(listVoices(f.jobs).voices[0].group,null);
+  await assert.rejects(f.jobs.labelVoice('artifact_'+'s'.repeat(32),{name:'x'}),e=>e.status===404);
+  // Fuzzy search: partial names and typos match, groups filter, other owners see nothing.
+  const names=input=>searchVoices(f.jobs,owner,input).voices.map(v=>v.name);
+  assert.deepEqual(names({query:'旁白'}),['女声旁白','旁白']);assert.equal(names({query:'女旁白'})[0],'女声旁白');
+  assert.equal(names({query:'原文'}).length,2);assert.deepEqual(names({query:'解说'}),['旁白']);
+  assert.deepEqual(names({group:'解说'}),['旁白']);assert.deepEqual(names({query:'不存在的词'}),[]);
+  assert.equal(searchVoices(f.jobs,owner,{limit:1}).has_more,true);assert.deepEqual(searchVoices(f.jobs,'key_other',{}).voices,[]);
+  // update_voice goes through the owner: someone else's voice is not found, one's own is renamed.
+  await assert.rejects(f.jobs.labelVoice('artifact_'+'a'.repeat(32),{name:'x'},'key_other'),e=>e.status===404);
+  assert.equal((await f.jobs.labelVoice('artifact_'+'a'.repeat(32),{name:'旁白二'},owner)).media.name,'旁白二');
 });

@@ -31,18 +31,26 @@ async function fakeServer(t,{asrText='参考片段的文本'}={}){
 }
 async function workdir(t){const dir=await mkdtemp(join(tmpdir(),'audio-engines-'));t.after(()=>rm(dir,{recursive:true,force:true}));return dir;}
 
-test('audio capabilities share one tool whose task selects the capability and its strict schema',async t=>{
+test('audio work is split into intent-named tools, each with its own strict schema; generate_audio stays as a hidden alias',async t=>{
   enable(t);
-  const audio=(await tools()).find(tool=>tool.name==='generate_audio');
-  assert.deepEqual(audio.inputSchema.properties.task.enum,['speech','separate','transcribe']);assert.deepEqual(audio.inputSchema.required,['request_id']);
-  for(const key of ['text','audio_asset_id','references','temperature'])assert.ok(audio.inputSchema.properties[key],key);
+  const list=await tools(),byName=name=>list.find(tool=>tool.name===name);
+  assert.ok(!byName('generate_audio'));assert.deepEqual(['generate_speech','register_voice','process_audio'].map(name=>!!byName(name)),[true,true,true]);
+  const speech=byName('generate_speech');assert.equal(speech.inputSchema.properties.task,undefined);assert.deepEqual(speech.inputSchema.required,['request_id','text']);
+  for(const key of ['text','references','temperature'])assert.ok(speech.inputSchema.properties[key],key);assert.equal(speech.inputSchema.properties.audio_asset_id,undefined);
+  assert.deepEqual(byName('process_audio').inputSchema.properties.task.enum,['separate','transcribe']);
+  assert.equal(byName('register_voice').inputSchema.properties.task,undefined);assert.ok(byName('register_voice').inputSchema.properties.name);
+  // Listings keep the first sentence only; the full text stays in the capability schema list_media_models serves.
+  assert.ok(speech.inputSchema.properties.references.description.length<=100);
+  assert.equal((await validateGeneration('generate_speech',{request_id:'a',text:'你好'})).capability,'speech.synthesize');
   assert.equal((await validateGeneration('generate_audio',{request_id:'a',text:'你好'})).capability,'speech.synthesize');
+  await assert.rejects(validateGeneration('generate_speech',{request_id:'a'}),/text is required/);
   await assert.rejects(validateGeneration('generate_audio',{request_id:'a',task:'speech'}),/text is required/);
   await assert.rejects(validateGeneration('generate_audio',{request_id:'a',task:'separate',text:'x',audio_asset_id:'asset_a'}),/Unsupported parameter: text/);
+  assert.equal((await validateGeneration('process_audio',{request_id:'a',task:'transcribe',audio_asset_id:'asset_a'})).capability,'audio.transcribe');
   assert.deepEqual(await validateGeneration('transcribe_audio',{request_id:'a',audio_asset_id:'asset_a'}),{capability:'audio.transcribe',args:{request_id:'a',audio_asset_id:'asset_a'}});
 });
 test('the audio tool disappears with its engines, and image edit is inferred from references',async t=>{
-  assert.ok(!(await tools()).some(tool=>tool.name==='generate_audio'));
+  assert.ok(!(await tools()).some(tool=>['generate_speech','register_voice','process_audio'].includes(tool.name)));
   assert.equal((await validateGeneration('generate_image',{request_id:'a',prompt:'x',reference_asset_ids:['asset_a']})).capability,'image.edit');
   assert.equal((await validateGeneration('generate_image',{request_id:'a',prompt:'x'})).capability,'image.generate');
 });
@@ -108,4 +116,29 @@ test('the runtime is not idle while one of its requests is in flight',async t=>{
   const pending=adapter.execute('audio.transcribe',{audio:'/x.wav'},{base:server.base,outputDirectory:await workdir(t)});
   await new Promise(r=>setTimeout(r,50));assert.equal(await adapter.idle(ctx),false);
   release();await pending;assert.equal(await adapter.idle(ctx),true);
+});
+test('a backend error object keeps its message instead of a bare status',async t=>{
+  const server=http.createServer((req,res)=>{res.statusCode=400;res.setHeader('Content-Type','application/json');res.end(JSON.stringify({error:{message:'context length exceeded',type:'invalid_request_error'}}));});
+  await new Promise(r=>server.listen(0,'127.0.0.1',r));t.after(()=>new Promise(r=>server.close(r)));
+  const {call}=await import('../lib/backend.mjs');
+  await assert.rejects(call('http://127.0.0.1:'+server.address().port,'/v1/tasks/run',{}),{message:'Backend HTTP 400: context length exceeded',status:400});
+});
+test('task=voice registers a named voice from a separated vocals artifact without synthesizing',async t=>{
+  enable(t);const server=await fakeServer(t),dir=await workdir(t),adapter=await registry.adapter('fish-drama3');
+  const source=join(dir,'vocals.wav');execFileSync('ffmpeg',['-v','error','-f','lavfi','-i','sine=frequency=220:sample_rate=44100','-t','20','-y',source]);
+  const input={request_id:'v',task:'voice',name:'男声旁白',audio_artifact_id:'artifact_v',start_seconds:4,duration_seconds:12};
+  const {capability,args}=await validateGeneration('register_voice',input);assert.equal(capability,'speech.voice');
+  assert.equal((await candidates(capability,args,{artifact:()=>({kind:'audio'})})).models[0].id,'fish-drama3');
+  await assert.rejects(validateGeneration('register_voice',{request_id:'v',audio_asset_id:'asset_a'}),/name is required/);
+  assert.throws(()=>adapter.validate(capability,{name:'x'}),/exactly one/);
+  const ctx={asset:()=>assert.fail('asset not used'),artifact:()=>({kind:'audio',local_path:source,bytes:1000,media:{duration_seconds:20}}),outputDirectory:dir};
+  assert.throws(()=>adapter.assets(capability,{...args,start_seconds:25},ctx),/starts after/);
+  const result=await adapter.execute(capability,await adapter.payload(capability,args,ctx),{base:server.base,outputDirectory:dir});
+  assert.deepEqual(server.seen.filter(r=>r.url==='/v1/tasks/run').map(r=>r.model),['qwen3-asr','fish-drama3']);
+  assert.ok(server.seen.at(-1).request.options.encode_reference_only);
+  const [voice,clip]=result.artifacts;
+  assert.deepEqual([voice.name,voice.kind,clip.name,clip.kind],['voice','text','clip','audio']);
+  assert.equal(voice.media.name,'男声旁白');assert.equal(voice.media.schema,'drama3_reference_v1');assert.equal(voice.media.transcript,'参考片段的文本');
+  assert.equal(JSON.parse(await readFile(voice.file,'utf8')).vq_codes[0].length,43);
+  assert.equal(result.metrics.transcribed,true);assert.equal(adapter.effective(capability,args).name,'男声旁白');
 });

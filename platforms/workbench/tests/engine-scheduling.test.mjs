@@ -61,3 +61,12 @@ test('batch limit drains active shared leases before switching; busy lease stays
  await c.release(a.token);busy=true;await assert.rejects(c.release(b.token),/busy/);await pause(20);assert.deepEqual(calls,['llm']);
  busy=false;await c.release(b.token);await Promise.all([other,same]);assert.deepEqual(order,['anima','llm']);
 });
+test('ui.works categories are validated against what the package provides',async()=>{
+  const {validatePackage}=await import('../lib/registry.mjs');
+  const pkg=works=>({file:'engine.json',manifest:{category:'audio',platform:{engine:'demo',runtime:{id:'r',name:'r',port:1,container:'c',launch:['x']},ui:{name:'D',description:'d',symbol:'D',accent:'#fff',panel:'media',works},models:[{id:'demo',capabilities:['speech.synthesize','speech.voice']}]}}});
+  validatePackage(pkg([{id:'works',label:'作品',capabilities:['speech.synthesize'],kinds:['audio']},{id:'voices',label:'音色',view:'voices',capabilities:['speech.voice']}]));
+  assert.throws(()=>validatePackage(pkg([{id:'tasks',label:'x',capabilities:['speech.voice']}])),/unique lowercase id/);
+  assert.throws(()=>validatePackage(pkg([{id:'a',label:'x',capabilities:['image.generate']}])),/capabilities this engine provides/);
+  assert.throws(()=>validatePackage(pkg([{id:'a',label:'x',view:'grid',capabilities:['speech.voice']}])),/view must be/);
+  assert.throws(()=>validatePackage(pkg([{id:'a',label:'x',capabilities:['speech.voice'],kinds:['pdf']}])),/kinds must list/);
+});
