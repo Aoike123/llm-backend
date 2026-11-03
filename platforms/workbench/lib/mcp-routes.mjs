@@ -2,9 +2,11 @@ import {readFile} from 'node:fs/promises';
 import {createHmac,randomBytes,timingSafeEqual} from 'node:crypto';
 import {join} from 'node:path';
 import {ID,CAPABILITIES,TOOL_GROUPS,COMMON_TOOLS,isGenerationTool,catalog,routes,validateToolInput} from './capabilities.mjs';
-import {LEGACY_TOOLS,INSTRUCTIONS,listedTools,modelsView,categoriesOf,categoryTools,visibleTools,scopeMedia,TASK_TOOLS} from './media-tools.mjs';
-const KNOWN_TOOLS=new Set([...COMMON_TOOLS.map(t=>t.name),...Object.keys(LEGACY_TOOLS),...Object.keys(TOOL_GROUPS),...Object.values(CAPABILITIES).flatMap(c=>[c.tool,...(c.aliases??[])])]);
+import {LEGACY_TOOLS,LEGACY_GROUPS,INSTRUCTIONS,listedTools,modelsView,categoriesOf,categoryTools,visibleTools,scopeMedia,TASK_TOOLS} from './media-tools.mjs';
+// Tools a client may report calls for: the gateway ones, older names, and whatever the installed packages declare.
+const knownTools=()=>new Set([...COMMON_TOOLS.map(t=>t.name),...Object.keys(LEGACY_TOOLS),...Object.keys(TOOL_GROUPS),...Object.keys(LEGACY_GROUPS),...Object.values(CAPABILITIES).flatMap(c=>[c.tool,...(c.aliases??[])])]);
 const validateCommon=(name,input)=>validateToolInput(COMMON_TOOLS,name,input);
+import {apiCatalog} from './api-catalog.mjs';
 import {ROOT} from './backend.mjs';
 import {runtimeTopology} from './runtime-topology.mjs';
 import {comfyRuntime} from './comfy-runtime.mjs';
@@ -56,7 +58,7 @@ export class McpInfo{
       if(input.type==='initialized')Object.assign(instance,{initialized_at:now,client_name:typeof input.client_name==='string'?input.client_name.replace(/[\x00-\x1f]/g,'').slice(0,80):null,protocol_version:typeof input.protocol_version==='string'?input.protocol_version.slice(0,30):null});
       if(input.type==='closed')instance.closed_at=now;
       if(input.type==='call'){
-        if(!KNOWN_TOOLS.has(input.tool)||!['success','error'].includes(input.status)||!Number.isFinite(input.duration_ms)||input.duration_ms<0)throw fail('Invalid call event');
+        if(!knownTools().has(input.tool)||!['success','error'].includes(input.status)||!Number.isFinite(input.duration_ms)||input.duration_ms<0)throw fail('Invalid call event');
         // Only allowlisted fields are retained: no prompt, argument, token, path or backend error text.
         this.state.calls.push({call_id:owner+':'+instance.instance_id+':'+input.sequence,instance_id:instance.instance_id,owner_id:owner,at:now,tool:input.tool,status:input.status,duration_ms:Math.round(input.duration_ms),job_id:/^job_[a-f0-9]{32}$/.test(input.job_id??'')?input.job_id:null,error_code:input.status==='error'?'TOOL_ERROR':null});
       }
@@ -82,6 +84,8 @@ export function mcpRoutes(jobs,info,keys,lifecycle){
       }
       if(path==='/api/mcp/voices')return send(res,200,listVoices(jobs,url));
       if(path==='/api/mcp/overview')return send(res,200,{...await info.overview(jobs,lifecycle),runtime_topology:runtimeTopology(jobs.coordinator?.status?.()??{})});
+      // Live like the tool list: sync routes and job tools follow the enabled engines.
+      if(path==='/api/mcp/api'){const media=await catalog();return send(res,200,{base:LINK_BASE+'/v1',...apiCatalog(routes(),categoriesOf(media.tools))});}
       if(path==='/api/mcp/config')return send(res,200,info.config());
       if(path==='/api/mcp/tools'){const media=await catalog();return send(res,200,{...ID,tools:media.tools});}
       // The model's view: what enters a client model's context at session start and on each call.
@@ -89,7 +93,7 @@ export function mcpRoutes(jobs,info,keys,lifecycle){
         const media=await catalog(),tools=listedTools(media.tools);
         // Staged: browse_media alone at first, then the tools each category opens.
         const initial=visibleTools(media.tools).map(t=>t.name),categories=categoriesOf(media.tools).map(c=>({id:c.id,label:c.label,summary:c.summary,tools:categoryTools(media.tools,c).map(t=>t.name),models:scopeMedia(media,[c]).models.map(m=>m.id)}));
-        return send(res,200,{instructions:INSTRUCTIONS,tools,initial,categories,task_tools:TASK_TOOLS.filter(name=>media.tools.some(t=>t.name===name)),list_media_models:{overview:modelsView(media),by_category:Object.fromEntries(categoriesOf(media.tools).map(c=>[c.id,modelsView(scopeMedia(media,[c]))])),models:Object.fromEntries(media.models.map(m=>[m.id,modelsView(media,m.id)]))},models:media.models});
+        return send(res,200,{instructions:INSTRUCTIONS,tools,initial,categories,tool_info:Object.fromEntries(Object.entries(TOOL_GROUPS).map(([name,g])=>[name,{label:g.label,summary:g.summary}])),task_tools:TASK_TOOLS.filter(name=>media.tools.some(t=>t.name===name)),list_media_models:{overview:modelsView(media),by_category:Object.fromEntries(categoriesOf(media.tools).map(c=>[c.id,modelsView(scopeMedia(media,[c]))])),models:Object.fromEntries(media.models.map(m=>[m.id,modelsView(media,m.id)]))},models:media.models});
       }
       if(path==='/api/mcp/runtime'){
         const native=await comfyRuntime();

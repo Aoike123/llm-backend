@@ -2,7 +2,7 @@ import {Server} from '@modelcontextprotocol/sdk/server/index.js';
 import {StdioServerTransport} from '@modelcontextprotocol/sdk/server/stdio.js';
 import {ListToolsRequestSchema,CallToolRequestSchema,ListResourcesRequestSchema,ReadResourceRequestSchema} from '@modelcontextprotocol/sdk/types.js';
 import {randomUUID} from 'node:crypto';
-import {ID,COMMON_TOOLS,LEGACY_TOOLS,INSTRUCTIONS,isGenerationTool,validateToolInput,listedTools,modelsView,visibleTools,browseResult,categoriesOf,scopeMedia} from './manifest.mjs';
+import {ID,COMMON_TOOLS,LEGACY_TOOLS,INSTRUCTIONS,isGenerationTool,validateToolInput,listedTools,modelsView,visibleTools,browseResult,categoriesOf,scopeMedia,defineCapabilities} from './manifest.mjs';
 import {configuration,request,openImport,importRoots,downloadArtifact} from './client.mjs';
 export async function start(){
   const config=await configuration(),instance_id='instance_'+randomUUID().replaceAll('-','');let sequence=0,protocol_version,reporting=Promise.resolve(),closing=false;
@@ -11,7 +11,11 @@ export async function start(){
   let cached={at:0,value:null};
   async function catalog(fresh=false){
     if(!fresh&&cached.value&&Date.now()-cached.at<5000)return cached.value;
-    cached={at:Date.now(),value:await request(config,'/v1/media/catalog',{timeout:10000})};return cached.value;
+    const value=await request(config,'/v1/media/catalog',{timeout:10000});
+    // The catalog carries what the installed engine packages declare (tools, tasks, categories);
+    // this process knows no capability of its own.
+    if(value.definitions)defineCapabilities(value.definitions);
+    cached={at:Date.now(),value};return value;
   }
   const toolList=async()=>{try{return (await catalog()).tools;}catch{return COMMON_TOOLS;}};
   // Event ordering is per process; a failed report cannot block media tools.

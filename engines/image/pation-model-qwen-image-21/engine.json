@@ -37,6 +37,7 @@
       "log_name": "Qwen-Image",
       "summary": "文本生成图像 · 图像编辑"
     },
+    "surface_files": ["../../shared/capabilities/image.surface.json"],
     "models": [
       {
         "id": "qwen-image21",

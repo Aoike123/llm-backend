@@ -17,14 +17,10 @@ api.example.com {
     request_body {
         max_size 33554432
     }
-    @inference {
-        path /v1/models /v1/media/models /v1/chat/completions /v1/images/generations /v1/images/edits /v1/videos/generations
-    }
-    @artifact path_regexp artifact ^/artifacts/[a-f0-9]{32}\.mp4$
-    handle @inference {
-        import inference_proxy
-    }
-    handle @artifact {
+    # Everything under /v1 and /artifacts goes to the gateway. The gateway decides: it serves only the
+    # public routes switched on in the console (and requires a key); anything else it answers 404.
+    @gateway path /v1/* /artifacts/*
+    handle @gateway {
         import inference_proxy
     }
     handle {

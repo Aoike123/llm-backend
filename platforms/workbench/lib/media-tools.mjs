@@ -39,52 +39,75 @@ export function validateSchema(schema,input,path='arguments'){
 export const ID={name:'local-media',version:'0.5.0',transport:'stdio'};
 
 const requestId={...id,description:'Idempotency key; reuse it to retry.'};
-// A capability is one kind of work. Each belongs to one public tool (its group) under a short
-// task name; per-capability names stay accepted as aliases for older clients.
-export const CAPABILITIES={
-  'image.generate':{group:'generate_image',task:'generate',tool:'generate_image',kind:'image',label:'生图',sync:'/v1/images/generations',
-    description:'text to image',
-    base:{request_id:requestId,prompt:prompt(''),seed},required:['request_id','prompt'],
-    example:{request_id:'image-001',prompt:'A red ceramic cup'}},
-  'image.edit':{group:'generate_image',task:'edit',tool:'edit_image',kind:'image',label:'图像编辑',sync:'/v1/images/edits',
-    description:'edit 1–4 imported images given as reference_asset_ids (chosen automatically when they are present)',infer:input=>input.reference_asset_ids?.length>0,
-    base:{request_id:requestId,prompt:prompt(''),seed,reference_asset_ids:{...list(4),minItems:1}},required:['request_id','prompt','reference_asset_ids'],
-    example:{request_id:'edit-001',prompt:'Change the cup to blue',reference_asset_ids:['asset_example']}},
-  'video.generate':{group:'generate_video',task:'generate',tool:'generate_video',aliases:['run_goldfish_workflow'],kind:'video',label:'视频生成',sync:'/v1/videos/generations',
-    description:'text / reference to video',
-    base:{request_id:requestId,prompt:prompt('')},required:['request_id','prompt'],
-    example:{request_id:'video-001',prompt:'A continuous cinematic shot.'}},
-  'speech.synthesize':{group:'generate_speech',task:'speech',tool:'generate_speech',kind:'audio',label:'语音合成',
-    description:'synthesize text, optionally cloning imported reference voices',
-    base:{request_id:requestId,text:{...str(5000),description:'合成文本，最长 5000 字。'},seed},required:['request_id','text'],
-    example:{request_id:'speech-001',text:'你好，欢迎来到工作台。'}},
-  'speech.voice':{group:'register_voice',task:'voice',tool:'register_voice',kind:'text',label:'音色注册',
-    description:'register a named voice from audio_asset_id or another audio source; pass the voice artifact later as references[].voice_artifact_id',
-    base:{request_id:requestId,name:{...str(80),description:'音色名称，如“男声旁白”。'},group:{...str(80),description:'可选分组，如“旁白”“角色”。'},audio_asset_id:audioAsset},required:['request_id','name'],
-    example:{request_id:'voice-001',name:'男声旁白',audio_asset_id:'asset_example'}},
-  'audio.separate':{group:'process_audio',task:'separate',tool:'separate_audio',kind:'audio',label:'人声分离',
-    description:'split audio_asset_id into vocals and accompaniment artifacts',
-    base:{request_id:requestId,audio_asset_id:audioAsset},required:['request_id','audio_asset_id'],
-    example:{request_id:'separate-001',task:'separate',audio_asset_id:'asset_example'}},
-  'audio.transcribe':{group:'process_audio',task:'transcribe',tool:'transcribe_audio',kind:'text',label:'语音识别',
-    description:'transcribe audio_asset_id; the transcript is a JSON artifact and metrics.text',
-    base:{request_id:requestId,audio_asset_id:audioAsset},required:['request_id','audio_asset_id'],
-    example:{request_id:'transcribe-001',task:'transcribe',audio_asset_id:'asset_example'}},
-};
-export const TOOL_GROUPS={
-  generate_image:{label:'图像',description:'Create an image job: text to image, or edit when reference_asset_ids are given. Poll get_job.'},
-  generate_video:{label:'视频',description:'Create a video job. Poll get_job, then get_artifact.'},
-  generate_speech:{label:'语音合成',description:'Create a speech job: synthesize text, optionally cloning registered voices (voice_artifact_id from search_voices) or imported clips. Poll get_job.'},
-  register_voice:{label:'音色注册',description:'Register a named voice from a 1–30 s clip so generate_speech can reuse it; find and rename voices with search_voices and update_voice. Poll get_job.'},
-  process_audio:{label:'音频处理',description:'Create an audio analysis job on an imported clip. Poll get_job.'},
-};
-// The old single audio tool: still accepted (task picks the work) but no longer listed.
-export const LEGACY_GROUPS={generate_audio:['speech.synthesize','speech.voice','audio.separate','audio.transcribe']};
+// A capability is one kind of work. What the public contract looks like (tool, task, category,
+// synchronous path, base parameters) is declared by the engine package that provides it, in
+// `platform.surface` of its engine.json; the registry hands the merged declarations to
+// defineCapabilities, and the MCP process receives the same ones inside the gateway catalog.
+// Nothing here names an engine or a capability: these objects start empty and are filled live.
+export const CAPABILITIES={};
+export const TOOL_GROUPS={};
+// Older single tools that fanned out into several (generate_audio): name -> members and default.
+export const LEGACY_GROUPS={};
+let DEFINITIONS={};
+// Schema shorthands a manifest can use for the shared field shapes: {"$use":"request_id"}.
+const PRESETS={request_id:()=>requestId,seed:()=>seed,id:()=>id,prompt:s=>prompt(s.note??''),id_list:s=>({...list(s.max),...(s.min?{minItems:s.min}:{})})};
+function expand(schema){
+  if(Array.isArray(schema))return schema.map(expand);
+  if(!schema||typeof schema!=='object')return schema;
+  if(schema.$use){const {$use,note,max,min,...rest}=schema,make=PRESETS[$use];if(!make)throw new Error('Unknown schema preset '+$use);return {...make({note,max,min}),...rest};}
+  return Object.fromEntries(Object.entries(schema).map(([k,v])=>[k,expand(v)]));
+}
+const KINDS=['image','video','audio','text'];
+// What a declaration must say. Returns the problems as text; empty when it is consistent.
+export function checkDefinitions(definitions){
+  const problems=[],slots=new Map(),tools=new Map(),syncs=new Map();
+  for(const [capability,d] of Object.entries(definitions)){
+    const at=capability+': ';
+    if(!/^[a-z]+\.[a-z]+$/.test(capability))problems.push(at+'the capability id is <area>.<action>, lowercase');
+    for(const key of ['group','kind','label','description','base','required','example','group_info','category'])if(d[key]===undefined)problems.push(at+'surface.'+key+' is required');
+    if(!KINDS.includes(d.kind))problems.push(at+'kind must be one of '+KINDS.join(', '));
+    if(d.group_info&&['label','summary','description'].some(k=>typeof d.group_info[k]!=='string'))problems.push(at+'group_info needs label, summary and description');
+    if(d.category&&['id','label','summary'].some(k=>typeof d.category[k]!=='string'))problems.push(at+'category needs id, label and summary');
+    if(d.category?.id==='other')problems.push(at+'category id "other" is reserved');
+    for(const key of d.required??[])if(!Object.hasOwn(d.base??{},key))problems.push(at+'required field '+key+' is not in base');
+    const slot=d.group+'/'+(d.task??''),prior=slots.get(slot);if(prior)problems.push(at+'task '+(d.task??'(none)')+' of '+d.group+' is also declared by '+prior);slots.set(slot,capability);
+    for(const name of [d.tool??d.group,...(d.aliases??[])]){const other=tools.get(name);if(other&&other!==capability&&name!==d.group)problems.push(at+'tool name '+name+' is also used by '+other);tools.set(name,capability);}
+    if(d.sync!==undefined){if(!/^\/v1\/[a-z0-9/_-]+$/.test(d.sync))problems.push(at+'sync must be a /v1/ path');const other=syncs.get(d.sync);if(other)problems.push(at+'sync path '+d.sync+' is also '+other);syncs.set(d.sync,capability);}
+  }
+  // Capabilities sharing one tool must agree on how it is described and where it is filed.
+  const byGroup=new Map();for(const [capability,d] of Object.entries(definitions))byGroup.set(d.group,[...(byGroup.get(d.group)??[]),[capability,d]]);
+  for(const [group,members] of byGroup){
+    const first=members[0][1];
+    for(const [capability,d] of members.slice(1)){
+      if(JSON.stringify(d.group_info)!==JSON.stringify(first.group_info))problems.push(capability+': group_info of '+group+' differs from '+members[0][0]);
+      if(d.category?.id!==first.category?.id)problems.push(capability+': category of '+group+' differs from '+members[0][0]);
+    }
+    if(members.length>1&&members.some(([,d])=>d.task===undefined))problems.push(group+': capabilities sharing a tool each need a task');
+  }
+  return problems;
+}
+// Replaces the live objects with these declarations (raw, as written in manifests or sent in the
+// catalog), in their given order.
+export function defineCapabilities(definitions){
+  const problems=checkDefinitions(definitions);if(problems.length)throw new Error(problems.join('; '));
+  for(const object of [CAPABILITIES,TOOL_GROUPS,LEGACY_GROUPS])for(const key of Object.keys(object))delete object[key];
+  DEFINITIONS=structuredClone(definitions);
+  for(const [capability,d] of Object.entries(definitions)){
+    const {infer,group_info,legacy_groups,...rest}=d;
+    CAPABILITIES[capability]={...rest,base:expand(d.base),tool:d.tool??d.group,...(infer?{infer:input=>input[infer.present]?.length>0}:{})};
+    TOOL_GROUPS[d.group]??=group_info;
+    for(const [name,options] of Object.entries(legacy_groups??{})){const entry=LEGACY_GROUPS[name]??={members:[],default:null};entry.members.push(capability);if(options?.default)entry.default=capability;}
+  }
+  for(const entry of Object.values(LEGACY_GROUPS))entry.default??=entry.members[0];
+}
+// The declarations as given, for the catalog the MCP process reads.
+export const definitionsOf=()=>structuredClone(DEFINITIONS);
 const inGroup=group=>Object.entries(CAPABILITIES).filter(([,c])=>c.group===group);
 // Which capability a tool call means: a per-capability name directly; a group by its task,
 // else by the inputs (edit when references are given), else its first capability.
 export function resolveCapability(tool,input={}){
-  if(LEGACY_GROUPS[tool]){const task=input.task;return LEGACY_GROUPS[tool].find(c=>task===undefined?c===LEGACY_GROUPS[tool][0]:CAPABILITIES[c].task===task)??null;}
+  const legacy=LEGACY_GROUPS[tool];
+  if(legacy)return input.task===undefined?legacy.default:legacy.members.find(c=>CAPABILITIES[c].task===input.task)??null;
   const direct=Object.entries(CAPABILITIES).find(([,c])=>c.tool===tool||c.aliases?.includes(tool));
   if(direct&&!TOOL_GROUPS[tool])return direct[0];
   const members=inGroup(tool);if(!members.length)return null;
@@ -99,8 +122,8 @@ export const capabilityForSync=path=>Object.entries(CAPABILITIES).find(([,c])=>c
 const page={offset:{type:'integer',minimum:0,maximum:100000},limit:{type:'integer',minimum:1,maximum:100}};
 // Gateway-level tools that exist whatever engines are installed.
 export const COMMON_TOOLS=[
-  {name:'browse_media',description:'Start here. Without arguments: the media categories (image, video, speech and voices, audio). With category: opens it, so only that work\'s tools are listed from then on; schemas=true also returns their full definitions.',inputSchema:object({category:choice(['image','video','speech','audio','other']),schemas:{type:'boolean'}}),example:{category:'video'}},
-  {name:'list_media_models',description:'Models of the categories you opened (or of category): capabilities with primary and fallback models. With model: its full parameter schemas, including the advanced ones the generation tools keep collapsed. Loads nothing onto the GPU.',inputSchema:object({model:{...str(80),description:'A model id, e.g. minimax-h3.'},category:{...choice(['image','video','speech','audio','other']),description:'Only this category.'}}),example:{}},
+  {name:'browse_media',description:'Start here. Without arguments: the categories of work the enabled engines offer. With category: opens it, so only that work\'s tools are listed from then on; schemas=true also returns their full definitions.',inputSchema:object({category:{...str(40),description:'A category id from the list.'},schemas:{type:'boolean'}}),example:{category:'video'}},
+  {name:'list_media_models',description:'Models of the categories you opened (or of category): capabilities with primary and fallback models. With model: its full parameter schemas, including the advanced ones the generation tools keep collapsed. Loads nothing onto the GPU.',inputSchema:object({model:{...str(80),description:'A model id, e.g. minimax-h3.'},category:{...str(40),description:'Only this category.'}}),example:{}},
   {name:'import_media',description:'Import a local image/video/audio from the import roots ('+importRoots().join(', ')+'), the workspace or MEDIA_IMPORT_ROOTS; returns an asset_id. Images become PNG; audio (or a video soundtrack) up to 30 minutes becomes WAV.',inputSchema:object({path:str(4096),kind:choice(['image','video','audio'])},['path','kind']),example:{path:'/media/aoike/Resource_Trad/Project/demo/reference.png',kind:'image'}},
   {name:'search_voices',description:'Find registered voices by name, group or transcript (fuzzy, best first); no query lists them. A hit\'s artifact_id is generate_speech references[].voice_artifact_id; clip_artifact_id plays it via get_artifact.',inputSchema:object({query:{...str(200),description:'Words to find, e.g. “男声 旁白”; each must match name, group or transcript; typos tolerated.'},group:{...str(80),description:'Only this exact group.'},...page}),example:{query:'男声 旁白'}},
   {name:'update_voice',description:'Rename a registered voice or move it to another group. Its artifact_id stays the same.',inputSchema:object({voice_artifact_id:id,name:{...str(80),description:'New name.'},group:{...str(80),description:'New group.'}},['voice_artifact_id']),example:{voice_artifact_id:'artifact_example',name:'女声旁白'}},
@@ -122,31 +145,35 @@ export function validateToolInput(toolList,name,input){
 
 // What a model reads from this server, shared by the MCP process and the console's model view so
 // the two can never differ: the server instructions, the listed tools and list_media_models.
-export const INSTRUCTIONS='Local media generation through the workbench gateway. Start with browse_media: it lists the categories (image, video, speech and voices, audio); opening one lists only that work\'s tools. Generation tools return durable jobs, not media: poll get_job, then get_artifact (download=true saves into the workspace); inspect unknown outcomes before retrying. Parameter descriptions are brief; list_media_models {model} gives full schemas, including collapsed advanced fields. Omit model to use a capability\'s primary model; prefer the engine already running and batch work on it, since switching engines drains the queue and cold-starts the backend.';
+export const INSTRUCTIONS='Local media generation through the workbench gateway. Start with browse_media: it lists the categories of work available; opening one lists only that work\'s tools. Generation tools return durable jobs, not media: poll get_job, then get_artifact (download=true saves into the workspace); inspect unknown outcomes before retrying. Parameter descriptions are brief; list_media_models {model} gives full schemas, including collapsed advanced fields. Omit model to use a capability\'s primary model; prefer the engine already running and batch work on it, since switching engines drains the queue and cold-starts the backend.';
 // What a client sees first is only browse_media. Opening a category lists the tools of that work,
 // plus the ones every kind of work ends with, so a video session never carries the image tools.
 // Tools no category names (a new one) fall into "other", so nothing is unreachable.
 export const BROWSE='browse_media';
-export const CATEGORIES=[
-  {id:'image',label:'图像',summary:'文生图，以及基于参考图的编辑',tools:['generate_image','import_media']},
-  {id:'video',label:'视频',summary:'文生、图生、参考生视频',tools:['generate_video','import_media']},
-  {id:'speech',label:'语音与音色',summary:'语音合成与克隆；注册、查找、改名音色',tools:['generate_speech','register_voice','search_voices','update_voice','import_media']},
-  {id:'audio',label:'音频处理',summary:'人声分离、语音识别',tools:['process_audio','import_media']},
-];
 // Listed with every opened category: follow a job, fetch its artifacts, look up models.
 export const TASK_TOOLS=['list_media_models','get_job','list_jobs','cancel_job','get_artifact'];
 const SHARED_TOOLS=['import_media'];
+// Categories come from the capabilities' own declarations (category + the companion tools they
+// name, such as the voice library); a tool nothing names falls into "other", so nothing is
+// unreachable.
+export function categoriesOf(tools){
+  const present=new Set(tools.map(t=>t.name)),byId=new Map();
+  for(const c of Object.values(CAPABILITIES)){
+    if(!c.category)continue;
+    const entry=byId.get(c.category.id)??{id:c.category.id,label:c.category.label,summary:c.category.summary,tools:[]};
+    for(const name of [c.group,...(c.category.companions??[])])if(!entry.tools.includes(name))entry.tools.push(name);
+    byId.set(entry.id,entry);
+  }
+  const named=new Set([BROWSE,...TASK_TOOLS,...SHARED_TOOLS,...[...byId.values()].flatMap(c=>c.tools)]);
+  const extra=tools.filter(t=>!named.has(t.name)).map(t=>t.name);
+  return [...byId.values(),...(extra.length?[{id:'other',label:'其他',summary:'其他可用工具',tools:extra}]:[])]
+    .map(c=>{const own=c.tools.filter(name=>present.has(name));return {...c,own:own.length,tools:[...own,...SHARED_TOOLS.filter(name=>present.has(name))]};}).filter(c=>c.own).map(({own,...c})=>c);
+}
 // Models, routes and workflows of the given categories only: a capability's tool says which
 // category it belongs to, so a video session never reads the image models.
 export function scopeMedia(media,categories){
   const names=new Set(categories.flatMap(c=>c.tools));
   return {...media,models:media.models.filter(m=>m.capabilities.some(cap=>names.has(CAPABILITIES[cap]?.group))),capabilities:media.capabilities.filter(r=>names.has(r.tool)),workflows:(media.workflows??[]).filter(w=>!w.tool||names.has(w.tool))};
-}
-export function categoriesOf(tools){
-  const present=new Set(tools.map(t=>t.name)),named=new Set([BROWSE,...TASK_TOOLS,...CATEGORIES.flatMap(c=>c.tools)]);
-  const extra=tools.filter(t=>!named.has(t.name)).map(t=>t.name);
-  return [...CATEGORIES,...(extra.length?[{id:'other',label:'其他',summary:'其他可用工具',tools:extra}]:[])]
-    .map(c=>({...c,tools:c.tools.filter(name=>present.has(name))})).filter(c=>c.tools.some(name=>!SHARED_TOOLS.includes(name)));
 }
 // The tools of one category as opened: its own, then the task tools.
 export const categoryTools=(tools,category)=>{const names=new Set([...category.tools,...TASK_TOOLS]);return tools.filter(t=>names.has(t.name));};

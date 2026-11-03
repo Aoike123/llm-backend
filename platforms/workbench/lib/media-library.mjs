@@ -6,7 +6,7 @@ import {join} from 'node:path';
 import {execFile} from 'node:child_process';
 import {promisify} from 'node:util';
 import sharp from 'sharp';
-import {capabilityForTool} from './capabilities.mjs';
+import {capabilityForTool,CAPABILITIES} from './capabilities.mjs';
 import {fail} from './media-store.mjs';
 
 const run=promisify(execFile);
@@ -28,7 +28,8 @@ export function promptOf(job,{full=false}={}){
 // The local console's detail view shows the whole request as submitted (prompt, spoken text,
 // reference transcripts, instructions); lists get a one-line excerpt. The public API never does.
 export function jobRow(jobs,job,{full=false}={}){
-  const row={...jobs.public(job),capability:job.capability??capabilityForTool(job.tool),prompt:promptOf(job,{full})};
+  const capability=job.capability??capabilityForTool(job.tool);
+  const row={...jobs.public(job),capability,capability_label:CAPABILITIES[capability]?.label??null,prompt:promptOf(job,{full})};
   if(full)row.input=job.request??null;
   return row;
 }
@@ -58,7 +59,7 @@ export function listJobs(jobs,url){
 // Registered voices: the voice artifact of each succeeded voice job, with its clip for listening.
 // Names and groups are the artifact's own metadata, so the console and get_job show the same label.
 function voiceRows(jobs,{engine=null,owner=null}={}){
-  return [...jobs.jobs.values()].filter(job=>job.state==='succeeded'&&(!engine||job.engine===engine)&&(!owner||job.owner_id===owner)&&(job.capability??capabilityForTool(job.tool))==='speech.voice').sort(newestFirst).flatMap(job=>{
+  return [...jobs.jobs.values()].filter(job=>job.state==='succeeded'&&(!engine||job.engine===engine)&&(!owner||job.owner_id===owner)&&CAPABILITIES[job.capability??capabilityForTool(job.tool)]?.library==='voices').sort(newestFirst).flatMap(job=>{
     const voice=job.artifacts?.find(a=>a.name==='voice');if(!voice)return [];
     const clip=job.artifacts.find(a=>a.name==='clip');
     return [{artifact_id:voice.artifact_id,name:voice.media?.name??null,group:voice.media?.group??null,transcript:voice.media?.transcript??null,seconds:voice.media?.seconds??null,frames:voice.media?.frames??null,
@@ -68,7 +69,9 @@ function voiceRows(jobs,{engine=null,owner=null}={}){
 const groupsOf=voices=>[...new Set(voices.map(v=>v.group).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'zh-CN'));
 export function listVoices(jobs,url){
   const voices=voiceRows(jobs,{engine:url?.searchParams.get('engine')||null});
-  return {voices,groups:groupsOf(voices),total:voices.length};
+  // The tool that registers a voice is whichever capability declares library: voices.
+  const register=Object.values(CAPABILITIES).find(c=>c.library==='voices')?.group??null;
+  return {voices,groups:groupsOf(voices),total:voices.length,register_tool:register};
 }
 
 // Fuzzy voice lookup for a client model. Each whitespace-separated word must hit the name, group

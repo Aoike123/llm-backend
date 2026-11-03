@@ -93,7 +93,34 @@ ama3/
 | `models[].priority` | 否 | 没有保存路由时的默认顺序，小的优先 |
 | `models[].info` | 否 | 原样出现在 `list_media_models` / `/v1/media/models` 的说明字段 |
 
-能力清单见 [platforms/workbench/lib/media-tools.mjs](../platforms/workbench/lib/media-tools.mjs)：`image.generate`、`image.edit`、`video.generate`、`speech.synthesize`、`audio.separate`、`audio.transcribe`。新增一种能力才需要改这个文件。
+### 能力声明：platform.surface
+
+一个引擎包自己声明它的能力在对外接口里的全部样子，**网关、MCP 进程、控制台、API 页和公网放行都从这里派生，平台代码里没有任何能力或工具名的硬编码**。接入新能力（比如音乐生成）只需要这个包：
+
+| 字段 | 必填 | 说明 |
+| --- | --- | --- |
+| `surface` | 提供能力就必填 | 对象，键是能力 id（`<领域>.<动作>`，如 `speech.synthesize`），值是下表的声明；`models[].capabilities` 里出现的每个能力都必须在某个包里声明 |
+| `surface_files` | 否 | 相对本包的 JSON 文件路径列表，内容同 `surface`。多个引擎共用的声明（如图像的生成与编辑）放一份文件，各包引用，例如 `engines/shared/capabilities/image.surface.json` |
+
+同一能力被多个包声明时内容必须完全一致，否则加载失败并指出文件。声明不依赖引擎是否启用：停用的包仍能让旧任务和旧工具名解析，只是工具不出现在列表里。
+
+| 声明字段 | 必填 | 说明 |
+| --- | --- | --- |
+| `group` | 是 | 对客户端公开的 MCP 工具名。几个能力共用一个 `group` 时各自要有 `task`，客户端用 `task` 选择 |
+| `task` / `tool` / `aliases` | 否 | 任务名、该能力单独的旧工具名、更旧的别名 |
+| `kind` / `label` / `description` | 是 | 作品类型（`image` `video` `audio` `text`）、控制台里的中文名、工具说明里的英文描述 |
+| `group_info` | 是 | `{label, summary, description}`：工具的中文名、一句话用途、给模型看的工具说明。同一 `group` 的能力必须写一样的 |
+| `category` | 是 | `{id, label, summary, companions?}`：`browse_media` 里的分类；`companions` 是随该分类一起出现的网关工具（如音色库的 `search_voices`）。同一 `group` 必须同一分类 |
+| `base` / `required` / `example` | 是 | 所有模型共有的参数、必填项、示例。参数是 JSON Schema，常用形状可写 `{"$use":"request_id"}`、`seed`、`prompt`（可带 `note`）、`id`、`id_list`（`max`、`min`） |
+| `infer` | 否 | `{"present":"<字段>"}`：没给 `task` 时，输入里有该字段就选这个能力（图像编辑靠它） |
+| `sync` | 否 | 同步 API 路径，如 `/v1/images/generations`；声明后自动出现在 API 页、可被公网放行开关控制 |
+| `legacy_groups` | 否 | `{"<旧工具名>": {"default"?: true}}`：旧的合并工具（如 `generate_audio`）仍按 `task` 分派到本能力，不再出现在列表里 |
+| `library` | 否 | `"voices"`：本能力的作品进入控制台的音色库 |
+| `order` | 否 | 工具与分类的排列顺序，小的在前，默认 100 |
+
+具体参数仍由适配器的 `params` 按模型追加。
+
+当前声明的能力（见各包的 `surface` 和 [image.surface.json](../engines/shared/capabilities/image.surface.json)）：`image.generate`、`image.edit`、`video.generate`、`speech.synthesize`、`audio.separate`、`audio.transcribe`。新增一种能力才需要改这个文件。
 
 ### adapter.mjs 钩子
 

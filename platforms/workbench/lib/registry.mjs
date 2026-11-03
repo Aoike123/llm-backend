@@ -4,6 +4,7 @@
 import {readFileSync,readdirSync,existsSync,writeFileSync,mkdirSync,renameSync} from 'node:fs';
 import {dirname,join} from 'node:path';
 import {fileURLToPath,pathToFileURL} from 'node:url';
+import {defineCapabilities,checkDefinitions} from './media-tools.mjs';
 
 export const ROOT=fileURLToPath(new URL('../../../',import.meta.url));
 export const PLATFORM=JSON.parse(readFileSync(ROOT+'platforms/platform.json','utf8'));
@@ -11,6 +12,37 @@ const CATEGORY_TYPE={llm:'language',image:'image',video:'video',audio:'audio'};
 const CATEGORY_ORDER=Object.keys(CATEGORY_TYPE);
 
 function fail(path,message){throw new Error(path+': '+message);}
+// What a package says about how its capabilities look to clients: `platform.surface` inline and/or
+// `platform.surface_files` (paths relative to the package, for declarations several engines share,
+// such as the image tools). Declared once per capability; a repeat must be identical.
+export function readSurface(pkg){
+  const p=pkg.manifest.platform,out={};
+  const add=(declared,from)=>{for(const [capability,definition] of Object.entries(declared)){
+    if(out[capability]&&JSON.stringify(out[capability])!==JSON.stringify(definition))fail(pkg.file,capability+' is declared twice with different content ('+from+')');out[capability]=definition;}};
+  for(const file of p.surface_files??[]){
+    let declared;try{declared=JSON.parse(readFileSync(join(pkg.dir,file),'utf8'));}catch(e){fail(pkg.file,'platform.surface_files '+file+': '+e.message);}
+    add(declared,file);
+  }
+  if(p.surface)add(p.surface,'surface');
+  return out;
+}
+// Every installed package's declarations, enabled or not (stored jobs and aliases keep resolving),
+// ordered by each capability's `order`, then by package order. The same capability declared by
+// several packages must agree, and every capability a model serves must be declared somewhere.
+export function mergeSurface(packages){
+  const merged=new Map();
+  const ordered=[...packages].sort((a,b)=>CATEGORY_ORDER.indexOf(a.manifest.category)-CATEGORY_ORDER.indexOf(b.manifest.category)||a.id.localeCompare(b.id));
+  for(const pkg of ordered)for(const [capability,definition] of Object.entries(readSurface(pkg))){
+    const prior=merged.get(capability);
+    if(prior&&JSON.stringify(prior.definition)!==JSON.stringify(definition))fail(pkg.file,capability+' is also declared by '+prior.from+' with different content; share one declaration through platform.surface_files');
+    if(!prior)merged.set(capability,{definition,from:pkg.id});
+  }
+  for(const pkg of ordered)for(const model of pkg.manifest.platform.models)for(const capability of model.capabilities)
+    if(!merged.has(capability))fail(pkg.file,model.id+' serves '+capability+', which no package declares in platform.surface');
+  const definitions=Object.fromEntries([...merged].sort(([,a],[,b])=>(a.definition.order??100)-(b.definition.order??100)).map(([capability,{definition}])=>[capability,definition]));
+  const problems=checkDefinitions(definitions);if(problems.length)throw new Error('platform.surface: '+problems.join('; '));
+  return definitions;
+}
 function readManifests(enginesDir){
   const packages=[];
   for(const category of readdirSync(enginesDir,{withFileTypes:true})){
@@ -61,13 +93,16 @@ function validateWorks(p,where){
 export class Registry{
   // Under `node --test` the operator's state file is neither read nor written: tests see the
   // manifest defaults whatever engines are switched on in this workbench.
-  constructor({enginesDir=ROOT+'engines',statePath=process.env.WORKBENCH_PLATFORM_STATE??(process.env.NODE_TEST_CONTEXT?null:ROOT+PLATFORM.state_file)}={}){
-    this.enginesDir=enginesDir;this.statePath=statePath;this.adapters=new Map();this.listeners=new Set();this.load();
+  constructor({enginesDir=ROOT+'engines',publish=enginesDir===ROOT+'engines',statePath=process.env.WORKBENCH_PLATFORM_STATE??(process.env.NODE_TEST_CONTEXT?null:ROOT+PLATFORM.state_file)}={}){
+    this.enginesDir=enginesDir;this.publish=publish;this.statePath=statePath;this.adapters=new Map();this.listeners=new Set();this.load();
   }
   readState(){return this.statePath&&existsSync(this.statePath)?JSON.parse(readFileSync(this.statePath,'utf8')):{};}
   // Validates manifests against a candidate state; this.state changes only if it is consistent.
   load(state=this.readState()){
     const packages=readManifests(this.enginesDir);packages.forEach(validatePackage);
+    this.surface=mergeSurface(packages);
+    // Only the gateway's own registry fills the live capability tables; a registry built over another directory (tests, tooling) just validates.
+    if(this.publish)defineCapabilities(this.surface);
     state={engines:state.engines??{},routing:state.routing??{}};
     for(const pkg of packages)pkg.enabled=state.engines[pkg.id]?.enabled??pkg.manifest.platform.default_enabled===true;
     // Conflicts only matter between engines that can run together.

@@ -40,6 +40,117 @@
       ],
       "summary": "文本转语音；注册命名音色后反复复用，或参考音频直接克隆，最多 4 个角色；take 作品可续写；行内标签如 [laughing]、[sighs]"
     },
+    "surface": {
+      "speech.synthesize": {
+        "order": 30,
+        "group": "generate_speech",
+        "task": "speech",
+        "tool": "generate_speech",
+        "kind": "audio",
+        "label": "语音合成",
+        "legacy_groups": {
+          "generate_audio": {
+            "default": true
+          }
+        },
+        "group_info": {
+          "label": "语音合成",
+          "summary": "合成语音，可克隆音色",
+          "description": "Create a speech job: synthesize text, optionally cloning registered voices (voice_artifact_id from search_voices) or imported clips. Poll get_job."
+        },
+        "category": {
+          "id": "speech",
+          "label": "语音与音色",
+          "summary": "语音合成与克隆；注册、查找、改名音色",
+          "companions": [
+            "search_voices",
+            "update_voice"
+          ]
+        },
+        "description": "synthesize text, optionally cloning imported reference voices",
+        "base": {
+          "request_id": {
+            "$use": "request_id"
+          },
+          "text": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 5000,
+            "description": "合成文本，最长 5000 字。"
+          },
+          "seed": {
+            "$use": "seed"
+          }
+        },
+        "required": [
+          "request_id",
+          "text"
+        ],
+        "example": {
+          "request_id": "speech-001",
+          "text": "你好，欢迎来到工作台。"
+        }
+      },
+      "speech.voice": {
+        "order": 31,
+        "library": "voices",
+        "group": "register_voice",
+        "task": "voice",
+        "tool": "register_voice",
+        "kind": "text",
+        "label": "音色注册",
+        "legacy_groups": {
+          "generate_audio": {
+            "task": "voice"
+          }
+        },
+        "group_info": {
+          "label": "注册音色",
+          "summary": "把一段人声存成可复用的音色",
+          "description": "Register a named voice from a 1–30 s clip so generate_speech can reuse it; find and rename voices with search_voices and update_voice. Poll get_job."
+        },
+        "category": {
+          "id": "speech",
+          "label": "语音与音色",
+          "summary": "语音合成与克隆；注册、查找、改名音色",
+          "companions": [
+            "search_voices",
+            "update_voice"
+          ]
+        },
+        "description": "register a named voice from audio_asset_id or another audio source; pass the voice artifact later as references[].voice_artifact_id",
+        "base": {
+          "request_id": {
+            "$use": "request_id"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80,
+            "description": "音色名称，如“男声旁白”。"
+          },
+          "group": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80,
+            "description": "可选分组，如“旁白”“角色”。"
+          },
+          "audio_asset_id": {
+            "$use": "id",
+            "description": "Imported audio asset_id (import_media kind=audio)."
+          }
+        },
+        "required": [
+          "request_id",
+          "name"
+        ],
+        "example": {
+          "request_id": "voice-001",
+          "name": "男声旁白",
+          "audio_asset_id": "asset_example"
+        }
+      }
+    },
     "models": [
       {
         "id": "fish-drama3",

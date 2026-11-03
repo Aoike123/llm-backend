@@ -33,11 +33,22 @@
 
 管理接口 `/api/access-keys` 仅存在于本机 UI 端口，校验本机 Host 与同源请求；不通过公网开放。控制台没有公网登录入口。
 
+## 公网放行（控制台「访问与公网」→「公网放行」）
+
+公网能访问哪些接口由控制台决定，状态保存在 `workspace/data/scheduler/public-exposure.json`：
+
+- 可放行的只有 `api-catalog.mjs` 里 `access: 'public'` 的接口（聊天、模型目录、已启用能力的同步生图/编辑/视频、MP4 结果）。持久任务、素材、音色、管理与运维接口不能对公网开放。
+- 每个接口一个开关，另有总开关。**网关是最终裁决者**：公网请求（带 `X-Workbench-Public`）访问已关闭的接口，网关直接返回 404，不依赖 Caddy 是否更新，所以关闭立即生效。
+- Caddy 把 `/v1/*` 和 `/artifacts/*` 整体转给网关（`platforms/public-api/Caddyfile.*`），不再维护路径清单；开关、新增或停用引擎都不需要改 Caddy。
+- 「检查外网」从外部请求公网地址，不带密钥：401 表示能到达网关，网关自己的 404（JSON）表示被网关拒绝，其他 404 表示被 Caddy 挡住（服务器上的 Caddyfile 还是旧的路径清单）。结果与设置不一致时给出原因。检查请求带 `X-Workbench-Probe`，不计入统计。
+- 页面还显示反向隧道服务状态（运行中/已停止、重连次数、目标主机与远端端口，不含密钥路径）和自网关启动以来的公网请求计数（放行、密钥无效、访问已关闭接口）。
+- 公网地址取自 `WORKBENCH_PUBLIC_BASE`，未设置时取 `platforms/public-api/Caddyfile.<域名>` 里的站点地址。
+
 ## 公网服务器和隧道
 
 服务器 `YOUR_SERVER_IP`，Debian；域名 `api.example.com`。服务器 `/opt/ai-public-api/compose.yaml` 和 `Caddyfile`，Caddy 使用 host 网络、内存上限 256 MiB，自动管理 Let's Encrypt 证书。Compose 的 `GODEBUG=http2client=0` 解决此服务器 ACME 出站 HTTP/2 超时。
 
-Caddy 配置源为 `platforms/public-api/Caddyfile.example`（复制为 `Caddyfile.<域名>` 并替换域名，该文件不入库）。控制台显示的接入地址在构建时由 `NEXT_PUBLIC_WORKBENCH_PUBLIC_API` 指定，例如 `https://api.example.com/v1`。仅转发模型目录、聊天、图片、视频接口及合法 MP4 下载，其余路径 404。上传最大 32 MiB，长请求上游等待 1900 秒，流式响应即时转发。客户端超时应覆盖排队和生成时间，生成请求不要自动重试。
+Caddy 配置源为 `platforms/public-api/Caddyfile.example`（复制为 `Caddyfile.<域名>` 并替换域名，该文件不入库）。控制台显示的接入地址由网关按上面的规则给出（不再是构建时写死的值），例如 `https://api.example.com/v1`。仅转发模型目录、聊天、图片、视频接口及合法 MP4 下载，其余路径 404。上传最大 32 MiB，长请求上游等待 1900 秒，流式响应即时转发。客户端超时应覆盖排队和生成时间，生成请求不要自动重试。
 
 本机隧道使用专用 `api-tunnel` 用户、`workspace/data/public-api/runtime_ed25519` 和已核验的 `known_hosts`。服务器只允许远程转发监听 `127.0.0.1:28984`，禁止密码和 shell 会话。SSH 管理身份为同目录 `tunnel_ed25519`。私钥不得提交到仓库。
 

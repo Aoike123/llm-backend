@@ -48,8 +48,26 @@ export function TaskCenter({data,onOpen,openId}){
   {scope==='native'&&<NativeQueue/>}
  </div>;
 }
+const METHOD_CLASS={GET:'is-get',POST:'is-post',PATCH:'is-patch'};
 export function ApiPanel(){
- const {value,error}=useRead('/api/mcp/overview');
- const routes=[['POST','/v1/images/generations','生图（Qwen-Image / Anima），同步'],['POST','/v1/images/edits','Qwen 编辑，同步'],['POST','/v1/videos/generations','视频生成（H3），同步'],['POST','/v1/media/jobs','持久任务（全部媒体能力），返回 202'],['GET','/v1/models','聊天模型与已保存额度'],['GET','/v1/media/models','媒体模型目录，不加载模型'],['GET','/v1/capabilities','能力、主推与降级顺序'],['POST','/v1/chat/completions','聊天 / SSE'],['POST','/v1/media/assets?kind=image','上传素材（二进制）'],['GET','/v1/media/jobs/{job_id}','查询任务，可短等待'],['POST','/v1/media/jobs/{job_id}/cancel','派发前取消'],['GET','/v1/media/artifacts/{artifact_id}','作品元数据'],['GET','/v1/media/artifacts/{artifact_id}/content','下载作品（二进制）']];
- return <div className="control-center"><section className="mcp-card"><h2>统一 API</h2><p><code>http://127.0.0.1:18982/v1</code></p><p className="note">聊天目录与媒体目录分开。API 和 MCP 共享底层执行服务与 GPU Coordinator；持久媒体 API 是本机接口，未通过公网代理开放。</p><p className="note">公网 API 必须携带有效 Bearer 密钥。本机同步 API 保留可信调用兼容；显式密钥按额度管理。持久媒体 API / MCP 必须使用专用有效密钥。</p><div className="task-table-wrap"><table className="task-table"><thead><tr><th>方法</th><th>路径</th><th>用途</th></tr></thead><tbody>{routes.map(([method,path,purpose])=><tr key={path+method}><td>{method}</td><td><code>{path}</code></td><td>{purpose}</td></tr>)}</tbody></table></div></section><section className="mcp-card"><h2>媒体能力</h2>{error&&<p role="alert">{error}</p>}<div className="mcp-models">{value?.capabilities?.map(route=><div key={route.capability}><strong>{route.label} · <code>{route.tool}</code></strong><p>主推 <code>{route.primary}</code>{route.fallbacks.length?' · 降级 '+route.fallbacks.join(' → '):''}</p><p>{route.sync?'同步 '+route.sync+' · ':''}持久任务 /v1/media/jobs</p></div>)}</div><p className="note">请求不带 model（或 model=auto）时走主推；点名模型不降级。主推与降级在「引擎」页设置。</p></section></div>;
+ const {value,error}=useRead('/api/mcp/api');
+ if(error)return <div className="control-center"><div className="empty">读取失败：{String(error.message??error)}</div></div>;
+ if(!value)return <div className="control-center"><div className="empty">正在读取接口…</div></div>;
+ return <div className="control-center">
+  <section className="mcp-card"><h2>统一 API</h2><p><code>{value.base}</code></p>
+   <p className="note">API 与 MCP 共享底层执行服务与 GPU Coordinator。接口随已启用的引擎登记：同步路径由各能力自己提供，停用后即消失。</p>
+   <p className="api-access">{Object.entries(value.access).map(([k,v])=><span key={k} className={'api-badge is-'+k}>{v}</span>)}<span className="muted tiny">公网接口必须带有效 Bearer 密钥；持久媒体接口只在本机，并要求专用密钥。</span></p></section>
+  {value.groups.map(g=><section className="mcp-card" key={g.id}>
+   <div className="charthead"><h2>{g.label}</h2><span className="muted tiny">{g.routes.length} 个</span></div><p className="note">{g.note}</p>
+   <div className="task-table-wrap"><table className="task-table api-table"><thead><tr><th>方法</th><th>路径</th><th>用途</th><th>范围</th></tr></thead><tbody>
+    {g.routes.map(r=><tr key={r.method+r.path}><td><span className={'api-method '+(METHOD_CLASS[r.method]??'')}>{r.method}</span></td><td><code>{r.path}</code></td>
+     <td>{r.purpose}{r.models&&<small className="api-models">主推 <code>{r.models.primary}</code>{r.models.providers.length>1&&<> · 可用 {r.models.providers.join('、')}</>}</small>}</td>
+     <td><span className={'api-badge is-'+r.access}>{value.access[r.access]}</span></td></tr>)}
+   </tbody></table></div></section>)}
+  <section className="mcp-card"><div className="charthead"><h2>可提交的持久任务</h2><span className="muted tiny">POST /v1/media/jobs 的 tool · {value.job_tools.length} 个能力</span></div>
+   <p className="note">与 MCP 的生成工具同源：只列出已启用引擎提供的能力，带 task 的工具用 task 选择具体工作。</p>
+   <div className="task-table-wrap"><table className="task-table api-table"><thead><tr><th>tool</th><th>task</th><th>能力</th><th>分类</th><th>模型</th></tr></thead><tbody>
+    {value.job_tools.map(t=><tr key={t.capability}><td><code>{t.tool}</code></td><td>{t.task?<code>{t.task}</code>:'—'}</td><td>{t.label}</td><td>{t.category??'—'}</td><td><code>{t.primary}</code>{t.providers.length>1&&<small className="api-models"> 备用 {t.providers.filter(p=>p!==t.primary).join('、')}</small>}</td></tr>)}
+   </tbody></table></div></section>
+ </div>;
 }

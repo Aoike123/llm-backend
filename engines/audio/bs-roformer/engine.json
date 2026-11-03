@@ -36,6 +36,48 @@
       "log_name": "audio.cpp · BS-RoFormer",
       "summary": "把音频分成人声与伴奏两轨，用于去背景音乐后做克隆参考"
     },
+    "surface": {
+      "audio.separate": {
+        "order": 40,
+        "group": "process_audio",
+        "task": "separate",
+        "tool": "separate_audio",
+        "kind": "audio",
+        "label": "人声分离",
+        "legacy_groups": {
+          "generate_audio": {}
+        },
+        "group_info": {
+          "label": "音频处理",
+          "summary": "人声分离、语音识别",
+          "description": "Create an audio analysis job on an imported clip. Poll get_job."
+        },
+        "category": {
+          "id": "audio",
+          "label": "音频处理",
+          "summary": "人声分离、语音识别"
+        },
+        "description": "split audio_asset_id into vocals and accompaniment artifacts",
+        "base": {
+          "request_id": {
+            "$use": "request_id"
+          },
+          "audio_asset_id": {
+            "$use": "id",
+            "description": "Imported audio asset_id (import_media kind=audio)."
+          }
+        },
+        "required": [
+          "request_id",
+          "audio_asset_id"
+        ],
+        "example": {
+          "request_id": "separate-001",
+          "task": "separate",
+          "audio_asset_id": "asset_example"
+        }
+      }
+    },
     "models": [
       {
         "id": "bs-roformer",

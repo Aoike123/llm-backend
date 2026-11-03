@@ -36,6 +36,48 @@
       "log_name": "audio.cpp · Qwen3-ASR",
       "summary": "把音频转成文本；也为语音克隆自动补全参考音频的逐字文本"
     },
+    "surface": {
+      "audio.transcribe": {
+        "order": 41,
+        "group": "process_audio",
+        "task": "transcribe",
+        "tool": "transcribe_audio",
+        "kind": "text",
+        "label": "语音识别",
+        "legacy_groups": {
+          "generate_audio": {}
+        },
+        "group_info": {
+          "label": "音频处理",
+          "summary": "人声分离、语音识别",
+          "description": "Create an audio analysis job on an imported clip. Poll get_job."
+        },
+        "category": {
+          "id": "audio",
+          "label": "音频处理",
+          "summary": "人声分离、语音识别"
+        },
+        "description": "transcribe audio_asset_id; the transcript is a JSON artifact and metrics.text",
+        "base": {
+          "request_id": {
+            "$use": "request_id"
+          },
+          "audio_asset_id": {
+            "$use": "id",
+            "description": "Imported audio asset_id (import_media kind=audio)."
+          }
+        },
+        "required": [
+          "request_id",
+          "audio_asset_id"
+        ],
+        "example": {
+          "request_id": "transcribe-001",
+          "task": "transcribe",
+          "audio_asset_id": "asset_example"
+        }
+      }
+    },
     "models": [
       {
         "id": "qwen3-asr",

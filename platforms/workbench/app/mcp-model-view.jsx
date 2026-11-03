@@ -9,11 +9,12 @@ const chars=value=>(typeof value==='string'?value:JSON.stringify(value)).length;
 const n=v=>v.toLocaleString('zh-CN');
 // Plain-language name and purpose per tool; a tool not listed here still shows, with the first
 // sentence of its own description, so new tools never need a console change to appear.
-const INFO={browse_media:['浏览分类','先看有哪些分类；打开一个，才列出它的工具','entry'],generate_image:['图像生成','出图；给参考图则为编辑','make'],generate_video:['视频生成','文生、图生、参考生视频','make'],generate_speech:['语音合成','合成语音，可克隆音色','make'],process_audio:['音频处理','人声分离、语音识别','make'],
-  register_voice:['注册音色','把一段人声存成可复用的音色','voice'],search_voices:['搜索音色','按名称、分组、文本模糊查找','voice'],update_voice:['音色改名','改名称或分组','voice'],
+const INFO={browse_media:['浏览分类','先看有哪些分类；打开一个，才列出它的工具','entry'],
+  search_voices:['搜索音色','按名称、分组、文本模糊查找','voice'],update_voice:['音色改名','改名称或分组','voice'],
   list_media_models:['查看模型','模型清单；给 model 看完整参数','prep'],import_media:['导入素材','本机图片、视频、音频 → 素材 ID','prep'],
   get_job:['查询任务','看进度，可等待 20 秒','job'],list_jobs:['任务列表','最近的任务','job'],cancel_job:['取消任务','取消排队或可中断的任务','job'],get_artifact:['获取作品','本机路径，可下载到工作区','job']};
-const infoOf=tool=>INFO[tool.name]??[tool.name,(tool.description??'').split(/(?<=[.。])\s/)[0]];
+// Gateway tools are named here; generation tools name themselves in the engine packages (view.tool_info).
+const infoOf=(tool,declared)=>declared?.[tool.name]?[declared[tool.name].label,declared[tool.name].summary]:INFO[tool.name]??[tool.name,(tool.description??'').split(/(?<=[.。])\s/)[0]];
 function Bar({value,max}){return <span className="graph-bar"><i style={{width:Math.max(2,value/max*100)+'%'}}/></span>;}
 function Node({id,title,label,sub,size,max,selected,highlight,onSelect,children}){
   return <button className={'graph-node'+(selected?' is-selected':'')+(highlight?' is-highlight':'')} onClick={()=>onSelect(id)} aria-pressed={selected}>
@@ -45,7 +46,7 @@ export default function McpModelView({view}){
   const opening=chars(view.instructions)+sum(view.initial),opens=c=>sum(c.tools),widest=Math.max(0,...categories.map(opens));
   const allAtOnce=chars(view.instructions)+sum(tools.map(t=>t.name).filter(name=>!view.initial.includes(name)));
   const max=Math.max(...tools.map(chars),chars(view.instructions));
-  const node=(name)=>{const t=byName[name];if(!t)return null;const [label,sub]=infoOf(t);
+  const node=(name)=>{const t=byName[name];if(!t)return null;const [label,sub]=infoOf(t,view.tool_info);
     return <Node key={name} id={'tool:'+name} title={name} label={label} size={chars(t)} max={max} sub={sub} selected={selected==='tool:'+name} onSelect={setSelected}><Chips tool={t} onHover={setHover}/></Node>;};
   const tool=tools.find(t=>'tool:'+t.name===selected);
   const detail=selected==='instructions'?{title:'服务说明（initialize 时随协议下发）',text:view.instructions}

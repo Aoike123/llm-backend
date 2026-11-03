@@ -4,7 +4,7 @@ import {dirname} from 'node:path';
 import {ApiError} from './api-errors.mjs';
 
 const hash=value=>createHash('sha256').update(value).digest('hex');
-const publicPaths=new Set(['/v1/models','/v1/media/models','/v1/chat/completions','/v1/images/generations','/v1/images/edits','/v1/videos/generations']);
+import {publicPaths} from './api-catalog.mjs';
 const integer=(n,min,max,label)=>{if(!Number.isInteger(n)||n<min||n>max)throw new Error(`${label}应为 ${min}–${max} 的整数`);return n;};
 const name=value=>{if(typeof value!=='string'||!value.trim()||value.trim().length>80)throw new Error('名称需要 1–80 个字符');return value.trim();};
 const requestLimits=value=>({maxConcurrent:integer(value.maxConcurrent,1,32,'并发'),requestsPerMinute:integer(value.requestsPerMinute,1,60000,'每分钟请求数')});
@@ -107,30 +107,56 @@ export function linkCoordinator(store,coordinator){
 }
 
 function json(res,status,value){res.writeHead(status,{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store'});res.end(JSON.stringify(value));}
+// The management endpoints exist only on the local console port: a local Host, same-origin
+// requests, JSON bodies. Returns true when the request was refused.
+export function refuseNonLocal(req,res){
+  const host=req.headers.host??'';
+  if(!/^(?:localhost|127\.0\.0\.1|\[::1\])(?::\d+)?$/.test(host)||req.headers['sec-fetch-site']==='cross-site'){json(res,403,{error:'仅限本机控制台'});return true;}
+  if(req.headers.origin){try{const origin=new URL(req.headers.origin);if(!['http:','https:'].includes(origin.protocol)||origin.host!==host)throw new Error();}catch{json(res,403,{error:'仅限同源控制台'});return true;}}
+  return false;
+}
+export async function readJson(req){
+  const chunks=[];let size=0;for await(const chunk of req){size+=chunk.length;if(size>16384)throw new Error('请求过大');chunks.push(chunk);}
+  const value=JSON.parse(Buffer.concat(chunks));if(!value||typeof value!=='object'||Array.isArray(value))throw new Error('JSON object required');return value;
+}
+export function publicManagement(exposure){
+  return async(req,res)=>{
+    if(refuseNonLocal(req,res))return;
+    if(req.method==='GET')return json(res,200,await exposure.snapshot());
+    if(req.method!=='POST')return json(res,405,{error:'Method not allowed'});
+    if(process.env.WORKBENCH_READ_ONLY==='1')return json(res,403,{error:'Preview is read-only'});
+    if(req.headers['content-type']?.split(';')[0]!=='application/json')return json(res,415,{error:'Use application/json'});
+    try{
+      const input=await readJson(req);
+      if(input.action==='probe'){await exposure.probe();return json(res,200,await exposure.snapshot());}
+      return json(res,200,await exposure.mutate(input));
+    }catch(e){return json(res,400,{error:e.message});}
+  };
+}
 export function keyManagement(store){
   return async(req,res)=>{
-    const host=req.headers.host??'';
-    if(!/^(?:localhost|127\.0\.0\.1|\[::1\])(?::\d+)?$/.test(host)||req.headers['sec-fetch-site']==='cross-site')return json(res,403,{error:'仅限本机控制台'});
-    if(req.headers.origin){try{const origin=new URL(req.headers.origin);if(!['http:','https:'].includes(origin.protocol)||origin.host!==host)throw new Error();}catch{return json(res,403,{error:'仅限同源控制台'});}}
+    if(refuseNonLocal(req,res))return;
     if(req.method==='GET')return json(res,200,store.snapshot());
     if(req.method!=='POST')return json(res,405,{error:'Method not allowed'});
     if(process.env.WORKBENCH_READ_ONLY==='1')return json(res,403,{error:'Preview is read-only'});
     if(req.headers['content-type']?.split(';')[0]!=='application/json')return json(res,415,{error:'Use application/json'});
     try{
-      const chunks=[];let size=0;for await(const chunk of req){size+=chunk.length;if(size>16384)throw new Error('请求过大');chunks.push(chunk);}
-      const value=JSON.parse(Buffer.concat(chunks));if(!value||typeof value!=='object'||Array.isArray(value))throw new Error('JSON object required');
-      return json(res,200,await store.mutate(value));
+      return json(res,200,await store.mutate(await readJson(req)));
     }catch(e){return json(res,400,{error:e.code?'保存密钥配置失败':e.message});}
   };
 }
 
 // The public reverse proxy sets this header. Local trusted integrations keep their
 // original access; explicitly supplied keys use the same policy on either route.
-export function secureApi(api,store,{coordinator}={}){
+export function secureApi(api,store,{coordinator,exposure}={}){
   if(coordinator)linkCoordinator(store,coordinator);
   return async(req,res)=>{
     const path=new URL(req.url,'http://localhost').pathname;
-    if(req.headers['x-workbench-public']==='1'&&!publicPaths.has(path)&&!/^\/artifacts\/[a-f0-9]{32}\.mp4$/.test(path))return json(res,404,{error:'Not found'});
+    const viaProxy=req.headers['x-workbench-public']==='1',probe=viaProxy&&req.headers['x-workbench-probe']==='1';
+    // Counted per route; the console's own reachability probe is not traffic.
+    const count=outcome=>{if(viaProxy&&!probe)exposure?.record(path,outcome);};
+    // A public request reaches only the routes switched on in the console (all public ones without it).
+    if(viaProxy&&!(exposure?exposure.allows(path):publicPaths().has(path)||/^\/artifacts\/[a-f0-9]{32}\.mp4$/.test(path))){count('blocked');return json(res,404,{error:'Not found'});}
     const protectedPath=path.startsWith('/v1/')||path.startsWith('/artifacts/');
     const auth=req.headers.authorization,required=req.headers['x-workbench-public']==='1'||(auth&&auth!=='Bearer local');
     if(!protectedPath||!required||req.method==='OPTIONS')return api(req,res);
@@ -139,9 +165,10 @@ export function secureApi(api,store,{coordinator}={}){
     // Counts the request rate; the handler then queues on the coordinator under this key.
     const admit=async(engine)=>{store.admit(key);return {key:key.id,enqueuedAt,timeout:store.settings().queueWaitSeconds};};
     try{
-      if(!key)throw new ApiError(auth?'API_KEY_INVALID':'API_KEY_REQUIRED');
+      if(!key){count('denied');throw new ApiError(auth?'API_KEY_INVALID':'API_KEY_REQUIRED');}
+      count('served');
       const discovery=req.method==='GET'&&['/v1/models','/v1/media/models'].includes(path);
-      const inference=coordinator&&req.method==='POST'&&publicPaths.has(path)&&!discovery;
+      const inference=coordinator&&req.method==='POST'&&publicPaths().has(path)&&!discovery;
       if(inference){
         releasePreparation=store.reservePreparation(key,req.headers['content-length']);
         // handlers validates and identifies the engine before queueing on the

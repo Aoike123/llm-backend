@@ -39,6 +39,7 @@
       "log_name": "ComfyUI · Anima",
       "summary": "文生图（Turbo 10 步 / Aesthetic 30 步）与图生图重绘；与 H3 共用 ComfyUI，互相切换不重启"
     },
+    "surface_files": ["../../shared/capabilities/image.surface.json"],
     "models": [
       {
         "id": "anima",

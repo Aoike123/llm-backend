@@ -1,0 +1,92 @@
+{
+  "image.generate": {
+    "order": 10,
+    "group": "generate_image",
+    "task": "generate",
+    "tool": "generate_image",
+    "kind": "image",
+    "label": "生图",
+    "sync": "/v1/images/generations",
+    "group_info": {
+      "label": "图像生成",
+      "summary": "出图；给参考图则为编辑",
+      "description": "Create an image job: text to image, or edit when reference_asset_ids are given. Poll get_job."
+    },
+    "category": {
+      "id": "image",
+      "label": "图像",
+      "summary": "文生图，以及基于参考图的编辑"
+    },
+    "description": "text to image",
+    "base": {
+      "request_id": {
+        "$use": "request_id"
+      },
+      "prompt": {
+        "$use": "prompt"
+      },
+      "seed": {
+        "$use": "seed"
+      }
+    },
+    "required": [
+      "request_id",
+      "prompt"
+    ],
+    "example": {
+      "request_id": "image-001",
+      "prompt": "A red ceramic cup"
+    }
+  },
+  "image.edit": {
+    "order": 11,
+    "group": "generate_image",
+    "task": "edit",
+    "tool": "edit_image",
+    "kind": "image",
+    "label": "图像编辑",
+    "sync": "/v1/images/edits",
+    "group_info": {
+      "label": "图像生成",
+      "summary": "出图；给参考图则为编辑",
+      "description": "Create an image job: text to image, or edit when reference_asset_ids are given. Poll get_job."
+    },
+    "category": {
+      "id": "image",
+      "label": "图像",
+      "summary": "文生图，以及基于参考图的编辑"
+    },
+    "description": "edit 1–4 imported images given as reference_asset_ids (chosen automatically when they are present)",
+    "infer": {
+      "present": "reference_asset_ids"
+    },
+    "base": {
+      "request_id": {
+        "$use": "request_id"
+      },
+      "prompt": {
+        "$use": "prompt"
+      },
+      "seed": {
+        "$use": "seed"
+      },
+      "reference_asset_ids": {
+        "$use": "id_list",
+        "max": 4,
+        "min": 1
+      }
+    },
+    "required": [
+      "request_id",
+      "prompt",
+      "reference_asset_ids"
+    ],
+    "example": {
+      "request_id": "edit-001",
+      "prompt": "Change the cup to blue",
+      "reference_asset_ids": [
+        "asset_example"
+      ]
+    }
+  }
+}

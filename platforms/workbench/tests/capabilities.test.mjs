@@ -11,7 +11,9 @@ import {MediaJobs} from '../lib/media-jobs.mjs';
 import {AccessKeys} from '../lib/access-keys.mjs';
 import {Coordinator,pause} from '../lib/core.mjs';
 
-const manifest=(engine,models,extra={})=>({name:engine,category:'image',platform:{engine,default_enabled:true,adapter:'adapter.mjs',
+const GENERATE={group:'generate_image',task:'generate',tool:'generate_image',kind:'image',label:'生图',group_info:{label:'图像生成',summary:'出图',description:'Create an image job.'},category:{id:'image',label:'图像',summary:'文生图'},
+  description:'text to image',base:{request_id:{$use:'request_id'},prompt:{$use:'prompt'}},required:['request_id','prompt'],example:{request_id:'i',prompt:'x'}};
+const manifest=(engine,models,extra={})=>({name:engine,category:'image',platform:{engine,default_enabled:true,adapter:'adapter.mjs',surface:{'image.generate':GENERATE},
   runtime:{id:engine,name:engine,port:9000+engine.charCodeAt(0),container:'c-'+engine,launch:[engine,'start']},
   ui:{name:engine,description:'d',symbol:'X',accent:'#fff',panel:'media'},models,...extra}});
 async function packages(t,rows){

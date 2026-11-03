@@ -40,6 +40,47 @@
       "log_name": "ComfyUI · H3",
       "summary": "文本 / 首尾帧 / 多图与视频参考 · 最多9图 + 3视频"
     },
+    "surface": {
+      "video.generate": {
+        "order": 20,
+        "group": "generate_video",
+        "task": "generate",
+        "tool": "generate_video",
+        "aliases": [
+          "run_goldfish_workflow"
+        ],
+        "kind": "video",
+        "label": "视频生成",
+        "sync": "/v1/videos/generations",
+        "group_info": {
+          "label": "视频生成",
+          "summary": "文生、图生、参考生视频",
+          "description": "Create a video job. Poll get_job, then get_artifact."
+        },
+        "category": {
+          "id": "video",
+          "label": "视频",
+          "summary": "文生、图生、参考生视频"
+        },
+        "description": "text / reference to video",
+        "base": {
+          "request_id": {
+            "$use": "request_id"
+          },
+          "prompt": {
+            "$use": "prompt"
+          }
+        },
+        "required": [
+          "request_id",
+          "prompt"
+        ],
+        "example": {
+          "request_id": "video-001",
+          "prompt": "A continuous cinematic shot."
+        }
+      }
+    },
     "models": [
       {
         "id": "minimax-h3",

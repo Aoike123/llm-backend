@@ -2,8 +2,8 @@
 // capability by declaring it on a model in engine.json; their adapter adds the parameters only
 // that model accepts. Clients see one tool per group (image, video, audio); each capability keeps
 // its own strict schema for validation.
-import {ID,choice,object,CAPABILITIES,TOOL_GROUPS,COMMON_TOOLS,validateSchema,resolveCapability} from './media-tools.mjs';
-export {ID,CAPABILITIES,TOOL_GROUPS,COMMON_TOOLS,capabilityForTool,capabilityForSync,resolveCapability,isGenerationTool,validateToolInput} from './media-tools.mjs';
+import {ID,choice,object,CAPABILITIES,TOOL_GROUPS,COMMON_TOOLS,validateSchema,resolveCapability,categoriesOf,definitionsOf} from './media-tools.mjs';
+export {ID,CAPABILITIES,TOOL_GROUPS,COMMON_TOOLS,defineCapabilities,definitionsOf,capabilityForTool,capabilityForSync,resolveCapability,isGenerationTool,validateToolInput} from './media-tools.mjs';
 import {registry} from './registry.mjs';
 import {runtimeFor,runtimeTopology} from './runtime-topology.mjs';
 export {runtimeTopology};
@@ -76,10 +76,13 @@ export async function tools(){
   const enabled=new Set(routes().map(r=>r.capability)),generated=[];
   for(const group of Object.keys(TOOL_GROUPS)){const members=Object.keys(CAPABILITIES).filter(c=>CAPABILITIES[c].group===group&&enabled.has(c));if(members.length)generated.push(await groupTool(group,members));}
   // Keep the catalog order stable: generation tools first, then directory, jobs and artifacts.
-  return [...generated,...COMMON_TOOLS];
+  // The category fields list what the enabled engines declare, not a fixed set.
+  const ids=categoriesOf([...generated,...COMMON_TOOLS]).map(c=>c.id);
+  const common=COMMON_TOOLS.map(tool=>tool.inputSchema.properties.category?{...tool,inputSchema:{...tool.inputSchema,properties:{...tool.inputSchema.properties,category:{...tool.inputSchema.properties.category,...choice(ids)}}}}:tool);
+  return [...generated,...common];
 }
 // The MCP view: sync-API-only facts stay out; full parameter schemas are given per model on request.
-export async function catalog(){return {...ID,tools:await tools(),models:(await mediaModels()).map(({sync_api,...model})=>model),capabilities:routes().map(({sync,...route})=>route),workflows:await workflows()};}
+export async function catalog(){return {...ID,tools:await tools(),models:(await mediaModels()).map(({sync_api,...model})=>model),capabilities:routes().map(({sync,...route})=>route),workflows:await workflows(),definitions:definitionsOf()};}
 export async function workflows(){
   const rows=[];for(const model of registry.models())rows.push(...((await adapterFor(model))?.workflows??[]));return rows;
 }

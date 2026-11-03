@@ -42,7 +42,7 @@ export default function VoiceLibrary({engine=null}){
   return <div className="voice-library">
     <datalist id="voice-groups">{value.groups.map(g=><option key={g} value={g}/>)}</datalist>
     <div className="voice-toolbar" role="group" aria-label="音色分组"><button aria-pressed={!filter||!byGroup.has(filter)} onClick={()=>setFilter(null)}>全部<small>{value.total}</small></button>{names.map(g=><button key={g} aria-pressed={filter===g} onClick={()=>setFilter(g)}>{g}<small>{byGroup.get(g).length}</small></button>)}</div>
-    {!value.total&&<div className="empty voice-empty">还没有注册音色。用 <code>register_voice</code> 传入一段 10–20 秒的干净人声和名称即可注册，之后在合成时用 <code>references[].voice_artifact_id</code> 引用。</div>}
+    {!value.total&&<div className="empty voice-empty">还没有注册音色。用 <code>{value.register_tool??'register_voice'}</code> 传入一段 10–20 秒的干净人声和名称即可注册，之后在合成时用 <code>references[].voice_artifact_id</code> 引用。</div>}
     {shown.map(g=><section className="voice-group" key={g}><h2>{g}<small>{byGroup.get(g).length} 个</small></h2><div className="voice-grid">{byGroup.get(g).map(v=><VoiceCard key={v.artifact_id} voice={v} groups={value.groups} onSaved={()=>setRevision(n=>n+1)}/>)}</div></section>)}
   </div>;
 }
