@@ -60,7 +60,7 @@
           "label": "音频处理",
           "summary": "人声分离、语音识别"
         },
-        "description": "transcribe audio_asset_id; the transcript is a JSON artifact and metrics.text",
+        "description": "transcribe audio_asset_id; the transcript is a JSON artifact (text, plus timed words and segments unless timestamps=false) and metrics.text",
         "base": {
           "request_id": {
             "$use": "request_id"
@@ -68,6 +68,11 @@
           "audio_asset_id": {
             "$use": "id",
             "description": "Imported audio asset_id (import_media kind=audio)."
+          },
+          "timestamps": {
+            "type": "boolean",
+            "default": true,
+            "description": "Return a timed track (word- and sentence-level start/end seconds) alongside the text. Default true; false returns plain text only and skips alignment."
           }
         },
         "required": [
@@ -77,7 +82,8 @@
         "example": {
           "request_id": "transcribe-001",
           "task": "transcribe",
-          "audio_asset_id": "asset_example"
+          "audio_asset_id": "asset_example",
+          "timestamps": true
         }
       }
     },
@@ -93,7 +99,8 @@
             "transcribe"
           ],
           "languages": "zh, en, yue, ja, ko 等 30 种及中文方言",
-          "max_seconds": 1800
+          "max_seconds": 1800,
+          "timestamps": "word-level (Qwen3 ForcedAligner 0.6B)"
         }
       }
     ]

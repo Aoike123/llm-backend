@@ -33,7 +33,10 @@ MODELS = [
      "session_options": {"fish_drama3.cpu_expert_layers": "0", "fish_drama3.perf_mode": "cuda_perf",
                          "fish_drama3.context_length": "8192"}},
     {"id": "bs-roformer", "family": "bs_roformer", "path": "models/bs-roformer-ep368-q8_0.gguf", "task": "sep"},
-    {"id": "qwen3-asr", "family": "qwen3_asr", "path": "models/qwen3-asr-1.7b-q8_0.gguf", "task": "asr"},
+    {"id": "qwen3-asr", "family": "qwen3_asr", "path": "models/qwen3-asr-1.7b-q8_0.gguf", "task": "asr",
+     # Timed transcripts: the forced aligner gives word times, PulseVAD cuts long audio at pauses.
+     "session_options": {"qwen3_asr.forced_aligner_model_path": "/audiocpp/models/Qwen3-ForcedAligner-0.6B-GGUF/qwen3-forced-aligner-0.6b-q8_0.gguf",
+                         "qwen3_asr.vad_model_path": "/audiocpp/models/PulseVAD-GGUF/pulsevad-2.1k-f32.gguf"}},
 ]
 
 
@@ -58,6 +61,10 @@ def health(timeout=2):
 
 def prepare():
     missing = [str(DATA / m["path"]) for m in MODELS if not (DATA / m["path"]).exists()]
+    for model in MODELS:
+        for value in model.get("session_options", {}).values():
+            if value.startswith("/audiocpp/") and not (DATA / value.removeprefix("/audiocpp/")).exists():
+                missing.append(str(DATA / value.removeprefix("/audiocpp/")))
     missing += [str(p) for p in (DATA / "bin/audiocpp_server", sdk.path() / "_rocm_sdk_devel/lib/libamdhip64.so.7") if not p.exists()]
     for item in missing:
         print("缺少：" + item)
