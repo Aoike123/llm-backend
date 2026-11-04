@@ -1,6 +1,6 @@
 # 接口与控制台结构（MCP / API / 控制台）
 
-更新：2026-10-23。[媒体 MCP](MEDIA_MCP.md) · [API 参考](CURRENT_API.md) · [运行模式](RUNTIME_TOPOLOGY.md)
+更新：2026-11-04。[媒体 MCP](MEDIA_MCP.md) · [API 参考](CURRENT_API.md) · [运行模式](../design/RUNTIME_TOPOLOGY.md)
 
 本页描述三件事的当前结构：对外 API、MCP 工具面、控制台导航。三者共用同一个 Node 进程和同一套 GPU 准入。
 
@@ -18,7 +18,7 @@ MCP 客户端 ──stdio──> platforms/mcp/server.mjs ──HTTP 18982 + Bea
 | 端口 | 监听者 | 职责 |
 | --- | --- | --- |
 | 13000 | Next.js 页面 + 代理 | 控制台；把 `/api/mcp/*`、`/status`、`/metrics`、`/health`、`/data`、`/api/llm-mode`、`/api/engine-logs`、`/v1/*`、`/artifacts/*` 转发给同进程 handler |
-| 18982 | 推理网关（先鉴权） | 聊天、生图、编辑、视频、素材、持久任务、作品 |
+| 18982 | 推理网关（先鉴权） | 聊天、生图、编辑、视频、音频、素材、持久任务、作品；公网请求另受「公网放行」开关约束，见 [公网 API](PUBLIC_API.md) |
 | 18990 | 控制面 | 仅本机 JSON 客户端；拒绝浏览器 Origin；只接受 POST 的租约接口 |
 | 8188 | 独立容器 | ComfyUI 原生队列与执行（不在 Node 进程内） |
 | 18984 | 独立容器 | CPU 视觉编码（LLM 图片输入） |
@@ -26,14 +26,17 @@ MCP 客户端 ──stdio──> platforms/mcp/server.mjs ──HTTP 18982 + Bea
 
 ## 二、API 层
 
-### 生成类（四个）
+### 生成类
 
 | 方法 | 路径 | 说明 |
 | --- | --- | --- |
 | POST | `/v1/images/generations` | 生图（Qwen-Image / Anima），同步返回 |
 | POST | `/v1/images/edits` | 编辑（Qwen，1–4 张参考）或单图重绘（Anima），同步返回 |
 | POST | `/v1/videos/generations` | 视频生成（H3），同步返回 |
+| POST | `/v1/audio/speech`、`/v1/audio/voices`、`/v1/audio/separations`、`/v1/audio/transcriptions` | 音频同步路径：由网关包装持久任务，等完成后返回作品；必须带有效密钥，默认不对公网放行 |
 | POST | `/v1/media/jobs` | 持久任务（图像 / 视频 / 音频），返回 202，MCP 走这条 |
+
+同步路径不是写死的：每个已启用的能力在所属引擎包的 `platform.surface` 里声明自己的 `sync` 路径，停用引擎后路径随之消失（见 [引擎目录](../design/ENGINES.md)）。
 
 ### 目录与素材
 
@@ -100,7 +103,7 @@ MCP 客户端 ──stdio──> platforms/mcp/server.mjs ──HTTP 18982 + Bea
 
 ### 资产存储
 
-状态在内置 NVMe 的 `workspace/data/media/`：`jobs/` 任务 JSON，`materials/` 参考素材（`import_media`），`telemetry/` 调用记录。作品在作品盘 `/media/aoike/Resource_Trad/Assets/`：`images|videos|audio/<YYYY-MM>/<job_id>/`、同步 API 的 `api/`、ComfyUI 的 `canvas/`、手动输出 `manual/<owner>/`。完整说明见 [存储](STORAGE.md)。
+状态在内置 NVMe 的 `workspace/data/media/`：`jobs/` 任务 JSON，`materials/` 参考素材（`import_media`），`telemetry/` 调用记录。作品在作品盘 `/media/aoike/Resource_Trad/Assets/`：`images|videos|audio/<YYYY-MM>/<job_id>/`、同步 API 的 `api/`、ComfyUI 的 `canvas/`、手动输出 `manual/<owner>/`。完整说明见 [存储](../runtime/STORAGE.md)。
 
 ### 调用规范
 
@@ -166,8 +169,8 @@ MCP 客户端 ──stdio──> platforms/mcp/server.mjs ──HTTP 18982 + Bea
 - 视频工具由 `run_goldfish_workflow` 统一为 `generate_video`（旧名兼容）；
 - 新增 `download_artifact` 与下载根限制；
 - MCP 工具从 9 个增加到 10 个，生成类固定为 3 个；2026-10 新增 `generate_audio`，共 11 个、生成类 4 个；2026-11 随 CosyVoice 下线移除，回到 10 个、生成类 3 个；之后生成工具按能力从已启用的引擎生成，数量随启用状态变化；
-- 控制台 MCP 页加入调用规范与工具分组，API 页按“生成 4 / 素材 / 任务 / 作品”重排；
-- 文档同步更新 [媒体 MCP](MEDIA_MCP.md)、[API 参考](CURRENT_API.md)、[运行模式](RUNTIME_TOPOLOGY.md)、[项目现状](PROJECT_STATUS.md)。
+- 控制台 MCP 页加入调用规范与工具分组，API 页重排为生成 / 素材 / 任务 / 作品；
+- 文档同步更新 [媒体 MCP](MEDIA_MCP.md)、[API 参考](CURRENT_API.md)、[运行模式](../design/RUNTIME_TOPOLOGY.md)、[项目现状](../guide/PROJECT_STATUS.md)。
 
 ## 七、相关文件
 

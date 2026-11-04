@@ -1,8 +1,8 @@
 # Next.js AI Workbench
 
-当前接口、参数与调用示例见 [API 清单](../../docs/CURRENT_API.md)。
+当前接口、参数与调用示例见 [API 清单](../../docs/api/CURRENT_API.md)。
 
-当前面板已按总览、任务中心、模型服务、API、MCP、访问管理组织。运行结构见 [当前模式](../../docs/RUNTIME_TOPOLOGY.md)，接入见 [媒体 MCP](../../docs/MEDIA_MCP.md)。
+当前面板已按总览、任务中心、模型服务、API、MCP、访问管理组织。运行结构见 [当前模式](../../docs/design/RUNTIME_TOPOLOGY.md)，接入见 [媒体 MCP](../../docs/api/MEDIA_MCP.md)。
 
 Next.js App Router、React 19 和 Recharts 构成前端；Node.js 常驻进程同时提供页面、引擎合批 GPU 调度、租约与统一推理 API。调度状态在同一个进程内共享，必须单实例运行，不适合 serverless、多 worker 或多副本部署。
 
@@ -16,7 +16,7 @@ npm test
 npm start
 ```
 
-从项目根目录执行 `./lab check` 可同时检查工作台与 Python 组件；仅检查工作台用 `./lab check --suite node`。目录与归档约定见 [开发与整理](../../docs/DEVELOPMENT.md)。
+从项目根目录执行 `./lab check` 可同时检查工作台与 Python 组件；仅检查工作台用 `./lab check --suite node`。目录与归档约定见 [开发与整理](../../docs/guide/DEVELOPMENT.md)。
 
 生产服务由 `ai-workbench-gateway.service` 启动 `launch.sh`，该脚本选择 Node.js 22.19+；可用 `WORKBENCH_NODE` 指定解释器。日常入口 `./lab scheduler start|stop|restart|status|logs` 与 `./lab scheduler switch MODEL` 保留。
 
@@ -32,7 +32,7 @@ npm start
 
 聊天客户端通过 `/v1/models` 发现固定名称 `qwen38-27b-w3a4`；刷新模型列表即可获取最新应用的上下文长度、并发和推理强度信息。图像和视频目录使用自定义 `/v1/media/models`，生成仍分别调用 `/v1/images/generations`、`/v1/images/edits`、`/v1/videos/generations`。媒体引擎不应添加到 DSH 的聊天模型提供方；DSH 需要通过工具或 MCP 包装调用媒体 API，当前 local-media MCP 已提供九个工具。同步视频接口等待结果；持久任务使用 `/v1/media/jobs`，返回的 `/artifacts/*.mp4` 相对地址需按网关地址解析。
 
-LLM 使用统一引擎（256K 技术上限、最多八路），面板编辑上下文、并发、Eager 和 KV 预算；应用时等待当前任务结束，再按所选配置重载引擎。新请求按实际输入加最大输出量预留 KV。满载预算从启动日志和引擎布局计算；未测得容量显示警告，超预算可以保存。详情见 [统一引擎策略](../../docs/LLM_MODES.md)。
+LLM 使用统一引擎（256K 技术上限、最多八路），面板编辑上下文、并发、Eager 和 KV 预算；应用时等待当前任务结束，再按所选配置重载引擎。新请求按实际输入加最大输出量预留 KV。满载预算从启动日志和引擎布局计算；未测得容量显示警告，超预算可以保存。详情见 [统一引擎策略](../../docs/guide/LLM_MODES.md)。
 
 面板采用服务导航与独立的运行监控、模型配置、任务记录标签。默认跟随运行引擎；点击服务只改变浏览范围，不加载或切换引擎。任务与趋势按服务筛选，整卡指标单独标记为共享设备。LLM 的实时值读取实际引擎配置；草稿、已保存配置与实际运行值分别显示。Qwen 配置页与工作台采用统一的石墨灰与淡紫色风格，按任务方案、推理参数、容量预览和应用摘要组织；显存布局明细可展开查看。Qwen 未运行时仍可使用引擎保存的完整布局进行草稿估算，明确标记为历史布局，不作为实时分配或满载验证结果。切换标签或服务不会丢弃当前浏览器中的草稿。
 

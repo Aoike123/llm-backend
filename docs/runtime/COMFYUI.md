@@ -1,6 +1,6 @@
 # ComfyUI 运行时
 
-[文档目录](README.md) · [运行与调度](RUNTIME_TOPOLOGY.md) · [引擎平台化](ENGINE_PLATFORM.md)
+[文档目录](../README.md) · [运行与调度](../design/RUNTIME_TOPOLOGY.md) · [引擎平台化](../archive/ENGINE_PLATFORM.md)
 
 更新：2026-11-02。
 
@@ -8,8 +8,8 @@ ComfyUI 是两个引擎包共用的运行时，本身不是常驻服务：
 
 | 引擎包 | 能力 | ComfyUI 中的图 |
 | --- | --- | --- |
-| [MiniMax H3](../engines/video/pation-model-minimax-h3/README.md)（`h3`） | `video.generate` | 金鱼原版工作流（持久任务）、四个 H3 图预设（同步 API） |
-| [Anima](../engines/image/anima/README.md)（`anima`） | `image.generate`、`image.edit` | Anima Turbo / Aesthetic 文生图、图生图 |
+| [MiniMax H3](../../engines/video/pation-model-minimax-h3/README.md)（`h3`） | `video.generate` | 金鱼原版工作流（持久任务）、四个 H3 图预设（同步 API） |
+| [Anima](../../engines/image/anima/README.md)（`anima`） | `image.generate`、`image.edit` | Anima Turbo / Aesthetic 文生图、图生图 |
 
 两者共用 GPU 容器 `paiton-h3-comfyui-1`（`http://127.0.0.1:8188`）。调度器把它们视为同一运行时，H3 与 Anima 之间切换不重启容器。
 
@@ -87,7 +87,7 @@ API 与 MCP 任务的产物写在任务目录（见 [存储](STORAGE.md)）：H3
 - 文生视频与首尾帧使用 FL2VA；多图、参考视频和混合参考使用 Ref2VA。
 - 同步 API 默认 Turbo8、864×480、124 帧；参考质量档默认 20 步。
 - 多参考上限：9 张图、3 段视频，视频总时长 ≤15 秒。这是接入上限，不代表任意分辨率、时长和素材组合都已验收。
-- 长参考的文本编码依赖 `h3_attention_patch`，原因与实测见 [H3 多参考编码](H3_REFERENCE_ENCODE.md)。
+- 长参考的文本编码依赖 `h3_attention_patch`，原因与实测见 [H3 多参考编码](../engine-notes/H3_REFERENCE_ENCODE.md)。
 
 ## Anima
 
@@ -99,7 +99,7 @@ Anima 是 CircleStone Labs 与 Comfy Org 发布的 2B 动漫与插画模型，�
 | Aesthetic | CFG 4、30 步 er_sde，不加 `score_*` 标签 | 文生图 15.9 秒 |
 
 - 依赖 `h3_attention_patch` 的全容器 math SDPA 修复；没有这个修复，KSampler 会报 `hipErrorInvalidValue`。
-- 权重约 9.8 GB，按 [锁文件](../engines/image/anima/config/models.lock.json) 校验下载：
+- 权重约 9.8 GB，按 [锁文件](../../engines/image/anima/config/models.lock.json) 校验下载：
 
   ```bash
   python3 .workbench/scripts/fetch-locked-checkpoint.py --lock engines/image/anima/config/models.lock.json --destination workspace/data/comfy/models

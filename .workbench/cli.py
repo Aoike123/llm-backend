@@ -257,7 +257,7 @@ def main(argv=None):
         elif args and args[0] == "bench":
             kind = {"image-hq": None, "video-audio": "video-audio"}[profile]
             if kind is None:
-                raise RuntimeError("此配置尚未提供对应的独立测速入口，见 docs/EVALUATION.md。")
+                raise RuntimeError("此配置尚未提供对应的独立测速入口，见 docs/evaluation/EVALUATION.md。")
             args.insert(1, kind)
         elif args and args[0] not in ("stop", "status", "doctor", "--help", "-h"):
             raise RuntimeError("媒体引擎支持 start、stop、status、doctor 及已接入的 bench。")

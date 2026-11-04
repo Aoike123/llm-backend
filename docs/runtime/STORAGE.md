@@ -1,6 +1,6 @@
 # 存储
 
-[文档目录](README.md) · [运行时镜像](RUNTIME_IMAGES.md) · [引擎目录](ENGINES.md) · [本机媒体 MCP](MEDIA_MCP.md)
+[文档目录](../README.md) · [运行时镜像](RUNTIME_IMAGES.md) · [引擎目录](../design/ENGINES.md) · [本机媒体 MCP](../api/MEDIA_MCP.md)
 
 更新：2026-11-02。
 
@@ -50,7 +50,7 @@ Assets/
 "storage": {"data": ["workspace/data/comfy"]}
 ```
 
-一个目录可以由多个包同时声明，例如 H3 和 Anima 都声明 `workspace/data/comfy`，三个音频引擎都声明 `workspace/data/audio/audiocpp`，表示共用。`./lab engine status` 显示每个包占用的数据和镜像；`./lab engine remove` 只删除没有被其他包声明的目录（见 [引擎目录](ENGINES.md#接入升级与卸载)）。
+一个目录可以由多个包同时声明，例如 H3 和 Anima 都声明 `workspace/data/comfy`，三个音频引擎都声明 `workspace/data/audio/audiocpp`，表示共用。`./lab engine status` 显示每个包占用的数据和镜像；`./lab engine remove` 只删除没有被其他包声明的目录（见 [引擎目录](../design/ENGINES.md#接入升级与卸载)）。
 
 ## 行为
 

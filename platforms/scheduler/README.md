@@ -14,4 +14,4 @@
 
 验证：`cd platforms/workbench && npm test`；驻留实验辅助工具验证：`python3 -m unittest discover -s platforms/scheduler/tests -v`。
 
-API 与 MCP 共享调度，ComfyUI 只执行 H3 原生工作流；直接画布的队列与持久任务分开。见 [当前模式](../../docs/RUNTIME_TOPOLOGY.md)。
+API 与 MCP 共享调度，ComfyUI 只执行 H3 原生工作流；直接画布的队列与持久任务分开。见 [当前模式](../../docs/design/RUNTIME_TOPOLOGY.md)。

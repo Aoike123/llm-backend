@@ -1,6 +1,6 @@
 # Qwen-Image 2.1 / Paiton
 
-[文档目录](../../../docs/README.md) · [引擎目录](../../../docs/ENGINES.md)
+[文档目录](../../../docs/README.md) · [引擎目录](../../../docs/design/ENGINES.md)
 
 类别：image。项目 NVMe 权重9.33GB已完成 SHA256 校验。ROCm 10.1 下文生图1024/2048、透明图与单图编辑均已通过中央 ComfyUI 实测；默认 schedule-int8、native fusions。1024热请求约19.96秒，2048约107.46秒。编辑改色有效，但纹理保真未验收。
 

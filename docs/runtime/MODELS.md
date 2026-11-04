@@ -1,8 +1,8 @@
 # 本地模型复用
 
-[文档目录](README.md)
+[文档目录](../README.md)
 
-本页记录资源盘文本权重的来源与复用，不是全部已部署模型的清单。资源目录：`/media/aoike/Resource_AI/LLM_Assets`；归档清单包含下述文本模型。媒体模型位于项目 `workspace/data/image/` 与 `workspace/data/video/`，部署状态见 [项目现状](PROJECT_STATUS.md)。
+本页记录资源盘文本权重的来源与复用，不是全部已部署模型的清单。资源目录：`/media/aoike/Resource_AI/LLM_Assets`；归档清单包含下述文本模型。媒体模型位于项目 `workspace/data/image/` 与 `workspace/data/video/`，部署状态见 [项目现状](../guide/PROJECT_STATUS.md)。
 
 ## 已接入的 Paiton 组合
 
@@ -35,4 +35,4 @@ cd /mnt/Code/llm-backend
 - `models/qwen3.8-27b-vllm/Qwen3.8-27B-DFlash2-W4A16`：约 1.19 GiB，与已接入的 FP8 草稿格式不同。
 - `Strata-workspace/data/models/swift-IQ3_XXS/`：两段 Flash Next GGUF，另有视觉 mmproj 和 Strata 打包运行时文件；不能直接替代当前 Paiton NVFP4 / INT3 组合。
 
-这些候选模型保留在原目录，后续可作为其他运行时或量化对照方案。已验证的媒体部署与运行路径见 [服务说明](SERVICES.md) 和 [引擎目录](ENGINES.md)。
+这些候选模型保留在原目录，后续可作为其他运行时或量化对照方案。已验证的媒体部署与运行路径见 [服务说明](../guide/SERVICES.md) 和 [引擎目录](../design/ENGINES.md)。

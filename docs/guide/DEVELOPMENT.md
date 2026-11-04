@@ -1,6 +1,6 @@
 # 开发与项目整理
 
-[文档目录](README.md)
+[文档目录](../README.md)
 
 ## 目录职责
 
@@ -22,7 +22,7 @@
 
 ## 存储
 
-作品、任务状态和引擎数据的位置只在 `platforms/platform.json` 的 `storage` 段定义，布局、离线行为和 2026-11-02 的迁移记录见 [存储](STORAGE.md)。报告、研究资料、设计稿和归档仍通过 `workspace/reports`、`workspace/research` 等链接放在 `~/文档/llm-backend/`：
+作品、任务状态和引擎数据的位置只在 `platforms/platform.json` 的 `storage` 段定义，布局、离线行为和 2026-11-02 的迁移记录见 [存储](../runtime/STORAGE.md)。报告、研究资料、设计稿和归档仍通过 `workspace/reports`、`workspace/research` 等链接放在 `~/文档/llm-backend/`：
 
 | 项目中的入口 | 实际目录 |
 |---|---|

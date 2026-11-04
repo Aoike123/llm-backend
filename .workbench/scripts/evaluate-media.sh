@@ -8,7 +8,7 @@ output="$root/workspace/reports/$kind-$stamp"
 mkdir -p "$output"
 case "$kind" in
   geneval)
-    : "${GENEVAL_PYTHON:?Set GENEVAL_PYTHON to a separately configured GenEval Python interpreter; see docs/EVALUATION.md}"
+    : "${GENEVAL_PYTHON:?Set GENEVAL_PYTHON to a separately configured GenEval Python interpreter; see docs/evaluation/EVALUATION.md}"
     : "${GENEVAL_MODEL_DIR:?Set GENEVAL_MODEL_DIR to the downloaded detector directory}"
     "$GENEVAL_PYTHON" "$root/.workbench/vendor/geneval/evaluation/evaluate_images.py" "$input" \
       --model-path "$GENEVAL_MODEL_DIR" --outfile "$output/results.jsonl"

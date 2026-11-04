@@ -1,8 +1,8 @@
 # 上下文分层存储研究（未实施）
 
-[文档目录](README.md)
+[文档目录](../README.md)
 
-> 状态：活动 KV 的 RAM/GPU 分层尚未实施。CPU 视觉已另行接入，见 [CPU 视觉实现](CPU_VISION_DESIGN.md)；当前运行策略见 [LLM 配置](LLM_MODES.md)。
+> 状态：活动 KV 的 RAM/GPU 分层尚未实施。CPU 视觉已另行接入，见 [CPU 视觉实现](../engine-notes/CPU_VISION_DESIGN.md)；当前运行策略见 [LLM 配置](../guide/LLM_MODES.md)。
 
 用户目标：八路65K继续使用当前GPU方案；仅针对256K长上下文研究RAM+GPU分层，沿用现有KV4格式、W3A4权重与DFlash2。改变KV存储位置，不提高或更换精度。当前服务未启用活动KV卸载。
 

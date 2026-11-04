@@ -1,6 +1,6 @@
 # 运行时镜像与共享 ROCm SDK
 
-[文档目录](README.md) · [引擎目录](ENGINES.md) · [存储](STORAGE.md) · [容器存储](CONTAINER_STORAGE.md)
+[文档目录](../README.md) · [引擎目录](../design/ENGINES.md) · [存储](STORAGE.md) · [容器存储](CONTAINER_STORAGE.md)
 
 更新：2026-11-02。
 

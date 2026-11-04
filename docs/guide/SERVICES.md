@@ -1,14 +1,14 @@
 # 常驻服务、项目结构与启动原理
 
-[文档目录](README.md)
+[文档目录](../README.md)
 
-更新：2026-11-02。当前架构以 [运行与调度模式](RUNTIME_TOPOLOGY.md) 为准。工作目录 `/mnt/Code/llm-backend`。
+更新：2026-11-02。当前架构以 [运行与调度模式](../design/RUNTIME_TOPOLOGY.md) 为准。工作目录 `/mnt/Code/llm-backend`。
 
 ## 日常入口
 
 - 控制台：http://127.0.0.1:13000/ 。切换模型后，整组图表会跟着替换。
 - 统一推理 API：http://127.0.0.1:18982/v1 。不需要先手动启动模型。
-- ComfyUI 画布：http://127.0.0.1:8188/ 。按需运行，先执行 `./lab comfyui start`，见 [ComfyUI 运行时](COMFYUI.md)。
+- ComfyUI 画布：http://127.0.0.1:8188/ 。按需运行，先执行 `./lab comfyui start`，见 [ComfyUI 运行时](../runtime/COMFYUI.md)。
 
 ## 常驻服务
 
@@ -19,7 +19,7 @@
 | ai-workbench.target | 总启动目标 | 聚合下列两个单元 |
 | ai-workbench-gateway.service | Next.js 页面、统一 API、队列、GPU 切换 | Node.js，13000 / 18982 / 18990 |
 | ai-workbench-monitoring.service | 启动指标采集 | ai-monitoring-prometheus / node / gpu |
-| ai-workbench-public-tunnel.service | 公网反向隧道（可选，不在 target 内） | 见 [公网 API](PUBLIC_API.md) |
+| ai-workbench-public-tunnel.service | 公网反向隧道（可选，不在 target 内） | 见 [公网 API](../api/PUBLIC_API.md) |
 
 ```bash
 cd /mnt/Code/llm-backend
@@ -53,7 +53,7 @@ Next.js 与调度共用一个进程，异常时自动重启。监控单元是 on
 
 单卡调度一次只运行一个运行时。查看全部登记的引擎包：`./lab engine list`。
 
-CPU 权重驻留没有通过完整模型验收，`platforms/scheduler/residency.json` 保持关闭；完整的 LLM 睡眠启动还有 ROCm 分配器兼容问题，所以日常服务继续冷切换。详见 [测试结果与限制](MODEL_SCHEDULING.md#内存驻留与重载)。
+CPU 权重驻留没有通过完整模型验收，`platforms/scheduler/residency.json` 保持关闭；完整的 LLM 睡眠启动还有 ROCm 分配器兼容问题，所以日常服务继续冷切换。详见 [测试结果与限制](../design/MODEL_SCHEDULING.md#内存驻留与重载)。
 
 vLLM、llama.cpp、Strata、MXFP4 等其他部署只供维护与研究登记，不在生产调度里；登记不代表已在本机验收。
 
@@ -77,8 +77,8 @@ workspace/                               权重、缓存、作品与报告
 
 ## 运行原理
 
-API 与 MCP 共用网关的任务执行和 GPU 调度。H3 与 Anima 的请求把原生图提交给 ComfyUI；直接在画布上提交的任务进入 ComfyUI 自己的队列，切换运行时前会检查这个队列是否已经空闲。跨运行时切换时，先停止旧容器再启动目标容器，ComfyUI 会随之暂时不可用。详见 [当前运行模式](RUNTIME_TOPOLOGY.md)。
+API 与 MCP 共用网关的任务执行和 GPU 调度。H3 与 Anima 的请求把原生图提交给 ComfyUI；直接在画布上提交的任务进入 ComfyUI 自己的队列，切换运行时前会检查这个队列是否已经空闲。跨运行时切换时，先停止旧容器再启动目标容器，ComfyUI 会随之暂时不可用。详见 [当前运行模式](../design/RUNTIME_TOPOLOGY.md)。
 
 Prometheus 每 5 秒采集一次网关、vLLM、宿主机和 GPU 数据。控制台（13000）基于 Next.js App Router、React 19 和 Recharts，经同一 Node.js 进程里的指标接口查询数据。
 
-模型重载策略见 [调度说明](MODEL_SCHEDULING.md)，实现技术见 [技术说明](ARCHITECTURE.md)。
+模型重载策略见 [调度说明](../design/MODEL_SCHEDULING.md)，实现技术见 [技术说明](../design/ARCHITECTURE.md)。

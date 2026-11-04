@@ -1,8 +1,8 @@
 # ROCm 10.1 升级记录
 
-[文档目录](README.md)
+[文档目录](../README.md)
 
-> 状态：2026-10-11 起的迁移与验证记录，保留当轮环境及配置。文中的构建命令和 Dockerfile 是当时的做法；2026-11-02 起镜像改为配方加共享 SDK 的单层构建，见 [运行时镜像](RUNTIME_IMAGES.md)。FLUX 已于同日下线。日常操作见 [安装与运维](OPERATIONS.md)，当前能力见 [项目现状](PROJECT_STATUS.md)。
+> 状态：2026-10-11 起的迁移与验证记录，保留当轮环境及配置。文中的构建命令和 Dockerfile 是当时的做法；2026-11-02 起镜像改为配方加共享 SDK 的单层构建，见 [运行时镜像](../runtime/RUNTIME_IMAGES.md)。FLUX 已于同日下线。日常操作见 [安装与运维](../guide/OPERATIONS.md)，当前能力见 [项目现状](../guide/PROJECT_STATUS.md)。
 
 2026-10-11：宿主升级并重启完成，已加载 amdgpu 7.1.9.31600000，amdrocm 10.1.0-3，内核 7.0.0-38-generic。开始分项验证，单卡模型保持顺序运行。
 

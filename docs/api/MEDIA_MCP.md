@@ -49,7 +49,7 @@
 | `cancel_job` | 排队中立即取消；可中断的后端（ComfyUI）运行中也能中断，其他后端开始后自行完成 |
 | `get_artifact` | 获取作品本机路径与资源元数据；`download=true` 或给 `path` 时同时下载到工作区，返回路径、大小与 sha256 |
 
-旧名 `edit_image`、`run_goldfish_workflow`、`separate_audio`、`transcribe_audio`、`download_artifact`，以及合并时代的 `generate_audio`（用 `task` 选择音频工作）仍可调用，但不再出现在工具列表中。
+旧名 `edit_image`、`run_goldfish_workflow`、`separate_audio`、`transcribe_audio`、`download_artifact`，以及合并时代的 `generate_audio`（用 `task` 选择音频工作）仍可调用（`edit_image`、`separate_audio`、`transcribe_audio` 现在是 `generate_image`、`process_audio` 的 `task`），但不再出现在工具列表中。
 
 ## 分阶段暴露
 
@@ -107,11 +107,11 @@
 - Qwen：生图 1024 / 2048，编辑输出 1024；最多 4 张参考，合计不超过 4194304 像素。
 - 图片导入仅接受合法 PNG/JPEG/WebP，归一化 PNG 并保留透明度；最多 16 MiB、16777216 像素。只读取允许目录中的普通文件，不抓取 URL。
 - 所有任务、素材与作品按 API 身份隔离；不会向 MCP 客户端返回密钥或大段作品 base64。
-- 作品位于作品盘 `Assets/<images|videos|audio>/<YYYY-MM>/<job_id>/`，任务记录、素材和调用记录在 `workspace/data/media/`；作品盘未挂载时，创建任务返回 503。见 [存储](STORAGE.md)。
+- 作品位于作品盘 `Assets/<images|videos|audio>/<YYYY-MM>/<job_id>/`，任务记录、素材和调用记录在 `workspace/data/media/`；作品盘未挂载时，创建任务返回 503。见 [存储](../runtime/STORAGE.md)。
 
 ## 视频生成（H3 原版工作流）
 
-工具：`generate_video`。旧名 `run_goldfish_workflow` 作为兼容别名保留。使用 [原版 API 图](../engines/shared/comfyui/workflows/api/02-video/yz-h3-ultimate-original.api.json)，不是三视图测试图；`generate_video` 只是这个工作流的对外名称。
+工具：`generate_video`。旧名 `run_goldfish_workflow` 作为兼容别名保留。使用 [原版 API 图](../../engines/shared/comfyui/workflows/api/02-video/yz-h3-ultimate-original.api.json)，不是三视图测试图；`generate_video` 只是这个工作流的对外名称。
 
 ```json
 {
@@ -175,7 +175,7 @@
 | `GET /history/{prompt_id}` | 指定原生任务结果 |
 | `GET /view` | 获取输出文件 |
 
-Workbench 的 ComfyUI 服务页和任务中心读取全部原生队列及最近 100 条历史，不按模型或节点筛选。服务未启动时检测不会启动它。GPU 调度切换仍等待完整原生队列空闲。直接原生提交不自动获得网关租约或持久 `job_id`，跨服务统一准入的边界见 [运行模式](RUNTIME_TOPOLOGY.md)。
+Workbench 的 ComfyUI 服务页和任务中心读取全部原生队列及最近 100 条历史，不按模型或节点筛选。服务未启动时检测不会启动它。GPU 调度切换仍等待完整原生队列空闲。直接原生提交不自动获得网关租约或持久 `job_id`，跨服务统一准入的边界见 [运行模式](../design/RUNTIME_TOPOLOGY.md)。
 
 ## 管理与测试
 

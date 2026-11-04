@@ -1,6 +1,6 @@
 # 多引擎目录
 
-[文档目录](README.md)
+[文档目录](../README.md)
 
 每个引擎是 `engines/` 下的一个包；网关、MCP、控制台、镜像构建和存储都从包里的清单读取，接入、升级和卸载不需要改平台代码。
 
@@ -8,14 +8,14 @@
 
 | 类别 | 部署 | 验收状态 |
 |---|---|---|
-| 文本 | [Qwen38 W3A4](../engines/llm/pation-model-qwen38-27b-w3a4/README.md) | 已有实际推理记录，当前统一 API 的文本后端 |
-| 图像 | [Qwen-Image 2.1](../engines/image/pation-model-qwen-image-21/README.md) | 文生图、透明图与编辑通过，保真仍待验收 |
-| 图像 | [Anima v1.1](../engines/image/anima/README.md) | ComfyUI 原生文生图与图生图，与 H3 共用运行时 |
-| 视频 | [MiniMax H3](../engines/video/pation-model-minimax-h3/README.md) | 文生视频、首帧/首尾帧通过，含音频 |
-| 语音 | [Fish Audio Drama 3](../engines/audio/fish-drama3/engine.json) | audio.cpp Q4_K_S，全部驻留显存；中文克隆与情绪标签已实测，质量对比待做 |
-| 语音 | [BS-RoFormer](../engines/audio/bs-roformer/engine.json) | 人声 / 伴奏分离，3 分钟音频约 2 分钟 |
-| 语音 | [Qwen3-ASR 1.7B](../engines/audio/qwen3-asr/engine.json) | 中文与方言识别；为语音克隆自动补全参考文本 |
-| 文本 | [Qwen38 MXFP4](../engines/llm/pation-model-qwen38-27b-mxfp4/README.md) | 入口已登记，未完成验收 |
+| 文本 | [Qwen38 W3A4](../../engines/llm/pation-model-qwen38-27b-w3a4/README.md) | 已有实际推理记录，当前统一 API 的文本后端 |
+| 图像 | [Qwen-Image 2.1](../../engines/image/pation-model-qwen-image-21/README.md) | 文生图、透明图与编辑通过，保真仍待验收 |
+| 图像 | [Anima v1.1](../../engines/image/anima/README.md) | ComfyUI 原生文生图与图生图，与 H3 共用运行时 |
+| 视频 | [MiniMax H3](../../engines/video/pation-model-minimax-h3/README.md) | 文生视频、首帧/首尾帧通过，含音频 |
+| 语音 | [Fish Audio Drama 3](../../engines/audio/fish-drama3/engine.json) | audio.cpp Q4_K_S，全部驻留显存；中文克隆与情绪标签已实测，质量对比待做 |
+| 语音 | [BS-RoFormer](../../engines/audio/bs-roformer/engine.json) | 人声 / 伴奏分离，3 分钟音频约 2 分钟 |
+| 语音 | [Qwen3-ASR 1.7B](../../engines/audio/qwen3-asr/engine.json) | 中文与方言识别；为语音克隆自动补全参考文本 |
+| 文本 | [Qwen38 MXFP4](../../engines/llm/pation-model-qwen38-27b-mxfp4/README.md) | 入口已登记，未完成验收 |
 
 ## 目录与命名
 
@@ -122,7 +122,7 @@ ama3/
 
 具体参数仍由适配器的 `params` 按模型追加。
 
-当前声明的能力（见各包的 `surface` 和 [image.surface.json](../engines/shared/capabilities/image.surface.json)）：`image.generate`、`image.edit`、`video.generate`、`speech.synthesize`、`audio.separate`、`audio.transcribe`。新增一种能力才需要改这个文件。
+当前声明的能力（见各包的 `surface` 和 [image.surface.json](../../engines/shared/capabilities/image.surface.json)）：`image.generate`、`image.edit`、`video.generate`、`speech.synthesize`、`audio.separate`、`audio.transcribe`。新增一种能力才需要改这个文件。
 
 ### adapter.mjs 钩子
 
@@ -153,7 +153,7 @@ ama3/
 | --- | --- |
 | 接入 | 放入包目录 → 如果需要新运行时，写 `image.json` 并执行 `./lab runtime build <runtime>`，GPU 验收后 `./lab runtime activate` → `./lab check` → `./lab engine enable <package>` |
 | 升级引擎 | 改 `image.json`（换底座 digest 或步骤）→ `build` → 验收 → `activate` → `./lab runtime prune --apply`；回滚：`activate` 上一版 |
-| 升级 ROCm SDK | 见 [运行时镜像 · 升级流程](RUNTIME_IMAGES.md#升级流程)；镜像不用重建 |
+| 升级 ROCm SDK | 见 [运行时镜像 · 升级流程](../runtime/RUNTIME_IMAGES.md#升级流程)；镜像不用重建 |
 | 卸载 | `./lab engine remove <package>` 先预览；加 `--apply` 后停用引擎，删除包目录、只被它占用的数据目录和运行时镜像，再用 Git 提交目录删除。共用的数据和运行时保留，作品从不删除 |
 
 ```bash
@@ -167,4 +167,4 @@ ama3/
 
 也可以在控制台「引擎」页启用、停用引擎，并在同一页设置每种能力的主推和降级顺序。启用状态和路由保存在 `workspace/config/platform-state.json`，运行时镜像的选择保存在 `workspace/config/runtime-images.json`，都不进 Git。
 
-`engine.json` 的 `storage.data` 列出包占用的目录（模型、缓存）。多个包声明同一个目录就表示共用；卸载时只删没有其他包声明的目录。布局与作品位置见 [存储](STORAGE.md)。
+`engine.json` 的 `storage.data` 列出包占用的目录（模型、缓存）。多个包声明同一个目录就表示共用；卸载时只删没有其他包声明的目录。布局与作品位置见 [存储](../runtime/STORAGE.md)。

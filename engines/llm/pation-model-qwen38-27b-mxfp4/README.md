@@ -1,6 +1,6 @@
 # Qwen3.8 27B MXFP4
 
-[文档目录](../../../docs/README.md) · [引擎目录](../../../docs/ENGINES.md)
+[文档目录](../../../docs/README.md) · [引擎目录](../../../docs/design/ENGINES.md)
 
 后端：Paiton / vLLM。设备：Radeon AI PRO R9700 32GB。
 

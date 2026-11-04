@@ -1,6 +1,6 @@
 # H3 多参考编码：32GB 显存边界与修复
 
-更新：2026-10-25。[ComfyUI 运行时](COMFYUI.md) · [媒体 MCP](MEDIA_MCP.md)
+更新：2026-10-25。[ComfyUI 运行时](../runtime/COMFYUI.md) · [媒体 MCP](../api/MEDIA_MCP.md)
 
 ## 现象
 
@@ -63,7 +63,7 @@ ComfyUI 的节点缓存按输入哈希复用；此前参考图上传使用 `refe
 
 | 层 | 位置 | 作用 |
 | --- | --- | --- |
-| 网关 | [media.mjs](../platforms/workbench/lib/media.mjs) `contentId` | 参考图按 sha256 前 32 位命名；ComfyUI 上传时同名且内容一致会复用原文件 |
+| 网关 | [media.mjs](../../platforms/workbench/lib/media.mjs) `contentId` | 参考图按 sha256 前 32 位命名；ComfyUI 上传时同名且内容一致会复用原文件 |
 | 文本编码器 | `h3_attention_patch` 的 `preprocess_embed` 包装 | 图像 → Qwen3-VL 视觉 embedding 按图像内容缓存，与提示词无关；条目存 CPU、LRU 12 条，命中时搬回 GPU |
 
 实测（2 张 1.5MP 参考图、1664×928、124 帧）：
@@ -101,7 +101,7 @@ ComfyUI 的节点缓存按输入哈希复用；此前参考图上传使用 `refe
 | 视觉塔改 bfloat16 | 收益不足。整段编码 370.8 s → 326.1 s，单张仍 39–41 s，说明视觉塔是访存受限而非精度问题 |
 | 重建 torch 2.12 + 该补丁 | 不划算。需从 fork 构建 1–3 小时，且 `torchvision`、`comfy-kitchen`、Paiton 算子均按原 ABI 编译，收益只有语言编码约 90 秒 |
 
-ROCm 10.1 本身已在本机运行（宿主 SDK `10.1.0-3`），其优化方向是数据搬运；flash 问题属于 PyTorch 的 CK 内核，不在 SDK。参见 [ROCm 10.1 升级记录](rocm101-upgrade.md)。
+ROCm 10.1 本身已在本机运行（宿主 SDK `10.1.0-3`），其优化方向是数据搬运；flash 问题属于 PyTorch 的 CK 内核，不在 SDK。参见 [ROCm 10.1 升级记录](../archive/rocm101-upgrade.md)。
 
 ## 运维结论
 

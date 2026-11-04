@@ -1,10 +1,10 @@
 # 本机 Qwen3.8 27B W3A4
 
-[文档目录](README.md)
+[文档目录](../README.md)
 
 官方来源：https://eliovp.com/blog/paiton-qwen38-w3a4-radeon-ai-pro-r9700
 
-日常调用见 [API 参考](CURRENT_API.md)，现行策略见 [LLM 配置](LLM_MODES.md)。以下手动命令用于维护窗口。
+日常调用见 [API 参考](../api/CURRENT_API.md)，现行策略见 [LLM 配置](../guide/LLM_MODES.md)。以下手动命令用于维护窗口。
 
 ## 启动
 
@@ -24,7 +24,7 @@ API：`http://127.0.0.1:18982/v1`，模型名：`qwen38-27b-w3a4`。停止服务
 
 ## 此前配置与基础验证记录
 
-上一轮 `llm-fast` 使用 `--mode 65k --vision --max-num-seqs 8 --thinking on`；上下文上限 65,536，KV 缓存格式和预算由已锁定的上游视觉预设决定。该配置属于历史验证；当前启动器按保存的上下文选择短/长模式，详见 [LLM 配置](LLM_MODES.md)。`--ignore-vram-check` 保留用于本机桌面占用，实际显存容量仍需以运行测试确认。
+上一轮 `llm-fast` 使用 `--mode 65k --vision --max-num-seqs 8 --thinking on`；上下文上限 65,536，KV 缓存格式和预算由已锁定的上游视觉预设决定。该配置属于历史验证；当前启动器按保存的上下文选择短/长模式，详见 [LLM 配置](../guide/LLM_MODES.md)。`--ignore-vram-check` 保留用于本机桌面占用，实际显存容量仍需以运行测试确认。
 
 测试脚本：`python3 .workbench/scripts/test-vision-long.py`；测试视觉计数、默认思考、约 8K／32K／60K 单请求检索及 8 路约 8K／32K 并行检索。结果保存在 `workspace/reports/llm/paiton/vision-long-context/`。这是自定义功能与负载检查，不是标准能力分数；不能与博客关闭思考的测速数字直接比较。
 
@@ -40,7 +40,7 @@ API：`http://127.0.0.1:18982/v1`，模型名：`qwen38-27b-w3a4`。停止服务
 
 三个模型目录来自 `engines/llm/pation-model-qwen38-27b-w3a4/config/local-models.json`，已复制到项目 NVMe 的 `workspace/data/llm/paiton/models/` 并通过全部 91 项 SHA256 校验，均从 NVMe 只读挂载。资源盘原件保留，运行时不再从机械盘读取这些权重。`./lab fetch --fast` 复用本地模型，并验证 INT3 包的 SHA256。运行时缓存写入项目 `workspace/data/llm/paiton/runtime/qwen38/`。
 
-上游锁定启动器的 2026-10-05 基础镜像 digest 如下；本机后续 ROCm 10.1 与 CPU 视觉运行时派生自该底座，实际启用镜像见 `./lab runtime status` 与 [升级记录](rocm101-upgrade.md)。
+上游锁定启动器的 2026-10-05 基础镜像 digest 如下；本机后续 ROCm 10.1 与 CPU 视觉运行时派生自该底座，实际启用镜像见 `./lab runtime status` 与 [升级记录](../archive/rocm101-upgrade.md)。
 
 ```text
 ghcr.io/eliovp/paiton-vllm-plugin:qwen38-rocm10-vllm029-20261005-r1@sha256:245c71d54f046f89b74dbfbd4c894003754561e55c9d215a8d3ce65364fb0f80
@@ -66,7 +66,7 @@ ghcr.io/eliovp/paiton-vllm-plugin:qwen38-rocm10-vllm029-20261005-r1@sha256:245c7
 
 ## 思考／视觉／多并发实测
 
-2026-10-11 的官方 65K 视觉预设完成 20 项检查及长文本与图片组合检查，全部通过。约 61K 单请求完成时间 19.24 秒；8 路各约 32K 整批 73.63 秒。详细限制、实际输入 token、耗时与显存见 [实测报告](../workspace/reports/llm/paiton/vision-long-context/SUMMARY.md)。
+2026-10-11 的官方 65K 视觉预设完成 20 项检查及长文本与图片组合检查，全部通过。约 61K 单请求完成时间 19.24 秒；8 路各约 32K 整批 73.63 秒。详细限制、实际输入 token、耗时与显存见 [实测报告](../../workspace/reports/llm/paiton/vision-long-context/SUMMARY.md)。
 
 内部后端别名在 `engines/shared/paiton/config/profiles.json` 的 `llm-fast.served_model_name` 中配置；公共网关发布固定名称 `qwen38-27b-w3a4`，客户端使用该名称。测速、能力评测及视觉验证脚本自动读取运行中 API 的模型名称。
 

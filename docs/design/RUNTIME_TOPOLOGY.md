@@ -2,7 +2,7 @@
 
 更新：2026-11-02（Asia/Shanghai）。本文是当前部署的统一说明。
 
-[文档目录](README.md) · [API](CURRENT_API.md) · [MCP](MEDIA_MCP.md) · [调度策略](MODEL_SCHEDULING.md) · [ComfyUI](COMFYUI.md)
+[文档目录](../README.md) · [API](../api/CURRENT_API.md) · [MCP](../api/MEDIA_MCP.md) · [调度策略](MODEL_SCHEDULING.md) · [ComfyUI](../runtime/COMFYUI.md)
 
 ## 一、引擎、运行时与接入
 
@@ -64,7 +64,7 @@ MCP 不是第二个调度器，也不直接启动 GPU。持久任务服务、同
 
 ComfyUI 按需运行，没有 systemd 单元：路由到 `h3` 或 `anima` 的请求会拉起它，`./lab comfyui start` 也会通过调度器拉起它；切换到其他运行时时，等 `/queue` 空闲后停止。查询状态、能力与队列都不会启动模型。
 
-MCP 的 `generate_video` 底层是 H3 金鱼原版工作流；`generate_image` 可以路由到 Anima（主推是 Qwen-Image）。其他画布模板不自动注册为工具。目录、挂载与模板说明见 [ComfyUI 运行时](COMFYUI.md)。
+MCP 的 `generate_video` 底层是 H3 金鱼原版工作流；`generate_image` 可以路由到 Anima（主推是 Qwen-Image）。其他画布模板不自动注册为工具。目录、挂载与模板说明见 [ComfyUI 运行时](../runtime/COMFYUI.md)。
 
 控制台不为 ComfyUI 单独设卡片：H3 与 Anima 各自的卡片只显示自己的工作流任务，配置页给出共用运行时与画布入口。任务中心直接读取 ComfyUI 的 `/system_stats`、`/queue` 和 `/history?max_items=100`，展示全部原生工作流的运行数、排队数和最近历史；只返回任务编号、状态和耗时，不返回提示词和输入。读取失败时显示不可用，并且不把它当作队列空闲的依据。
 
@@ -83,4 +83,4 @@ MCP 的 `generate_video` 底层是 H3 金鱼原版工作流；`generate_image` �
 
 ## 六、磁盘
 
-Docker 数据在 `/mnt/Code/.runtime/docker`，containerd 数据在 `/mnt/Code/.runtime/containerd`。模型在 `/mnt/Code` 数据分区，作品和报告按分类目录保存。镜像与层的空间说明见 [容器存储](CONTAINER_STORAGE.md)。
+Docker 数据在 `/mnt/Code/.runtime/docker`，containerd 数据在 `/mnt/Code/.runtime/containerd`。模型在 `/mnt/Code` 数据分区，作品和报告按分类目录保存。镜像与层的空间说明见 [容器存储](../runtime/CONTAINER_STORAGE.md)。

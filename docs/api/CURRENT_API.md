@@ -1,8 +1,8 @@
 # 当前 API 清单
 
-整理日期：2026-10-20（Asia/Shanghai）。以当前工作台路由、模型工作进程代码及本机只读查询为依据。下列生成示例仅供调用，整理过程中未执行推理或模型切换。
+整理日期：2026-11-04（Asia/Shanghai）。以当前工作台路由、引擎包声明及本机只读查询为依据；控制台「API」页按已启用的能力实时生成同样的路由表，以页面为准。下列生成示例仅供调用，整理过程中未执行推理或模型切换。
 
-[文档目录](README.md) · [LLM 配置与容量](LLM_MODES.md) · [服务说明](SERVICES.md)
+[文档目录](../README.md) · [LLM 配置与容量](../guide/LLM_MODES.md) · [服务说明](../guide/SERVICES.md)
 
 ## 1. 地址与调用约定
 
@@ -14,7 +14,7 @@
 | ComfyUI | `http://127.0.0.1:8188` | 工作流界面；不是统一聊天 API |
 
 聊天客户端 Base URL：`http://127.0.0.1:18982/v1`；模型：`qwen38-27b-w3a4`。
-公网入口必须使用有效 Bearer 密钥。本机同步 API 保留可信集成兼容：不带 Authorization 或使用 `Bearer local` 可调用；显式有效密钥执行身份额度管理。持久媒体 API / MCP 始终需要有效密钥，不接受 `local`，且目前不向公网代理开放。详见 [公网接入](PUBLIC_API.md)。
+公网入口必须使用有效 Bearer 密钥，并且接口在控制台「公网放行」里已开启（关闭的接口由网关返回 404）。本机同步 API 保留可信集成兼容：不带 Authorization 或使用 `Bearer local` 可调用；显式有效密钥执行身份额度管理。持久媒体 API / MCP 始终需要有效密钥，不接受 `local`，且目前不向公网代理开放。详见 [公网接入](PUBLIC_API.md)。
 所有 POST 使用 `Content-Type: application/json`。推理/配置请求体上限 32 MiB，控制端口请求体上限 4096 字节。
 服务监听回环地址。浏览器 Origin 仅允许 `http(s)://localhost[:端口]` 或 `http(s)://127.0.0.1[:端口]`；控制端口拒绝带 Origin 的 POST。
 
@@ -29,7 +29,7 @@
 | `anima` | 动漫/插画文生图、单图重绘（ComfyUI） | `anima` |
 | `minimax-h3` | 文生视频、首尾帧、多图/视频/混合参考 | `h3` |
 
-引擎与运行时的关系见 [运行模式](RUNTIME_TOPOLOGY.md)；语音、分离与识别只走 `/v1/media/jobs`。省略 `model`（或 `auto`）时按能力的主推与降级路由。
+引擎与运行时的关系见 [运行模式](../design/RUNTIME_TOPOLOGY.md)；语音、分离与识别的同步路径见下节，也可走 `/v1/media/jobs`。省略 `model`（或 `auto`）时按能力的主推与降级路由。
 `GET /v1/models` 返回当前保存的 Qwen 上下文与并发上限，并不代表 Qwen 已加载；实际状态查看 `/status`。
 历史上下文模型别名仍可被聊天请求识别，但全部使用当前统一引擎配置；以目录中的固定名称为准。
 
@@ -45,6 +45,9 @@
 | POST | `/v1/images/generations` | 文生图（Qwen-Image 主推，Anima 降级） |
 | POST | `/v1/images/edits` | 图像编辑（Qwen-Image）或单图重绘（Anima）；JSON + PNG base64 |
 | POST | `/v1/videos/generations` | H3 视频；同步等待结果 |
+| POST | `/v1/audio/speech`、`/v1/audio/voices`、`/v1/audio/separations`、`/v1/audio/transcriptions` | 音频同步路径：网关包装持久任务，等完成后返回作品；必须带有效密钥，默认不对公网放行 |
+| GET | `/v1/capabilities` | 能力、主推与降级顺序（仅本机） |
+| GET | `/v1/media/catalog` | MCP 工具目录，随已启用引擎变化（专用密钥） |
 | GET | `/artifacts/{32位小写十六进制ID}.mp4` | 下载视频产物，Content-Type 为 video/mp4 |
 | GET | `/data` | 面板指标、趋势、任务、KV 布局与预览 |
 | GET | `/api/engine-logs` | 指定服务或当前目标引擎日志及切换进度 |
@@ -97,8 +100,8 @@ curl -N http://127.0.0.1:18982/v1/chat/completions \
 
 | 参数 | 说明 |
 |---|---|
-| `prompt` | 必填，1–512 个字符 |
-| `size` | `1024x1024` 或 `2048x2048`；工作进程默认 2048x2048；编辑仅 1024x1024 |
+| `prompt` | 必填，1–4000 个字符 |
+| `size` | `1024x1024` 或 `2048x2048`；省略时同步 API 默认 2048x2048。编辑只接受 1024x1024，调用 `/v1/images/edits` 须显式写 `"size":"1024x1024"` |
 | `mode` | 生成：`text-to-image` 或 `rgba`；编辑：`edit` |
 | `seed` | 默认 42；整数 0 ≤ seed < 2⁶³ |
 | `n` | 仅 1 |
@@ -179,7 +182,7 @@ result.raise_for_status()
 print(result.json())
 ```
 
-仅参考图时省略 `reference_videos_b64`；仅参考视频时省略 `reference_images_b64`。以上为调用参数示例，最高配置的本机验证边界见 [ComfyUI 运行时 · H3](COMFYUI.md#h3)。
+仅参考图时省略 `reference_videos_b64`；仅参考视频时省略 `reference_images_b64`。以上为调用参数示例，最高配置的本机验证边界见 [ComfyUI 运行时 · H3](../runtime/COMFYUI.md#h3)。
 
 视频响应的 `model` 为内部名称 `h3`。`generation_seconds` 为后端流程耗时，`gateway_total_seconds` 包含排队与切换。同步调用等待结果；持久任务接口见下一节。
 
@@ -191,8 +194,8 @@ print(result.json())
 
 | 方法 | 路径 | 用途 |
 | --- | --- | --- |
-| POST | `/v1/media/assets?kind=image` 或 `kind=video` | `application/octet-stream` 二进制上传，返回 asset_id（201） |
-| POST | `/v1/media/jobs` | `{tool,arguments}`，tool 为 generate_image / edit_image / generate_video（`run_goldfish_workflow` 为兼容别名）；接受任务返回 202 |
+| POST | `/v1/media/assets?kind=image`（也可 `video`、`audio`） | `application/octet-stream` 二进制上传，返回 asset_id（201） |
+| POST | `/v1/media/jobs` | `{tool,arguments}`，tool 为 generate_image、generate_video、generate_speech、register_voice、process_audio 等（以 `/v1/media/catalog` 为准；`edit_image`、`run_goldfish_workflow` 等旧名仍被接受）；接受任务返回 202 |
 | GET | `/v1/media/jobs?offset=0&limit=20` | 当前身份的持久任务，分页上限 100 |
 | GET | `/v1/media/jobs/{job_id}?wait_seconds=10` | 查询任务；短等待 0–20 秒 |
 | POST | `/v1/media/jobs/{job_id}/cancel` | 排队中立即取消；ComfyUI 视频任务运行中按 prompt_id 中断，ComfyUI 停止后变为 `cancelled`；图像/语音请求开始后不可中断。以 `cancellable` 为准 |
@@ -309,7 +312,7 @@ HTTP 状态表示错误类别，`error.code` 表示具体原因；同为 429 的
 
 密钥可配置 `maxQueued`（默认 8，范围 0–128）；全局可配置 `maxQueued`（默认 32，范围 0–256）、`queueWaitSeconds`（默认 900，范围 1–900 秒）。管理接口返回全局和各密钥的 `active`（持有 GPU 租约）、`queued`（排队中）。排队不计执行并发；每次分配前重新检查密钥状态与并发。提高并发立即放行，停用/删除密钥立即清理该密钥的等待请求。减少队列上限不驱逐已有等待者，只限制新入队请求。
 
-所有生成请求只排一个 GPU 队列：跨引擎优先复用当前引擎并受批次、时间和老化限制，同引擎内持有租约最少的密钥优先、再按到达顺序；配置与状态字段见 [统一引擎调度](MODEL_SCHEDULING.md#统一引擎调度策略)。正文预算错误返回 `details.current_bytes`、`details.limit_bytes`、`details.requested_bytes`。
+所有生成请求只排一个 GPU 队列：跨引擎优先复用当前引擎并受批次、时间和老化限制，同引擎内持有租约最少的密钥优先、再按到达顺序；配置与状态字段见 [统一引擎调度](../design/MODEL_SCHEDULING.md#统一引擎调度策略)。正文预算错误返回 `details.current_bytes`、`details.limit_bytes`、`details.requested_bytes`。
 
 显式密钥或公网访问模型目录、上传与作品下载时仍鉴权、计 RPM，但不占执行名额；只有生成请求进入 GPU 队列。所有引擎继续受单卡调度保护，见 [多人共用](PUBLIC_API.md#多人共用与所有引擎的有界排队)。
 

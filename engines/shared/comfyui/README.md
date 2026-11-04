@@ -10,4 +10,4 @@ H3 与 Anima 共用的原生 ComfyUI（`paiton-h3-comfyui-1`，http://127.0.0.1:
 - `nodes/`：挂进容器的节点。第三方包由 `.workbench/scripts/fetch-h3-packs.sh` 恢复。
 - `workflows/`：画布模板及对应的 API 图。
 
-完整说明见 [ComfyUI 运行时](../../../docs/COMFYUI.md)。
+完整说明见 [ComfyUI 运行时](../../../docs/runtime/COMFYUI.md)。
